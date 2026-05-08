@@ -352,15 +352,29 @@ class GodotAdapter(BaseAdapter):
             result_data["capture_last"] = str(captured[-1]) if captured else ""
         return self.ok(result_data)
 
-    def _verify_all(self, scenes_dir: str = "scenes", duration: str = "5", **_kwargs: Any) -> dict:
+    def _verify_all(
+        self,
+        scenes_dir: str = "scenes",
+        duration: str = "5",
+        capture: str = "true",
+        **_kwargs: Any,
+    ) -> dict:
         """FORGE one-shot autonomy verification.
 
         Flow:
           1. validate_step0 (editor headless parse-check on every script)
           2. enumerate scenes_dir/*.tscn (default `scenes/`)
           3. _smoke each scene for `duration` seconds (default 5)
+             [C47] If capture=true (default), each scene also drops PNG frames
+             via the CaptureRecorder autoload. Last frame = visual baseline.
           4. write JSON report to .octogent/tentacles/godot_runtime/last_verify.json
           5. return aggregated PASS/FAIL
+
+        Args:
+          scenes_dir: relative dir under PROJECT_ROOT to scan for *.tscn.
+          duration:   per-scene smoke window in seconds.
+          capture:    "true"/"false" — toggle PNG capture during smoke.
+                      Defaults true; set "false" for fast no-baseline checks.
 
         Used by:
           - Manual: `python tools/cli.py godot verify_all`
@@ -370,7 +384,9 @@ class GodotAdapter(BaseAdapter):
         from datetime import datetime, timezone
         import json as _json
 
-        self.log(f"verify_all: scenes_dir='{scenes_dir}' duration={duration}s")
+        self.log(f"verify_all: scenes_dir='{scenes_dir}' duration={duration}s capture={capture}")
+
+        capture_enabled = str(capture).lower() in ("true", "1", "yes", "on")
 
         # Step 1: parse-check
         step0 = self._validate_step0()
@@ -385,14 +401,70 @@ class GodotAdapter(BaseAdapter):
         scenes_passed = 0
         scenes_failed = 0
 
+        # [C47] Build a unique capture root per verify_all run so successive runs
+        # don't overwrite each other. Uses ISO-UTC stripped of colons for FS safety.
+        # Lives under the godot_runtime tentacle so the UI can find baselines.
+        capture_root: Path | None = None
+        if capture_enabled and scene_paths:
+            ts_safe = (
+                datetime.now(timezone.utc)
+                .isoformat()
+                .replace(":", "-")
+                .replace(".", "-")
+            )
+            capture_root = (
+                PROJECT_ROOT
+                / "tools"
+                / "octogent"
+                / ".octogent"
+                / "tentacles"
+                / "godot_runtime"
+                / "captures"
+                / ts_safe
+            )
+            capture_root.mkdir(parents=True, exist_ok=True)
+            self.log(f"verify_all: capture_root={capture_root}")
+
         # Step 3: smoke each scene
         for sp in scene_paths:
             rel = sp.relative_to(PROJECT_ROOT).as_posix()
             res_uri = f"res://{rel}"
             self.log(f"verify_all: smoking {res_uri}")
-            r = self._smoke(scene=res_uri, duration=duration)
+
+            # [C47] Per-scene capture dir + interval ≈ duration*1000ms
+            # → CaptureRecorder fires ~1-2 frames; we keep the LAST one as the
+            # baseline (last_frame is what the player sees at end of smoke).
+            smoke_kwargs: dict = {"scene": res_uri, "duration": duration}
+            if capture_root is not None:
+                scene_stem = sp.stem  # e.g. "MerlinGame"
+                scene_capture_dir = capture_root / scene_stem
+                smoke_kwargs["capture"] = str(scene_capture_dir)
+                # Cap interval at half-duration so we get at least 1 frame even
+                # on shorter smokes; floor at 1000ms.
+                try:
+                    cap_interval = max(1000, (int(duration) * 1000) // 2)
+                except (TypeError, ValueError):
+                    cap_interval = 2500
+                smoke_kwargs["capture_interval"] = str(cap_interval)
+
+            r = self._smoke(**smoke_kwargs)
             data = r.get("data", {}) if isinstance(r, dict) else {}
             passed = bool(data.get("passed"))
+
+            # [C47] Resolve capture_path — prefer the LAST frame for end-of-scene
+            # state; fall back to first if last missing; empty if capture failed.
+            capture_path = ""
+            if capture_root is not None:
+                last_frame = data.get("capture_last") or data.get("capture_first") or ""
+                if last_frame:
+                    try:
+                        # Store as repo-relative POSIX path for portability.
+                        capture_path = (
+                            Path(last_frame).resolve().relative_to(PROJECT_ROOT).as_posix()
+                        )
+                    except (ValueError, OSError):
+                        capture_path = last_frame  # absolute fallback
+
             scene_results.append(
                 {
                     "scene": res_uri,
@@ -400,6 +472,8 @@ class GodotAdapter(BaseAdapter):
                     "duration_s": data.get("duration_s"),
                     "exit_code": data.get("exit_code"),
                     "script_errors": data.get("script_errors", []),
+                    "capture_path": capture_path,
+                    "capture_frames": data.get("capture_frames", 0),
                 }
             )
             if passed:
