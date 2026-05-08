@@ -32,6 +32,19 @@ _WARNING_PATTERNS = [
     re.compile(r"\bWARNING\b", re.IGNORECASE),
     re.compile(r"\bWARN\b"),
 ]
+# Noise patterns filtered BEFORE classification. The Godot editor at headless
+# parse time recursively scans the project root and emits ERROR-level lines
+# for any non-Godot subfolder it encounters (node_modules under
+# tools/octogent/, etc.). These are filesystem-scan complaints, not script
+# errors — filtering them prevents false-positive gate failures that pause
+# the autonomous loop. Keep this list narrow; if a real script error happens
+# to phrase-match, prefer suppressing it elsewhere.
+_NOISE_PATTERNS = [
+    re.compile(r"Cannot go into subdir '"),                  # editor recursive scan
+    re.compile(r"\.import.*not found"),                       # asset import cache misses
+    re.compile(r"Failed to load script .*\.js"),              # node_modules .js files
+    re.compile(r"buffer error: Stream ends prematurely"),     # editor proj resource parse
+]
 
 # Windows user-data directory for Godot save files (app_userdata/<app_name>)
 _GODOT_APPDATA = Path(os.environ.get("APPDATA", ""), "Godot", "app_userdata")
@@ -74,10 +87,16 @@ def _run(cmd: list[str], timeout: int = 120, env: dict | None = None) -> tuple[s
 
 
 def _classify_output(text: str) -> dict[str, list[str]]:
-    """Parse combined stdout/stderr for errors and warnings."""
+    """Parse combined stdout/stderr for errors and warnings.
+
+    Noise lines (filesystem scan complaints, asset cache misses) are skipped
+    BEFORE classification — see `_NOISE_PATTERNS` for rationale.
+    """
     errors: list[str] = []
     warnings: list[str] = []
     for line in text.splitlines():
+        if any(p.search(line) for p in _NOISE_PATTERNS):
+            continue
         if any(p.search(line) for p in _ERROR_PATTERNS):
             errors.append(line.strip())
         elif any(p.search(line) for p in _WARNING_PATTERNS):
@@ -156,6 +175,7 @@ class GodotAdapter(BaseAdapter):
             "validate": "Run validate.bat — full project validation pipeline",
             "validate_step0": "Run Godot editor headless parse check only",
             "smoke": "Smoke-test a specific scene (requires scene= kwarg)",
+            "verify_all": "FORGE: parse-check + smoke ALL scenes/*.tscn, write JSON report (one-shot autonomy verify)",
             "test": "Run headless test suite via res://tests/headless_runner.tscn",
             "export": "Export project for a named preset (requires preset= kwarg)",
             "telemetry": "Aggregate JSON stats from Godot user:// save files",
@@ -170,6 +190,8 @@ class GodotAdapter(BaseAdapter):
                 return self._validate_step0()
             case "smoke":
                 return self._smoke(**kwargs)
+            case "verify_all":
+                return self._verify_all(**kwargs)
             case "test":
                 return self._test()
             case "export":
@@ -329,6 +351,98 @@ class GodotAdapter(BaseAdapter):
             result_data["capture_first"] = str(captured[0]) if captured else ""
             result_data["capture_last"] = str(captured[-1]) if captured else ""
         return self.ok(result_data)
+
+    def _verify_all(self, scenes_dir: str = "scenes", duration: str = "5", **_kwargs: Any) -> dict:
+        """FORGE one-shot autonomy verification.
+
+        Flow:
+          1. validate_step0 (editor headless parse-check on every script)
+          2. enumerate scenes_dir/*.tscn (default `scenes/`)
+          3. _smoke each scene for `duration` seconds (default 5)
+          4. write JSON report to .octogent/tentacles/godot_runtime/last_verify.json
+          5. return aggregated PASS/FAIL
+
+        Used by:
+          - Manual: `python tools/cli.py godot verify_all`
+          - Watchdog: periodic call from director-watchdog.sh
+          - Workers: spawned godot_runtime tentacle workers
+        """
+        from datetime import datetime, timezone
+        import json as _json
+
+        self.log(f"verify_all: scenes_dir='{scenes_dir}' duration={duration}s")
+
+        # Step 1: parse-check
+        step0 = self._validate_step0()
+        step0_ok = step0.get("status") == "ok"
+        step0_passed = bool(step0.get("data", {}).get("passed")) if step0_ok else False
+
+        # Step 2: enumerate scenes (top-level .tscn only — subfolders excluded by design;
+        # main playable scenes live in scenes/)
+        scenes_root = PROJECT_ROOT / scenes_dir
+        scene_paths = sorted(scenes_root.glob("*.tscn")) if scenes_root.exists() else []
+        scene_results: list[dict] = []
+        scenes_passed = 0
+        scenes_failed = 0
+
+        # Step 3: smoke each scene
+        for sp in scene_paths:
+            rel = sp.relative_to(PROJECT_ROOT).as_posix()
+            res_uri = f"res://{rel}"
+            self.log(f"verify_all: smoking {res_uri}")
+            r = self._smoke(scene=res_uri, duration=duration)
+            data = r.get("data", {}) if isinstance(r, dict) else {}
+            passed = bool(data.get("passed"))
+            scene_results.append(
+                {
+                    "scene": res_uri,
+                    "passed": passed,
+                    "duration_s": data.get("duration_s"),
+                    "exit_code": data.get("exit_code"),
+                    "script_errors": data.get("script_errors", []),
+                }
+            )
+            if passed:
+                scenes_passed += 1
+            else:
+                scenes_failed += 1
+
+        # Step 4: write report
+        all_passed = step0_passed and scenes_failed == 0 and len(scene_paths) > 0
+        report = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "passed": all_passed,
+            "step0_passed": step0_passed,
+            "scenes_total": len(scene_paths),
+            "scenes_passed": scenes_passed,
+            "scenes_failed": scenes_failed,
+            "scenes": scene_results,
+            "scenes_dir": scenes_dir,
+        }
+        report_dir = PROJECT_ROOT / "tools" / "octogent" / ".octogent" / "tentacles" / "godot_runtime"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        report_path = report_dir / "last_verify.json"
+        try:
+            report_path.write_text(_json.dumps(report, indent=2), encoding="utf-8")
+        except OSError as exc:
+            self.log(f"verify_all: WARN failed to write report: {exc}")
+
+        self.log(
+            f"verify_all: passed={all_passed} step0={step0_passed} "
+            f"scenes={scenes_passed}/{len(scene_paths)} report={report_path}"
+        )
+        return self.ok(
+            {
+                **report,
+                "report_path": str(report_path),
+                "step0_summary": {
+                    "exit_code": step0.get("data", {}).get("exit_code"),
+                    "errors": step0.get("data", {}).get("errors", [])[:5],
+                }
+                if step0_ok
+                else step0,
+            }
+        )
 
     def _test(self) -> dict:
         """Run the headless test suite and parse JSON output."""
