@@ -48,6 +48,17 @@ LOG_FILE="${LOG_FILE:-/tmp/director-watchdog.log}"
 OCTOGENT_BASE="${OCTOGENT_BASE:-http://localhost:8787}"
 MAX_HOURS="${MAX_HOURS:-24}"
 
+# C52: Forge verify_all + auto-dispatch scheduling.
+# Every Nth cycle (default 6 → ~30 min @ INTERVAL=300s), the watchdog runs
+# `python tools/cli.py godot verify_all` to detect regressions, then pipes
+# the report through forge-dispatch-fixes.mjs to route failures into the
+# right tentacles' todo.md. This closes the autonomy loop:
+#   schedule → verify → dispatch → swarm fixes → next cycle.
+VERIFY_EVERY="${VERIFY_EVERY:-6}"            # cycles between forge verify_all
+VERIFY_DURATION="${VERIFY_DURATION:-3}"      # seconds per scene smoke
+VERIFY_CAPTURE="${VERIFY_CAPTURE:-true}"     # PNG capture toggle (true/false)
+CYCLE_LOG="${CYCLE_LOG:-$OCTOGENT_DIR/.octogent/tentacles/studio_director/cycle_log.md}"
+
 log() { printf '[watchdog %s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 
 # ── Idempotency ────────────────────────────────────────────────────────
@@ -255,6 +266,47 @@ while [ "$(date +%s)" -lt "$DEADLINE" ]; do
   else
     log "ERROR: node not found — cannot run tick. Sleeping anyway."
   fi
+
+  # ── C52: Scheduled forge verify_all + auto-dispatch ─────────────────
+  # Every Nth cycle (default N=6 → ~30 min @ INTERVAL=300s), run the
+  # FORGE one-shot verifier and route any failures into tentacle todo.md
+  # via forge-dispatch-fixes.mjs (C51). Skip cycle 1 so we never trigger
+  # at first launch — wait until state is stable (CYCLE >= VERIFY_EVERY).
+  if [ "$VERIFY_EVERY" -gt 0 ] && [ "$CYCLE" -ge "$VERIFY_EVERY" ] \
+     && (( CYCLE % VERIFY_EVERY == 0 )); then
+    log "Forge verify_all (cycle $CYCLE, every $VERIFY_EVERY)"
+    mkdir -p "$(dirname "$CYCLE_LOG")"
+    local_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    {
+      printf '\n## %s — verify cycle %s\n' "$local_ts" "$CYCLE"
+      printf -- '- VERIFY_EVERY=%s VERIFY_DURATION=%s VERIFY_CAPTURE=%s\n' \
+        "$VERIFY_EVERY" "$VERIFY_DURATION" "$VERIFY_CAPTURE"
+    } >> "$CYCLE_LOG"
+
+    pushd "$MERLIN_ROOT" >/dev/null || true
+    if python tools/cli.py godot verify_all \
+         --duration "$VERIFY_DURATION" \
+         --capture "$VERIFY_CAPTURE" 2>&1 | tail -20 \
+         | sed 's/^/[verify_all] /'; then
+      log "verify_all completed"
+      printf -- '- verify_all: completed\n' >> "$CYCLE_LOG"
+      if node "$SCRIPT_DIR/forge-dispatch-fixes.mjs" \
+           --workspace "$MERLIN_ROOT" 2>&1 | tail -5 \
+           | sed 's/^/[dispatch] /'; then
+        log "forge-dispatch-fixes completed"
+        printf -- '- forge-dispatch-fixes: completed\n' >> "$CYCLE_LOG"
+      else
+        log "forge-dispatch-fixes returned non-zero (may be normal if no fixes needed)"
+        printf -- '- forge-dispatch-fixes: non-zero exit (no-op or routing skipped)\n' \
+          >> "$CYCLE_LOG"
+      fi
+    else
+      log "WARN verify_all errored — skipping dispatch"
+      printf -- '- verify_all: errored — dispatch skipped\n' >> "$CYCLE_LOG"
+    fi
+    popd >/dev/null || true
+  fi
+  # ── /C52 ────────────────────────────────────────────────────────────
 
   log "Sleep ${INTERVAL}s."
   sleep "$INTERVAL" || cleanup
