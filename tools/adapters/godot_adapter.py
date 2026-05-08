@@ -426,6 +426,7 @@ class GodotAdapter(BaseAdapter):
         scenes_dir: str = "scenes",
         duration: str = "5",
         capture: str = "true",
+        strict: str = "false",
         **_kwargs: Any,
     ) -> dict:
         """FORGE one-shot autonomy verification.
@@ -452,6 +453,13 @@ class GodotAdapter(BaseAdapter):
           duration:   per-scene smoke window in seconds.
           capture:    "true"/"false" — toggle PNG capture during smoke.
                       Defaults true; set "false" for fast no-baseline checks.
+          strict:     [C50] "true"/"false" — enforce ZERO-WARNING BAR.
+                      When true, the run FAILS if ANY warnings are detected
+                      (step0 OR any scene smoke), regardless of error/script
+                      error status. This adds a quality dimension on top of
+                      the legacy errors-only gate: clean output is required
+                      before merge. Default "false" preserves the existing
+                      behavior so legacy callers see no change.
 
         Used by:
           - Manual: `python tools/cli.py godot verify_all`
@@ -461,14 +469,25 @@ class GodotAdapter(BaseAdapter):
         from datetime import datetime, timezone
         import json as _json
 
-        self.log(f"verify_all: scenes_dir='{scenes_dir}' duration={duration}s capture={capture}")
+        self.log(
+            f"verify_all: scenes_dir='{scenes_dir}' duration={duration}s "
+            f"capture={capture} strict={strict}"
+        )
 
         capture_enabled = str(capture).lower() in ("true", "1", "yes", "on")
+        # [C50] When strict mode is on, we also gate on warnings — see
+        # aggregation block below. Surfaced into the JSON report as
+        # `strict_mode` so consumers can tell which gate produced the verdict.
+        strict_enabled = str(strict).lower() in ("true", "1", "yes", "on")
 
         # Step 1: parse-check
         step0 = self._validate_step0()
         step0_ok = step0.get("status") == "ok"
-        step0_passed = bool(step0.get("data", {}).get("passed")) if step0_ok else False
+        step0_data = step0.get("data", {}) if step0_ok else {}
+        step0_passed = bool(step0_data.get("passed"))
+        # [C50] Count step0 warnings for the strict gate. `_validate_step0`
+        # already exposes `data["warnings"]` as a list[str].
+        step0_warnings_count = len(step0_data.get("warnings", []) or [])
 
         # Step 2 [C54]: headless test suite (UNIT-TEST COVERAGE quality dimension).
         # Failures are aggregated into the report but kept NON-BLOCKING for the
@@ -609,6 +628,11 @@ class GodotAdapter(BaseAdapter):
                 except (OSError, ValueError, json.JSONDecodeError) as exc:
                     self.log(f"verify_all: WARN perf parse failed for {sp.stem}: {exc}")
 
+            # [C50] Surface warnings_count from underlying _smoke data so the
+            # strict gate can aggregate without re-parsing stdout. _smoke caps
+            # the warnings list at 20 entries (noise control), so we count the
+            # raw list length here — adequate for go/no-go decisions.
+            scene_warnings_count = len(data.get("warnings", []) or [])
             scene_results.append(
                 {
                     "scene": res_uri,
@@ -616,6 +640,7 @@ class GodotAdapter(BaseAdapter):
                     "duration_s": data.get("duration_s"),
                     "exit_code": data.get("exit_code"),
                     "script_errors": data.get("script_errors", []),
+                    "warnings_count": scene_warnings_count,
                     "capture_path": capture_path,
                     "capture_frames": data.get("capture_frames", 0),
                     # [C55] perf metrics (fps_avg, fps_min, mem_peak_mb) or empty dict
@@ -646,21 +671,15 @@ class GodotAdapter(BaseAdapter):
         if capture_root is not None:
             try:
                 captures_parent = capture_root.parent  # .../captures/
-                # Sort all capture-root dirs by name (ISO timestamps in name
-                # are chronological). The most recent IS the one we just
-                # wrote — take the second-most-recent as baseline.
                 all_roots = sorted(
                     [d for d in captures_parent.glob("*") if d.is_dir()],
                     key=lambda p: p.name,
                 )
-                # Drop the current root (last entry) — anything before it
-                # is a prior run.
                 prior_roots = [d for d in all_roots if d.name != capture_root.name]
                 if prior_roots:
                     baseline_root = prior_roots[-1]
                     baseline_root_name = baseline_root.name
                     self.log(f"verify_all: baseline_root={baseline_root}")
-                    # Probe Pillow once so we emit a single warning if absent.
                     pillow_available = True
                     try:
                         import PIL.Image  # noqa: F401, PLC0415
@@ -677,8 +696,6 @@ class GodotAdapter(BaseAdapter):
                             if not cap_rel:
                                 continue
                             scene_uri = sr.get("scene", "")
-                            # Reconstruct the scene stem from res:// URI to
-                            # locate the matching baseline subdir.
                             try:
                                 stem = Path(scene_uri.replace("res://", "")).stem
                             except (TypeError, ValueError):
@@ -701,31 +718,33 @@ class GodotAdapter(BaseAdapter):
                                         f"verify_all: VISUAL REGRESSION on "
                                         f"{scene_uri} ({pct:.2f}% > 5.0%)"
                                     )
-                            # else: no baseline for this scene — leave defaults
             except OSError as exc:
-                # Globbing or stat'ing the captures dir failed — skip diff
-                # silently rather than fail the whole verify_all. This
-                # block is purely additive surface; never the gate.
                 self.log(f"verify_all: WARN regression diff skipped: {exc}")
 
         # Step 5: write report
         # [C54] all_passed requires the headless test suite to pass — UNIT-TEST
         # COVERAGE gate. A green report means: scripts parse, tests pass, AND
         # every scene boots without runtime errors.
-        # [C55] slow_scenes is informational only — does NOT flip all_passed.
-        # [C49] visual_regressions is informational only — does NOT flip all_passed.
-        # A future cycle may wire either as a gate once baselines stabilise.
+        # [C55] slow_scenes informational — does NOT flip all_passed (yet).
+        # [C49] visual_regressions informational — does NOT flip all_passed (yet).
+        # [C50] strict mode adds a ZERO-WARNING gate ON TOP of the legacy gate.
         all_passed = (
             step0_passed
             and tests_passed
             and scenes_failed == 0
             and len(scene_paths) > 0
         )
-        # [C54] tests_summary: compact view of the test outcome for the report.
-        # `results` capped at 10 to keep the report bounded even when the suite
-        # grows large. `duration_s` may be absent from current _test() return —
-        # kept here so downstream consumers see a stable shape if the runner
-        # adds timing later.
+        # [C50] ZERO-WARNING BAR — strict gate applied AFTER the legacy gate.
+        # Sum scene warnings independently so report consumers see the
+        # breakdown even when not in strict mode.
+        scenes_warnings_total = sum(s.get("warnings_count", 0) for s in scene_results)
+        if strict_enabled:
+            all_passed = (
+                all_passed
+                and step0_warnings_count == 0
+                and scenes_warnings_total == 0
+            )
+        # [C54] tests_summary: compact view of test outcome.
         tests_summary = {
             "exit_code": tests_data.get("exit_code"),
             "duration_s": tests_data.get("duration_s"),
@@ -734,12 +753,15 @@ class GodotAdapter(BaseAdapter):
         report = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "passed": all_passed,
+            "strict_mode": strict_enabled,
             "step0_passed": step0_passed,
+            "step0_warnings_count": step0_warnings_count,
             "tests_passed": tests_passed,
             "tests_summary": tests_summary,
             "scenes_total": len(scene_paths),
             "scenes_passed": scenes_passed,
             "scenes_failed": scenes_failed,
+            "scenes_warnings_total": scenes_warnings_total,
             "slow_scenes": slow_scenes,
             "scenes": scene_results,
             "scenes_dir": scenes_dir,
@@ -777,8 +799,10 @@ class GodotAdapter(BaseAdapter):
             self.log(f"verify_all: WARN failed to write HTML report: {exc}")
 
         self.log(
-            f"verify_all: passed={all_passed} step0={step0_passed} "
-            f"tests={tests_passed} scenes={scenes_passed}/{len(scene_paths)} "
+            f"verify_all: passed={all_passed} strict={strict_enabled} "
+            f"step0={step0_passed}(warns={step0_warnings_count}) "
+            f"tests={tests_passed} "
+            f"scenes={scenes_passed}/{len(scene_paths)}(warns={scenes_warnings_total}) "
             f"slow={slow_scenes} visual_regressions={visual_regressions} "
             f"baseline={baseline_root_name or 'none'} report={report_path}"
         )
