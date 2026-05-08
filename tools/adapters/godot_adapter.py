@@ -40,10 +40,10 @@ _WARNING_PATTERNS = [
 # the autonomous loop. Keep this list narrow; if a real script error happens
 # to phrase-match, prefer suppressing it elsewhere.
 _NOISE_PATTERNS = [
-    re.compile(r"Cannot go into subdir '"),                  # editor recursive scan
-    re.compile(r"\.import.*not found"),                       # asset import cache misses
-    re.compile(r"Failed to load script .*\.js"),              # node_modules .js files
-    re.compile(r"buffer error: Stream ends prematurely"),     # editor proj resource parse
+    re.compile(r"Cannot go into subdir '"),                       # editor recursive scan
+    re.compile(r"\.import.*not found.*tools/"),                    # asset import cache misses (tools/ only — narrowed per C45 code review HIGH)
+    re.compile(r"Failed to load script .*\.js"),                   # node_modules .js files
+    re.compile(r"buffer error: Stream ends prematurely"),          # editor proj resource parse
 ]
 
 # Windows user-data directory for Godot save files (app_userdata/<app_name>)
@@ -419,6 +419,15 @@ class GodotAdapter(BaseAdapter):
             "scenes": scene_results,
             "scenes_dir": scenes_dir,
         }
+        # Distinguish "no scenes found" (misconfigured path) from "scenes failed"
+        # — both yield passed=False but consumers must respond differently.
+        # (per C45 code-review MEDIUM)
+        if not scene_paths:
+            report["no_scenes_found"] = True
+            report["error_hint"] = (
+                f"scenes_dir '{scenes_dir}' contains no .tscn files — "
+                f"check the path or the scenes_dir kwarg."
+            )
         report_dir = PROJECT_ROOT / "tools" / "octogent" / ".octogent" / "tentacles" / "godot_runtime"
         report_dir.mkdir(parents=True, exist_ok=True)
         report_path = report_dir / "last_verify.json"
