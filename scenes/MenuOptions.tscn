@@ -165,6 +165,75 @@ min_value = 2020.0
 max_value = 2100.0
 value = 2026.0
 
+[node name="LanguageSection" type="VBoxContainer" parent="MainLayout/VBox/ScrollContainer/OptionsContainer"]
+layout_mode = 2
+
+[node name="LanguageRow" type="HBoxContainer" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/LanguageSection"]
+layout_mode = 2
+
+[node name="LanguageLabel" type="Label" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/LanguageSection/LanguageRow"]
+layout_mode = 2
+text = "Langue"
+
+[node name="LanguageOption" type="OptionButton" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/LanguageSection/LanguageRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VoiceSection" type="VBoxContainer" parent="MainLayout/VBox/ScrollContainer/OptionsContainer"]
+layout_mode = 2
+
+[node name="VoiceModeRow" type="HBoxContainer" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection"]
+layout_mode = 2
+
+[node name="VoiceModeLabel" type="Label" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection/VoiceModeRow"]
+layout_mode = 2
+text = "Voix Merlin"
+
+[node name="VoiceModeOption" type="OptionButton" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection/VoiceModeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VoiceBankRow" type="HBoxContainer" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection"]
+layout_mode = 2
+
+[node name="VoiceBankLabel" type="Label" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection/VoiceBankRow"]
+layout_mode = 2
+text = "Banque sonore"
+
+[node name="VoiceBankOption" type="OptionButton" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection/VoiceBankRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VoicePresetRow" type="HBoxContainer" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection"]
+layout_mode = 2
+
+[node name="VoicePresetLabel" type="Label" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection/VoicePresetRow"]
+layout_mode = 2
+text = "Preset"
+
+[node name="VoicePresetOption" type="OptionButton" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/VoiceSection/VoicePresetRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="IASection" type="VBoxContainer" parent="MainLayout/VBox/ScrollContainer/OptionsContainer"]
+layout_mode = 2
+
+[node name="BrainRow" type="HBoxContainer" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/IASection"]
+layout_mode = 2
+
+[node name="BrainLabel" type="Label" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/IASection/BrainRow"]
+layout_mode = 2
+text = "Cerveaux IA"
+
+[node name="BrainCountOption" type="OptionButton" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/IASection/BrainRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BrainInfoLabel" type="Label" parent="MainLayout/VBox/ScrollContainer/OptionsContainer/IASection"]
+layout_mode = 2
+text = ""
+autowrap_mode = 2
+
 [node name="ButtonsContainer" type="HBoxContainer" parent="MainLayout/VBox"]
 layout_mode = 2
 alignment = 1
