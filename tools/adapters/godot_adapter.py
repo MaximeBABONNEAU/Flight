@@ -357,6 +357,7 @@ class GodotAdapter(BaseAdapter):
         scenes_dir: str = "scenes",
         duration: str = "5",
         capture: str = "true",
+        strict: str = "false",
         **_kwargs: Any,
     ) -> dict:
         """FORGE one-shot autonomy verification.
@@ -375,6 +376,13 @@ class GodotAdapter(BaseAdapter):
           duration:   per-scene smoke window in seconds.
           capture:    "true"/"false" — toggle PNG capture during smoke.
                       Defaults true; set "false" for fast no-baseline checks.
+          strict:     [C50] "true"/"false" — enforce ZERO-WARNING BAR.
+                      When true, the run FAILS if ANY warnings are detected
+                      (step0 OR any scene smoke), regardless of error/script
+                      error status. This adds a quality dimension on top of
+                      the legacy errors-only gate: clean output is required
+                      before merge. Default "false" preserves the existing
+                      behavior so legacy callers see no change.
 
         Used by:
           - Manual: `python tools/cli.py godot verify_all`
@@ -384,14 +392,25 @@ class GodotAdapter(BaseAdapter):
         from datetime import datetime, timezone
         import json as _json
 
-        self.log(f"verify_all: scenes_dir='{scenes_dir}' duration={duration}s capture={capture}")
+        self.log(
+            f"verify_all: scenes_dir='{scenes_dir}' duration={duration}s "
+            f"capture={capture} strict={strict}"
+        )
 
         capture_enabled = str(capture).lower() in ("true", "1", "yes", "on")
+        # [C50] When strict mode is on, we also gate on warnings — see
+        # aggregation block below. Surfaced into the JSON report as
+        # `strict_mode` so consumers can tell which gate produced the verdict.
+        strict_enabled = str(strict).lower() in ("true", "1", "yes", "on")
 
         # Step 1: parse-check
         step0 = self._validate_step0()
         step0_ok = step0.get("status") == "ok"
-        step0_passed = bool(step0.get("data", {}).get("passed")) if step0_ok else False
+        step0_data = step0.get("data", {}) if step0_ok else {}
+        step0_passed = bool(step0_data.get("passed"))
+        # [C50] Count step0 warnings for the strict gate. `_validate_step0`
+        # already exposes `data["warnings"]` as a list[str].
+        step0_warnings_count = len(step0_data.get("warnings", []) or [])
 
         # Step 2: enumerate scenes (top-level .tscn only — subfolders excluded by design;
         # main playable scenes live in scenes/)
@@ -465,6 +484,11 @@ class GodotAdapter(BaseAdapter):
                     except (ValueError, OSError):
                         capture_path = last_frame  # absolute fallback
 
+            # [C50] Surface warnings_count from underlying _smoke data so the
+            # strict gate can aggregate without re-parsing stdout. _smoke caps
+            # the warnings list at 20 entries (noise control), so we count the
+            # raw list length here — adequate for go/no-go decisions.
+            scene_warnings_count = len(data.get("warnings", []) or [])
             scene_results.append(
                 {
                     "scene": res_uri,
@@ -472,6 +496,7 @@ class GodotAdapter(BaseAdapter):
                     "duration_s": data.get("duration_s"),
                     "exit_code": data.get("exit_code"),
                     "script_errors": data.get("script_errors", []),
+                    "warnings_count": scene_warnings_count,
                     "capture_path": capture_path,
                     "capture_frames": data.get("capture_frames", 0),
                 }
@@ -483,13 +508,26 @@ class GodotAdapter(BaseAdapter):
 
         # Step 4: write report
         all_passed = step0_passed and scenes_failed == 0 and len(scene_paths) > 0
+        # [C50] ZERO-WARNING BAR — strict gate applied AFTER the legacy gate.
+        # Sum scene warnings independently so report consumers (UI, logs) see
+        # the breakdown even when not in strict mode.
+        scenes_warnings_total = sum(s["warnings_count"] for s in scene_results)
+        if strict_enabled:
+            all_passed = (
+                all_passed
+                and step0_warnings_count == 0
+                and scenes_warnings_total == 0
+            )
         report = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "passed": all_passed,
+            "strict_mode": strict_enabled,
             "step0_passed": step0_passed,
+            "step0_warnings_count": step0_warnings_count,
             "scenes_total": len(scene_paths),
             "scenes_passed": scenes_passed,
             "scenes_failed": scenes_failed,
+            "scenes_warnings_total": scenes_warnings_total,
             "scenes": scene_results,
             "scenes_dir": scenes_dir,
         }
@@ -511,8 +549,10 @@ class GodotAdapter(BaseAdapter):
             self.log(f"verify_all: WARN failed to write report: {exc}")
 
         self.log(
-            f"verify_all: passed={all_passed} step0={step0_passed} "
-            f"scenes={scenes_passed}/{len(scene_paths)} report={report_path}"
+            f"verify_all: passed={all_passed} strict={strict_enabled} "
+            f"step0={step0_passed} (warns={step0_warnings_count}) "
+            f"scenes={scenes_passed}/{len(scene_paths)} "
+            f"(warns={scenes_warnings_total}) report={report_path}"
         )
         return self.ok(
             {
