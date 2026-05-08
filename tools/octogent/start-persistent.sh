@@ -25,6 +25,22 @@
 
 set -euo pipefail
 
+# ── 0. Drop root → merlin (REQUIRED for Claude Code bypass mode) ──────
+# Claude Code 2.x refuses --permission-mode bypassPermissions when running
+# as root (security check). Studio mode requires bypass for autonomous
+# workers, so we MUST run Octogent as a non-root user. Re-exec via sudo
+# if we landed here as root.
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  TARGET_USER="${OCTOGENT_USER:-merlin}"
+  if id -u "$TARGET_USER" >/dev/null 2>&1; then
+    rm -f /tmp/octogent.pid /tmp/octogent.log 2>/dev/null || true
+    echo "[octogent-persistent] running as root — re-exec as $TARGET_USER (claude bypass requires non-root)"
+    exec sudo -u "$TARGET_USER" -- bash "$0" "$@"
+  else
+    echo "[octogent-persistent] WARNING: running as root and user '$TARGET_USER' missing — bypass mode will fail"
+  fi
+fi
+
 # Resolve repo root from this script's location (tools/octogent/ → ../..).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MERLIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -96,6 +112,18 @@ fi
 # lives at tools/octogent/.octogent/. project.json there already has
 # displayName="MERLIN" so the dashboard still shows "MERLIN" as the
 # project name.
+# DURCISSEMENT (autopsy 2026-05-05): refuse de démarrer si $PORT est déjà
+# occupé par un autre processus. Octogent en interne fait un findOpenPort
+# fallback qui peut bind 8788 silently — c'est ce qui a doublé l'instance
+# overnight. Mieux vaut crier.
+if ss -tln 2>/dev/null | grep -qE ":${PORT}\s"; then
+  EXISTING_PID="$(ss -tlnp 2>/dev/null | grep -E ":${PORT}\s" | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)"
+  log "ERROR: port $PORT already bound (PID ${EXISTING_PID:-unknown}). Refuse to start."
+  log "  → Stop the existing instance first:  kill -9 ${EXISTING_PID:-<pid>}"
+  log "  → Or set PORT=<other> to use a different port (not recommended for the canonical 8787)."
+  exit 3
+fi
+
 log "Launching: HOST=$HOST_BIND PORT=$PORT, cwd=$OCTOGENT_DIR"
 cd "$OCTOGENT_DIR"
 setsid -f bash -c "OCTOGENT_NO_OPEN=1 HOST='$HOST_BIND' PORT='$PORT' node bin/octogent > '$LOG_FILE' 2>&1"

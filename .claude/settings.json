@@ -7,8 +7,84 @@
   "hooks": {
     "SessionStart": [
       {
-        "command": "bash .claude/hooks/session-start.sh",
-        "timeout": 120
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start.sh",
+            "timeout": 120
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s --connect-timeout 2 -m 4 -X POST \"http://127.0.0.1:8787/api/hooks/session-start?octogent_session=$OCTOGENT_SESSION_ID\" -H 'Content-Type: application/json' -d @- 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s --connect-timeout 2 -m 4 -X POST \"http://127.0.0.1:8787/api/hooks/user-prompt-submit?octogent_session=$OCTOGENT_SESSION_ID\" -H 'Content-Type: application/json' -d @- 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s --connect-timeout 2 -m 4 -X POST \"http://127.0.0.1:8787/api/hooks/pre-tool-use\" -H 'Content-Type: application/json' -H \"X-Octogent-Session: $OCTOGENT_SESSION_ID\" -d @- 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s --connect-timeout 2 -m 4 -X POST \"http://127.0.0.1:8787/api/code-intel/events\" -H 'Content-Type: application/json' -H \"X-Octogent-Session: $OCTOGENT_SESSION_ID\" -d @- 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s --connect-timeout 2 -m 4 -X POST \"http://127.0.0.1:8787/api/hooks/notification\" -H 'Content-Type: application/json' -H \"X-Octogent-Session: $OCTOGENT_SESSION_ID\" -d @- 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s --connect-timeout 2 -m 4 -X POST \"http://127.0.0.1:8787/api/hooks/stop?octogent_session=$OCTOGENT_SESSION_ID\" -H 'Content-Type: application/json' -d @- 2>/dev/null || true",
+            "timeout": 15
+          }
+        ]
       }
     ]
   }

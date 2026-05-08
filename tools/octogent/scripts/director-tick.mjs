@@ -82,13 +82,16 @@ const todoDone = directorEntry.todoDone ?? 0;
 const todoOpen = todoTotal - todoDone;
 log(`studio_director: ${todoDone}/${todoTotal} todos done (${todoOpen} open).`);
 
-// ── Step 3: existing swarm? ────────────────────────────────────────────
-// CRITICAL FIX (post-review): use GET /api/terminal-snapshots (read-only).
-// The previous code POSTed /api/terminals body {} which Octogent's
-// terminalRoutes.ts treats as a CREATE, leaking a ghost terminal every
-// tick. Confirmed source: terminalRoutes.ts:63-271 (POST = create).
-// Correct list endpoint: terminalRoutes.ts:45-60 GET /api/terminal-snapshots.
+// ── Step 3: existing swarm? — heartbeat-based detection ──────────────
+// CRITICAL FIX (post-review): GET /api/terminal-snapshots (read-only).
+// HEARTBEAT FIX (autopsy 2026-05-05): a swarm parent stayed listed in
+// the snapshot for 24h as a zombie after its workers died. Skipping on
+// "parent exists" caused 24h of skip-skip cycles. Now: check
+// `lastOutputAt` freshness. If silent > STALE_SWARM_S, kill all stale
+// matching terminals + fall through to spawn fresh.
+const STALE_SWARM_S = Number(process.env.STALE_SWARM_S ?? 1800); // 30 min default
 let activeSwarm = null;
+let staleSwarmTerminals = [];
 try {
   const res = await fetch(`${OCTOGENT_BASE}/api/terminal-snapshots`, {
     signal: AbortSignal.timeout(5000),
@@ -96,15 +99,72 @@ try {
   if (res.ok) {
     const data = await res.json();
     const arr = Array.isArray(data) ? data : (data.snapshots ?? data.terminals ?? []);
-    activeSwarm = arr.find((t) => String(t.terminalId ?? "").startsWith("studio_director-swarm-"));
+    const swarmTerminals = arr.filter((t) => String(t.terminalId ?? "").startsWith("studio_director-swarm-"));
+    if (swarmTerminals.length > 0) {
+      const nowMs = Date.now();
+      let freshestMs = 0;
+      for (const t of swarmTerminals) {
+        const ts = t.lastOutputAt || t.updatedAt || t.createdAt;
+        if (!ts) continue;
+        try {
+          const ms = new Date(ts).getTime();
+          if (Number.isFinite(ms) && ms > freshestMs) freshestMs = ms;
+        } catch { /* parse error — skip this entry */ }
+      }
+      const ageS = freshestMs > 0 ? Math.round((nowMs - freshestMs) / 1000) : Infinity;
+      if (ageS <= STALE_SWARM_S) {
+        activeSwarm = swarmTerminals[0];
+        log(`Active swarm: ${activeSwarm.terminalId} freshest=${ageS}s ago (<=${STALE_SWARM_S}s). Skip spawn.`);
+      } else {
+        staleSwarmTerminals = swarmTerminals;
+        log(`Stale swarm: ${swarmTerminals.length} terminals, freshest=${ageS}s ago (>${STALE_SWARM_S}s). Kill+respawn.`);
+      }
+    }
   }
 } catch (e) {
   log(`Terminal list fetch failed: ${e.message} — assuming no active swarm.`);
 }
 
 if (activeSwarm) {
-  log(`Active swarm detected: ${activeSwarm.terminalId} (status=${activeSwarm.status ?? "?"}). Skip spawn.`);
-  appendCycleLog(`\n## Cycle ${now()}\n\n- Octogent health: ok\n- Active swarm: \`${activeSwarm.terminalId}\` status=${activeSwarm.status ?? "?"}\n- Open todos: ${todoOpen}\n- Action: **skip** (swarm already running)\n`);
+  appendCycleLog(`\n## Cycle ${now()}\n\n- Octogent health: ok\n- Active swarm: \`${activeSwarm.terminalId}\` (fresh)\n- Open todos: ${todoOpen}\n- Action: **skip** (swarm already running)\n`);
+  process.exit(0);
+}
+
+if (staleSwarmTerminals.length > 0 && !DRY_RUN) {
+  for (const t of staleSwarmTerminals) {
+    try {
+      await fetch(`${OCTOGENT_BASE}/api/terminals/${encodeURIComponent(t.terminalId)}/kill`, {
+        method: "POST",
+        signal: AbortSignal.timeout(5000),
+      });
+      log(`  Killed stale terminal: ${t.terminalId}`);
+    } catch (e) {
+      log(`  Kill failed for ${t.terminalId}: ${e.message}`);
+    }
+  }
+  // BUGFIX (2026-05-08): kill marks lifecycleState="stopped" but the spawn
+  // check at deckRoutes.ts:589 only filters by terminalId prefix, not state —
+  // so a stopped swarm-parent still triggers HTTP 409 "swarm already active".
+  // Prune fully removes stale|exited|stopped entries from the registry.
+  try {
+    const pruneRes = await fetch(`${OCTOGENT_BASE}/api/terminals/prune`, {
+      method: "POST",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (pruneRes.ok) {
+      const pruneData = await pruneRes.json();
+      const pruned = Array.isArray(pruneData.prunedTerminalIds) ? pruneData.prunedTerminalIds : [];
+      log(`  Pruned ${pruned.length} stopped terminal(s) from registry.`);
+    } else {
+      log(`  Prune failed: HTTP ${pruneRes.status}`);
+    }
+  } catch (e) {
+    log(`  Prune fetch failed: ${e.message}`);
+  }
+  appendCycleLog(`\n## Cycle ${now()}\n\n- Octogent health: ok\n- Stale swarm killed+pruned: ${staleSwarmTerminals.length} terminals\n- Open todos: ${todoOpen}\n- Action: **kill+prune+respawn** (proceeding to spawn)\n`);
+} else if (staleSwarmTerminals.length > 0 && DRY_RUN) {
+  log(`[DRY RUN] Would kill ${staleSwarmTerminals.length} stale terminals + respawn.`);
+  appendCycleLog(`\n## Cycle ${now()}\n\n- Octogent health: ok\n- Stale swarm: ${staleSwarmTerminals.length} (dry-run)\n- Open todos: ${todoOpen}\n- Action: **dry-run** (would kill+respawn)\n`);
   process.exit(0);
 }
 
@@ -124,11 +184,16 @@ if (DRY_RUN) {
 log(`Spawning swarm — ${todoOpen} workers expected (capped server-side).`);
 let spawnResult;
 try {
+  // Spawn timeout = 60s. Empirical (2026-05-08): the server takes ~40s to
+  // create the git worktree + boot the Claude PTY before responding. The
+  // previous 10s timeout aborted the client while the server kept working,
+  // making the cycle_log report "spawn failed" even though the worker spawned
+  // fine. 60s gives comfortable headroom for cold-start git ops on NTFS-via-WSL.
   const res = await fetch(`${OCTOGENT_BASE}/api/deck/tentacles/studio_director/swarm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ agentProvider: "claude-code", workspaceMode: "worktree" }),
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(60000),
   });
   spawnResult = await res.json();
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${spawnResult.error ?? "unknown"}`);
