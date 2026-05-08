@@ -79,23 +79,33 @@ func _ready():
 
 
 func _configure_calendar_options() -> void:
-	# Configure SpinBox ranges (nodes already in scene)
-	calendar_day_spin.min_value = 1
-	calendar_day_spin.max_value = 31
-	calendar_month_spin.min_value = 1
-	calendar_month_spin.max_value = 12
-	calendar_year_spin.min_value = 2020
-	calendar_year_spin.max_value = 2100
-
-	# Connect signals
-	calendar_override_check.toggled.connect(_on_calendar_override_toggled)
-	calendar_day_spin.value_changed.connect(_on_calendar_day_changed)
-	calendar_month_spin.value_changed.connect(_on_calendar_month_changed)
-	calendar_year_spin.value_changed.connect(_on_calendar_year_changed)
+	# Per-node null guards — partial scene support. The .tscn currently only
+	# contains CalendarOverrideCheck/DaySpin/MonthSpin (no YearSpin yet); these
+	# guards prevent SCRIPT ERROR null-instance crashes while the scene is
+	# being expanded incrementally. Guards mirror the style already used in
+	# `apply_to_ui` and `_update_calendar_ui_enabled`.
+	if calendar_day_spin:
+		calendar_day_spin.min_value = 1
+		calendar_day_spin.max_value = 31
+		calendar_day_spin.value_changed.connect(_on_calendar_day_changed)
+	if calendar_month_spin:
+		calendar_month_spin.min_value = 1
+		calendar_month_spin.max_value = 12
+		calendar_month_spin.value_changed.connect(_on_calendar_month_changed)
+	if calendar_year_spin:
+		calendar_year_spin.min_value = 2020
+		calendar_year_spin.max_value = 2100
+		calendar_year_spin.value_changed.connect(_on_calendar_year_changed)
+	if calendar_override_check:
+		calendar_override_check.toggled.connect(_on_calendar_override_toggled)
 
 
 func _configure_language_options() -> void:
-	# Populate language items (data-driven, node already in scene)
+	# Early return if LanguageOption is missing from .tscn (LanguageSection
+	# container not yet added to the scene). Same defensive style as
+	# `apply_to_ui` voice/IA guards.
+	if language_option == null:
+		return
 	var locale_mgr = get_node_or_null("/root/LocaleManager")
 	var codes: Array = []
 	if locale_mgr:
@@ -121,6 +131,11 @@ func _configure_language_options() -> void:
 
 
 func _configure_voice_options() -> void:
+	# Early return if VoiceMode is missing from .tscn (VoiceSection container
+	# not yet added to the scene).
+	if voice_mode_option == null:
+		_update_voice_ui_enabled()
+		return
 	# Populate voice mode (3 items, node already in scene)
 	voice_mode_option.add_item(tr("VOICE_SPOKEN"))    # 0
 	voice_mode_option.add_item(tr("VOICE_ROBOT"))    # 1
@@ -128,33 +143,35 @@ func _configure_voice_options() -> void:
 	voice_mode_option.selected = current_config.get("voice_mode", 0)
 	voice_mode_option.item_selected.connect(_on_voice_mode_changed)
 
-	# Populate sound banks (9 banks with metadata)
-	var bank_names := ["default", "high", "low", "lowest", "med", "robot", "glitch", "whisper", "droid"]
-	var bank_keys := {
-		"default": "VOICE_BANK_CLASSIC", "high": "VOICE_BANK_HIGH", "low": "VOICE_BANK_LOW",
-		"lowest": "VOICE_BANK_VERY_LOW", "med": "VOICE_BANK_MEDIUM", "robot": "VOICE_BANK_ROBOT_BEEP",
-		"glitch": "VOICE_BANK_GLITCH", "whisper": "VOICE_BANK_WHISPER", "droid": "VOICE_BANK_DROID",
-	}
-	for bname in bank_names:
-		voice_bank_option.add_item(tr(bank_keys.get(bname, bname)))
-		voice_bank_option.set_item_metadata(voice_bank_option.item_count - 1, bname)
-	var cur_bank: String = current_config.get("voice_bank", "default")
-	for i in range(voice_bank_option.item_count):
-		if voice_bank_option.get_item_metadata(i) == cur_bank:
-			voice_bank_option.selected = i
-			break
-	voice_bank_option.item_selected.connect(_on_voice_bank_changed)
+	# Populate sound banks (9 banks with metadata) — guard if VoiceBank node missing
+	if voice_bank_option:
+		var bank_names := ["default", "high", "low", "lowest", "med", "robot", "glitch", "whisper", "droid"]
+		var bank_keys := {
+			"default": "VOICE_BANK_CLASSIC", "high": "VOICE_BANK_HIGH", "low": "VOICE_BANK_LOW",
+			"lowest": "VOICE_BANK_VERY_LOW", "med": "VOICE_BANK_MEDIUM", "robot": "VOICE_BANK_ROBOT_BEEP",
+			"glitch": "VOICE_BANK_GLITCH", "whisper": "VOICE_BANK_WHISPER", "droid": "VOICE_BANK_DROID",
+		}
+		for bname in bank_names:
+			voice_bank_option.add_item(tr(bank_keys.get(bname, bname)))
+			voice_bank_option.set_item_metadata(voice_bank_option.item_count - 1, bname)
+		var cur_bank: String = current_config.get("voice_bank", "default")
+		for i in range(voice_bank_option.item_count):
+			if voice_bank_option.get_item_metadata(i) == cur_bank:
+				voice_bank_option.selected = i
+				break
+		voice_bank_option.item_selected.connect(_on_voice_bank_changed)
 
-	# Populate voice presets (12 items)
-	var preset_keys := ["Merlin", "VOICE_PRESET_SOFT", "VOICE_PRESET_QUILL", "VOICE_PRESET_CRYSTAL", "VOICE_PRESET_ANCIENT", "VOICE_PRESET_NORMAL", "VOICE_PRESET_HIGH", "VOICE_PRESET_LOW", "VOICE_PRESET_CHILD", "VOICE_PRESET_WISE", "VOICE_PRESET_JOYFUL", "VOICE_PRESET_MYSTERIOUS"]
-	for pkey in preset_keys:
-		voice_preset_option.add_item(tr(pkey))
-	var cur_preset: String = current_config.get("voice_preset", "Merlin")
-	for i in range(voice_preset_option.item_count):
-		if voice_preset_option.get_item_text(i) == cur_preset:
-			voice_preset_option.selected = i
-			break
-	voice_preset_option.item_selected.connect(_on_voice_preset_changed)
+	# Populate voice presets (12 items) — guard if VoicePreset node missing
+	if voice_preset_option:
+		var preset_keys := ["Merlin", "VOICE_PRESET_SOFT", "VOICE_PRESET_QUILL", "VOICE_PRESET_CRYSTAL", "VOICE_PRESET_ANCIENT", "VOICE_PRESET_NORMAL", "VOICE_PRESET_HIGH", "VOICE_PRESET_LOW", "VOICE_PRESET_CHILD", "VOICE_PRESET_WISE", "VOICE_PRESET_JOYFUL", "VOICE_PRESET_MYSTERIOUS"]
+		for pkey in preset_keys:
+			voice_preset_option.add_item(tr(pkey))
+		var cur_preset: String = current_config.get("voice_preset", "Merlin")
+		for i in range(voice_preset_option.item_count):
+			if voice_preset_option.get_item_text(i) == cur_preset:
+				voice_preset_option.selected = i
+				break
+		voice_preset_option.item_selected.connect(_on_voice_preset_changed)
 
 	_update_voice_ui_enabled()
 
@@ -190,7 +207,11 @@ const BRAIN_OPTIONS := [
 
 
 func _configure_ia_options() -> void:
-	# Populate brain count options (node already in scene)
+	# Early return if BrainCountOption is missing from .tscn (IASection container
+	# not yet added to the scene). Guards mirror voice/language style.
+	if brain_count_option == null:
+		return
+	# Populate brain count options (node now confirmed present)
 	for opt in BRAIN_OPTIONS:
 		brain_count_option.add_item(tr(opt["label_key"]))
 		brain_count_option.set_item_metadata(brain_count_option.item_count - 1, opt["value"])
@@ -201,10 +222,12 @@ func _configure_ia_options() -> void:
 			break
 	brain_count_option.item_selected.connect(_on_brain_count_changed)
 
-	# Configure info label styling
-	brain_info_label.add_theme_font_size_override("font_size", 14)
-	brain_info_label.add_theme_color_override("font_color", MerlinVisual.CRT_PALETTE.phosphor_dim)
-	brain_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Configure info label styling — separate guard since BrainInfoLabel sits
+	# in IASection but is independent of BrainCountOption resolution.
+	if brain_info_label:
+		brain_info_label.add_theme_font_size_override("font_size", 14)
+		brain_info_label.add_theme_color_override("font_color", MerlinVisual.CRT_PALETTE.phosphor_dim)
+		brain_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_update_brain_info_label()
 
 
