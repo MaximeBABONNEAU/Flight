@@ -252,9 +252,17 @@ async function main() {
     process.exit(2);
   }
 
-  // Nothing to dispatch on a clean report.
-  if (report.passed === true) {
-    console.log("[forge-dispatch] verify_all passed — nothing to dispatch");
+  // [C51 HIGH fix per code review on ca0e286a]: Visual regressions are
+  // intentionally non-blocking for `all_passed` (a scene can boot clean and
+  // still render differently — that's the whole point of C49). The earlier
+  // `passed === true` early-exit silently dropped those signals before they
+  // could route to art_direction. Now we exit only when the report is fully
+  // clean across BOTH the legacy gate AND the visual regression surface.
+  const visualRegressionsCount = Number.isFinite(report.visual_regressions)
+    ? report.visual_regressions
+    : 0;
+  if (report.passed === true && visualRegressionsCount === 0) {
+    console.log("[forge-dispatch] verify_all passed (no visual regressions) — nothing to dispatch");
     process.exit(0);
   }
 
@@ -266,10 +274,22 @@ async function main() {
     dispatchPlan.get(tentacle).push({ marker, line });
   };
 
-  // 1. Per-scene runtime failures.
+  // 1. Per-scene signals — TWO independent dispatch lanes:
+  //    a) runtime failures (scene.passed === false) → quality_bug_fixer / debug_qa
+  //    b) visual regressions (scene.visual_regression === true) → art_direction
+  // A scene CAN have both (boots fine but renders differently AND has
+  // script_errors on a different code path — rare but possible).
+  // [C51 HIGH fix per code review]: visual regression collection now happens
+  // BEFORE the runtime-failure `continue`, so a green-smoke scene that
+  // visually regressed still routes correctly.
   const scenes = Array.isArray(report.scenes) ? report.scenes : [];
   const visualRegressionScenes = [];
   for (const scene of scenes) {
+    // Lane B: collect visual regressions regardless of smoke pass/fail.
+    if (scene.visual_regression === true) {
+      visualRegressionScenes.push(scene.scene);
+    }
+    // Lane A: runtime failure routing — skip green-smoke scenes here.
     if (scene.passed === true) continue;
     const tentacle = routeScriptErrors(scene.script_errors);
     enqueue(
@@ -277,9 +297,6 @@ async function main() {
       stableMarker(scene.scene),
       buildSceneTodo(scene),
     );
-    if (scene.visual_regression === true) {
-      visualRegressionScenes.push(scene.scene);
-    }
   }
 
   // 2. step0 parse errors.
