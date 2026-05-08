@@ -425,6 +425,19 @@ class GodotAdapter(BaseAdapter):
         scene_results: list[dict] = []
         scenes_passed = 0
         scenes_failed = 0
+        slow_scenes = 0  # [C55] FPS < 30 or mem_peak_mb > 500
+
+        # [C55] Per-scene perf JSON dir for PerfRecorder autoload dumps.
+        perf_root = (
+            PROJECT_ROOT
+            / "tools"
+            / "octogent"
+            / ".octogent"
+            / "tentacles"
+            / "godot_runtime"
+            / "perf"
+        )
+        perf_root.mkdir(parents=True, exist_ok=True)
 
         # [C47] Build a unique capture root per verify_all run so successive runs
         # don't overwrite each other. Uses ISO-UTC stripped of colons for FS safety.
@@ -472,7 +485,26 @@ class GodotAdapter(BaseAdapter):
                     cap_interval = 2500
                 smoke_kwargs["capture_interval"] = str(cap_interval)
 
-            r = self._smoke(**smoke_kwargs)
+            # [C55] Patch MERLIN_PERF_OUT around the smoke call so PerfRecorder
+            # autoload dumps a per-scene JSON. Use try/finally to restore the prior
+            # value (or unset) — keeps zero-overhead default for unrelated callers.
+            scene_perf_path = perf_root / f"{sp.stem}.json"
+            # Wipe any stale file so a missing dump (e.g. autoload not yet active)
+            # is detectable as "no perf data" instead of stale C54 numbers.
+            try:
+                if scene_perf_path.exists():
+                    scene_perf_path.unlink()
+            except OSError:
+                pass
+            _prev_perf_env = os.environ.get("MERLIN_PERF_OUT")
+            os.environ["MERLIN_PERF_OUT"] = str(scene_perf_path)
+            try:
+                r = self._smoke(**smoke_kwargs)
+            finally:
+                if _prev_perf_env is None:
+                    os.environ.pop("MERLIN_PERF_OUT", None)
+                else:
+                    os.environ["MERLIN_PERF_OUT"] = _prev_perf_env
             data = r.get("data", {}) if isinstance(r, dict) else {}
             passed = bool(data.get("passed"))
 
@@ -490,6 +522,22 @@ class GodotAdapter(BaseAdapter):
                     except (ValueError, OSError):
                         capture_path = last_frame  # absolute fallback
 
+            # [C55] Read PerfRecorder JSON if it landed; truncate to 3 surfaced fields.
+            perf: dict | None = None
+            if scene_perf_path.exists():
+                try:
+                    raw = json.loads(scene_perf_path.read_text(encoding="utf-8"))
+                    perf = {
+                        "fps_avg": float(raw.get("fps_avg", 0.0)),
+                        "fps_min": float(raw.get("fps_min", 0.0)),
+                        "mem_peak_mb": float(raw.get("mem_peak_mb", 0.0)),
+                    }
+                    # Slow gate (informational only — does not flip all_passed).
+                    if perf["fps_avg"] < 30.0 or perf["mem_peak_mb"] > 500.0:
+                        slow_scenes += 1
+                except (OSError, ValueError, json.JSONDecodeError) as exc:
+                    self.log(f"verify_all: WARN perf parse failed for {sp.stem}: {exc}")
+
             scene_results.append(
                 {
                     "scene": res_uri,
@@ -499,6 +547,7 @@ class GodotAdapter(BaseAdapter):
                     "script_errors": data.get("script_errors", []),
                     "capture_path": capture_path,
                     "capture_frames": data.get("capture_frames", 0),
+                    "perf": perf,
                 }
             )
             if passed:
@@ -507,9 +556,11 @@ class GodotAdapter(BaseAdapter):
                 scenes_failed += 1
 
         # Step 5: write report
-        # [C54] all_passed now requires the headless test suite to pass too —
-        # this is the UNIT-TEST COVERAGE gate. A green report means: scripts
-        # parse, tests pass, AND every scene boots without runtime errors.
+        # [C54] all_passed requires the headless test suite to pass — UNIT-TEST
+        # COVERAGE gate. A green report means: scripts parse, tests pass, AND
+        # every scene boots without runtime errors.
+        # [C55] slow_scenes is informational only — does NOT flip all_passed.
+        # A future cycle may wire it as a gate once baselines stabilise.
         all_passed = (
             step0_passed
             and tests_passed
@@ -517,10 +568,10 @@ class GodotAdapter(BaseAdapter):
             and len(scene_paths) > 0
         )
         # [C54] tests_summary: compact view of the test outcome for the report.
-        # `results` is the list of per-test entries the runner emits; we cap at
-        # 10 to keep the report bounded even when the suite grows large.
-        # `duration_s` may be absent from current _test() return — kept here so
-        # downstream consumers see a stable shape if the runner adds timing.
+        # `results` capped at 10 to keep the report bounded even when the suite
+        # grows large. `duration_s` may be absent from current _test() return —
+        # kept here so downstream consumers see a stable shape if the runner
+        # adds timing later.
         tests_summary = {
             "exit_code": tests_data.get("exit_code"),
             "duration_s": tests_data.get("duration_s"),
@@ -535,6 +586,7 @@ class GodotAdapter(BaseAdapter):
             "scenes_total": len(scene_paths),
             "scenes_passed": scenes_passed,
             "scenes_failed": scenes_failed,
+            "slow_scenes": slow_scenes,
             "scenes": scene_results,
             "scenes_dir": scenes_dir,
         }
@@ -567,7 +619,7 @@ class GodotAdapter(BaseAdapter):
         self.log(
             f"verify_all: passed={all_passed} step0={step0_passed} "
             f"tests={tests_passed} scenes={scenes_passed}/{len(scene_paths)} "
-            f"report={report_path}"
+            f"slow={slow_scenes} report={report_path}"
         )
         return self.ok(
             {
