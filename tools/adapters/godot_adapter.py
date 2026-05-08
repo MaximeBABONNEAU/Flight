@@ -363,12 +363,16 @@ class GodotAdapter(BaseAdapter):
 
         Flow:
           1. validate_step0 (editor headless parse-check on every script)
-          2. enumerate scenes_dir/*.tscn (default `scenes/`)
-          3. _smoke each scene for `duration` seconds (default 5)
+          2. [C54] _test (headless test suite via res://tests/headless_runner.gd).
+             Quality dimension: UNIT-TEST COVERAGE. Test failures are recorded
+             but NON-BLOCKING — scene smoking always proceeds for full picture.
+          3. enumerate scenes_dir/*.tscn (default `scenes/`)
+          4. _smoke each scene for `duration` seconds (default 5)
              [C47] If capture=true (default), each scene also drops PNG frames
              via the CaptureRecorder autoload. Last frame = visual baseline.
-          4. write JSON report to .octogent/tentacles/godot_runtime/last_verify.json
-          5. return aggregated PASS/FAIL
+          5. write JSON report to .octogent/tentacles/godot_runtime/last_verify.json
+          6. return aggregated PASS/FAIL (requires step0_passed AND tests_passed
+             AND scenes_failed == 0 AND scenes_total > 0)
 
         Args:
           scenes_dir: relative dir under PROJECT_ROOT to scan for *.tscn.
@@ -393,7 +397,26 @@ class GodotAdapter(BaseAdapter):
         step0_ok = step0.get("status") == "ok"
         step0_passed = bool(step0.get("data", {}).get("passed")) if step0_ok else False
 
-        # Step 2: enumerate scenes (top-level .tscn only — subfolders excluded by design;
+        # Step 2 [C54]: headless test suite (UNIT-TEST COVERAGE quality dimension).
+        # Failures are aggregated into the report but kept NON-BLOCKING for the
+        # scene smoking step — we still want the full per-scene picture even when
+        # tests are red, so the verify_all report stays diagnostically rich.
+        tests = self._test()
+        tests_ok = tests.get("status") == "ok"
+        tests_data = tests.get("data", {}) if tests_ok else {}
+        # Prefer the explicit `passed` flag from _test() (handles the JSON
+        # test_results.failed == [] semantics); fall back to ok-and-no-errors
+        # when that flag is missing (defensive against future _test() reshapes).
+        if "passed" in tests_data:
+            tests_passed = bool(tests_data.get("passed"))
+        else:
+            tests_passed = tests_ok and not tests_data.get("errors")
+        self.log(
+            f"verify_all: tests_passed={tests_passed} "
+            f"exit_code={tests_data.get('exit_code')}"
+        )
+
+        # Step 3: enumerate scenes (top-level .tscn only — subfolders excluded by design;
         # main playable scenes live in scenes/)
         scenes_root = PROJECT_ROOT / scenes_dir
         scene_paths = sorted(scenes_root.glob("*.tscn")) if scenes_root.exists() else []
@@ -425,7 +448,7 @@ class GodotAdapter(BaseAdapter):
             capture_root.mkdir(parents=True, exist_ok=True)
             self.log(f"verify_all: capture_root={capture_root}")
 
-        # Step 3: smoke each scene
+        # Step 4: smoke each scene
         for sp in scene_paths:
             rel = sp.relative_to(PROJECT_ROOT).as_posix()
             res_uri = f"res://{rel}"
@@ -481,12 +504,32 @@ class GodotAdapter(BaseAdapter):
             else:
                 scenes_failed += 1
 
-        # Step 4: write report
-        all_passed = step0_passed and scenes_failed == 0 and len(scene_paths) > 0
+        # Step 5: write report
+        # [C54] all_passed now requires the headless test suite to pass too —
+        # this is the UNIT-TEST COVERAGE gate. A green report means: scripts
+        # parse, tests pass, AND every scene boots without runtime errors.
+        all_passed = (
+            step0_passed
+            and tests_passed
+            and scenes_failed == 0
+            and len(scene_paths) > 0
+        )
+        # [C54] tests_summary: compact view of the test outcome for the report.
+        # `results` is the list of per-test entries the runner emits; we cap at
+        # 10 to keep the report bounded even when the suite grows large.
+        # `duration_s` may be absent from current _test() return — kept here so
+        # downstream consumers see a stable shape if the runner adds timing.
+        tests_summary = {
+            "exit_code": tests_data.get("exit_code"),
+            "duration_s": tests_data.get("duration_s"),
+            "details": list(tests_data.get("results", []) or [])[:10],
+        }
         report = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "passed": all_passed,
             "step0_passed": step0_passed,
+            "tests_passed": tests_passed,
+            "tests_summary": tests_summary,
             "scenes_total": len(scene_paths),
             "scenes_passed": scenes_passed,
             "scenes_failed": scenes_failed,
@@ -512,7 +555,8 @@ class GodotAdapter(BaseAdapter):
 
         self.log(
             f"verify_all: passed={all_passed} step0={step0_passed} "
-            f"scenes={scenes_passed}/{len(scene_paths)} report={report_path}"
+            f"tests={tests_passed} scenes={scenes_passed}/{len(scene_paths)} "
+            f"report={report_path}"
         )
         return self.ok(
             {
