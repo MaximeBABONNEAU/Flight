@@ -18,7 +18,11 @@ func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	_load_fonts()
 	_apply_theme()
-	back_button.pressed.connect(_on_back_pressed)
+	# UI is currently a stub (.tscn doesn't yet contain RootPanel/Title/Hint/
+	# Slots/BackButton); guard signal wiring so the auto-continue flow below
+	# still fires without crashing on null back_button.
+	if back_button:
+		back_button.pressed.connect(_on_back_pressed)
 	# Auto-continue (Hades-style): skip UI, load profile and go
 	_auto_continue()
 
@@ -33,30 +37,38 @@ func _load_fonts() -> void:
 
 
 func _apply_theme() -> void:
+	# All scene nodes are optional — the .tscn is currently a stub for the
+	# auto-continue flow (Hades-style: no save selection UI yet, jump
+	# straight to the cabin). Each block self-guards so the function always
+	# completes and _auto_continue() can run.
 	var bg := get_node_or_null("Background")
 	if bg is ColorRect:
 		bg.color = MerlinVisual.CRT_PALETTE["bg_dark"]
 
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = MerlinVisual.CRT_PALETTE["bg_panel"]
-	panel_style.border_color = MerlinVisual.CRT_PALETTE["border"]
-	panel_style.set_border_width_all(1)
-	panel_style.set_corner_radius_all(4)
-	panel_style.shadow_color = MerlinVisual.CRT_PALETTE["shadow"]
-	panel_style.shadow_size = 12
-	panel_style.shadow_offset = Vector2(0, 4)
-	panel.add_theme_stylebox_override("panel", panel_style)
+	if panel:
+		var panel_style := StyleBoxFlat.new()
+		panel_style.bg_color = MerlinVisual.CRT_PALETTE["bg_panel"]
+		panel_style.border_color = MerlinVisual.CRT_PALETTE["border"]
+		panel_style.set_border_width_all(1)
+		panel_style.set_corner_radius_all(4)
+		panel_style.shadow_color = MerlinVisual.CRT_PALETTE["shadow"]
+		panel_style.shadow_size = 12
+		panel_style.shadow_offset = Vector2(0, 4)
+		panel.add_theme_stylebox_override("panel", panel_style)
 
-	title_label.add_theme_font_override("font", font_title)
-	title_label.add_theme_font_size_override("font_size", 30)
-	var title_color: Color = MerlinVisual.CRT_PALETTE["phosphor"]
-	title_label.add_theme_color_override("font_color", title_color)
+	if title_label:
+		title_label.add_theme_font_override("font", font_title)
+		title_label.add_theme_font_size_override("font_size", 30)
+		var title_color: Color = MerlinVisual.CRT_PALETTE["phosphor"]
+		title_label.add_theme_color_override("font_color", title_color)
 
-	hint_label.add_theme_font_override("font", font_body)
-	hint_label.add_theme_font_size_override("font_size", 14)
-	var hint_color: Color = MerlinVisual.CRT_PALETTE["phosphor_dim"]
-	hint_label.add_theme_color_override("font_color", hint_color)
+	if hint_label:
+		hint_label.add_theme_font_override("font", font_body)
+		hint_label.add_theme_font_size_override("font_size", 14)
+		var hint_color: Color = MerlinVisual.CRT_PALETTE["phosphor_dim"]
+		hint_label.add_theme_color_override("font_color", hint_color)
 
+	# _style_button already null-guards internally, but skip cleanly when null.
 	_style_button(back_button)
 
 
@@ -110,6 +122,12 @@ func _auto_continue() -> void:
 
 
 func _build_profile_ui() -> void:
+	# slots_vbox is null when the .tscn lacks RootPanel/RootVBox/Slots
+	# (current stub state). The auto-continue flow never reaches here in
+	# practice — only the fallback path does, and the fallback is harmless
+	# to skip when there's no UI container to populate.
+	if slots_vbox == null:
+		return
 	for child in slots_vbox.get_children():
 		child.queue_free()
 
