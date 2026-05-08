@@ -252,12 +252,17 @@ func _apply_label_theming() -> void:
 	_ui._essence_counter.add_theme_font_size_override("font_size", 16)
 	_ui._essence_counter.add_theme_color_override("font_color", MerlinVisual.CRT_PALETTE.amber_bright)
 
-	# Essence caption
-	var caption: Label = _ui.get_node("MainVBox/TopStatusBar/EssencePanel/EssenceCaption")
-	if _ui.body_font:
-		caption.add_theme_font_override("font", _ui.body_font)
-	caption.add_theme_font_size_override("font_size", 10)
-	caption.add_theme_color_override("font_color", MerlinVisual.CRT_PALETTE.phosphor_dim)
+	# Essence caption — node may not exist in current MerlinGame.tscn structure
+	# (was crashing with null SCRIPT ERROR on add_theme_font_override at boot).
+	# Use get_node_or_null + guard so configure_ui completes and the rest of
+	# the UI bootstraps. Once the EssenceCaption Label is added to the .tscn
+	# the theming will apply automatically — no further code change needed.
+	var caption: Label = _ui.get_node_or_null("MainVBox/TopStatusBar/EssencePanel/EssenceCaption")
+	if caption:
+		if _ui.body_font:
+			caption.add_theme_font_override("font", _ui.body_font)
+		caption.add_theme_font_size_override("font_size", 10)
+		caption.add_theme_color_override("font_color", MerlinVisual.CRT_PALETTE.phosphor_dim)
 
 	# Clock label
 	_ui._status_clock_label.add_theme_font_size_override("font_size", 15)
