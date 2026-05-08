@@ -133,6 +133,73 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _diff_png_pct(path_a: Path, path_b: Path) -> float:
+    """Return percentage of pixels differing between two PNGs (C49).
+
+    Lazy-imports Pillow (PIL.Image) — if unavailable or any decode/IO error
+    occurs, returns 0.0 so the caller can degrade gracefully (regression
+    detection becomes a no-op). The caller is expected to log a single
+    warning when Pillow is missing; this helper stays silent on success.
+
+    Comparison strategy:
+      - Both images opened and converted to RGB (drops alpha — visual-only).
+      - If dimensions differ, the smaller image is resized (NEAREST) to
+        match the larger so per-pixel comparison is well-defined.
+      - A pixel counts as "differing" when ANY channel diverges by more
+        than 8 (small noise tolerance for compression/render jitter).
+      - Returns differing_pixels / total_pixels * 100.
+
+    Args:
+      path_a: First PNG (typically the current capture).
+      path_b: Second PNG (typically the previous baseline).
+
+    Returns:
+      Float 0.0..100.0 — percentage of differing pixels. 0.0 on any
+      failure (file missing, decode error, Pillow not installed).
+    """
+    try:
+        from PIL import Image  # noqa: PLC0415 — lazy import, graceful degrade
+    except ImportError:
+        return 0.0
+    try:
+        if not path_a.exists() or not path_b.exists():
+            return 0.0
+        with Image.open(path_a) as ia, Image.open(path_b) as ib:
+            img_a = ia.convert("RGB")
+            img_b = ib.convert("RGB")
+            # Normalise dimensions: resize the smaller to match the larger.
+            wa, ha = img_a.size
+            wb, hb = img_b.size
+            if (wa, ha) != (wb, hb):
+                target = (max(wa, wb), max(ha, hb))
+                if (wa, ha) != target:
+                    img_a = img_a.resize(target, Image.Resampling.NEAREST)
+                if (wb, hb) != target:
+                    img_b = img_b.resize(target, Image.Resampling.NEAREST)
+            pixels_a = img_a.tobytes()
+            pixels_b = img_b.tobytes()
+            if len(pixels_a) != len(pixels_b):
+                return 0.0  # mismatched after resize — treat as no-baseline
+            total_pixels = len(pixels_a) // 3  # 3 channels per pixel (RGB)
+            if total_pixels == 0:
+                return 0.0
+            differing = 0
+            tolerance = 8
+            # Iterate by pixel triplet — Python loop, but PNGs from smoke
+            # are small (typically 1280x720 ~= 920k pixels) and this only
+            # runs ONCE per scene per verify_all call (≤8 scenes).
+            for i in range(0, len(pixels_a), 3):
+                if (
+                    abs(pixels_a[i] - pixels_b[i]) > tolerance
+                    or abs(pixels_a[i + 1] - pixels_b[i + 1]) > tolerance
+                    or abs(pixels_a[i + 2] - pixels_b[i + 2]) > tolerance
+                ):
+                    differing += 1
+            return (differing / total_pixels) * 100.0
+    except (OSError, ValueError, MemoryError):
+        return 0.0
+
+
 def _parse_export_presets() -> list[dict[str, str]]:
     """Parse export_presets.cfg and return list of preset dicts."""
     cfg_path = PROJECT_ROOT / "export_presets.cfg"
@@ -372,6 +439,10 @@ class GodotAdapter(BaseAdapter):
           4. _smoke each scene for `duration` seconds (default 5)
              [C47] If capture=true (default), each scene also drops PNG frames
              via the CaptureRecorder autoload. Last frame = visual baseline.
+          4b. [C49] Diff each current capture vs the previous run's capture
+              (per-scene PNG). Flag `visual_regression: True` when pixel
+              diff > 5%. Distinct from `script_errors` — a scene can pass
+              smoke but render differently. Surfaced; doesn't fail by default.
           5. write JSON report to .octogent/tentacles/godot_runtime/last_verify.json
           6. return aggregated PASS/FAIL (requires step0_passed AND tests_passed
              AND scenes_failed == 0 AND scenes_total > 0)
@@ -547,7 +618,13 @@ class GodotAdapter(BaseAdapter):
                     "script_errors": data.get("script_errors", []),
                     "capture_path": capture_path,
                     "capture_frames": data.get("capture_frames", 0),
+                    # [C55] perf metrics (fps_avg, fps_min, mem_peak_mb) or empty dict
                     "perf": perf,
+                    # [C49] populated by the regression-diff pass below; defaults
+                    # here keep the schema stable when capture is disabled or no
+                    # baseline exists.
+                    "pixel_diff_pct": 0.0,
+                    "visual_regression": False,
                 }
             )
             if passed:
@@ -555,12 +632,89 @@ class GodotAdapter(BaseAdapter):
             else:
                 scenes_failed += 1
 
+        # [C49] Visual regression diff: compare current captures vs the
+        # most recent PRIOR capture root. This is the third dimension of
+        # the C47/C48/C49 visual-loop trio:
+        #   C47 = capture (write PNG baseline)
+        #   C48 = view    (HTML report renders the PNG)
+        #   C49 = compare (this block — flag if rendering changed >5%)
+        # A scene can pass C45 smoke (no script errors) yet visually
+        # regress (e.g. a sprite went black, a UI broke layout) — this
+        # surfaces those without failing all_passed by default.
+        baseline_root_name: str | None = None
+        visual_regressions = 0
+        if capture_root is not None:
+            try:
+                captures_parent = capture_root.parent  # .../captures/
+                # Sort all capture-root dirs by name (ISO timestamps in name
+                # are chronological). The most recent IS the one we just
+                # wrote — take the second-most-recent as baseline.
+                all_roots = sorted(
+                    [d for d in captures_parent.glob("*") if d.is_dir()],
+                    key=lambda p: p.name,
+                )
+                # Drop the current root (last entry) — anything before it
+                # is a prior run.
+                prior_roots = [d for d in all_roots if d.name != capture_root.name]
+                if prior_roots:
+                    baseline_root = prior_roots[-1]
+                    baseline_root_name = baseline_root.name
+                    self.log(f"verify_all: baseline_root={baseline_root}")
+                    # Probe Pillow once so we emit a single warning if absent.
+                    pillow_available = True
+                    try:
+                        import PIL.Image  # noqa: F401, PLC0415
+                    except ImportError:
+                        pillow_available = False
+                        self.log(
+                            "verify_all: WARN Pillow (PIL) not installed — "
+                            "visual regression diff disabled. "
+                            "All pixel_diff_pct=0.0. `pip install Pillow` to enable."
+                        )
+                    if pillow_available:
+                        for sr in scene_results:
+                            cap_rel = sr.get("capture_path") or ""
+                            if not cap_rel:
+                                continue
+                            scene_uri = sr.get("scene", "")
+                            # Reconstruct the scene stem from res:// URI to
+                            # locate the matching baseline subdir.
+                            try:
+                                stem = Path(scene_uri.replace("res://", "")).stem
+                            except (TypeError, ValueError):
+                                continue
+                            current_path = (
+                                cap_rel
+                                if Path(cap_rel).is_absolute()
+                                else PROJECT_ROOT / cap_rel
+                            )
+                            current_path = Path(current_path)
+                            baseline_scene_dir = baseline_root / stem
+                            baseline_path = baseline_scene_dir / current_path.name
+                            if baseline_path.exists():
+                                pct = _diff_png_pct(current_path, baseline_path)
+                                sr["pixel_diff_pct"] = round(pct, 3)
+                                sr["visual_regression"] = pct > 5.0
+                                if sr["visual_regression"]:
+                                    visual_regressions += 1
+                                    self.log(
+                                        f"verify_all: VISUAL REGRESSION on "
+                                        f"{scene_uri} ({pct:.2f}% > 5.0%)"
+                                    )
+                            # else: no baseline for this scene — leave defaults
+            except OSError as exc:
+                # Globbing or stat'ing the captures dir failed — skip diff
+                # silently rather than fail the whole verify_all. This
+                # block is purely additive surface; never the gate.
+                self.log(f"verify_all: WARN regression diff skipped: {exc}")
+
         # Step 5: write report
         # [C54] all_passed requires the headless test suite to pass — UNIT-TEST
         # COVERAGE gate. A green report means: scripts parse, tests pass, AND
         # every scene boots without runtime errors.
         # [C55] slow_scenes is informational only — does NOT flip all_passed.
-        # A future cycle may wire it as a gate once baselines stabilise.
+        # [C49] visual_regressions is informational only — does NOT flip all_passed.
+        # A future cycle may wire either as a gate once baselines stabilise.
         all_passed = (
             step0_passed
             and tests_passed
@@ -589,6 +743,12 @@ class GodotAdapter(BaseAdapter):
             "slow_scenes": slow_scenes,
             "scenes": scene_results,
             "scenes_dir": scenes_dir,
+            # [C49] Visual regression surface (additive, non-blocking by
+            # default — `all_passed` doesn't consider visual_regressions).
+            # `baseline_compared_against` is the directory NAME (timestamp)
+            # of the prior capture root, or null if no prior run existed.
+            "baseline_compared_against": baseline_root_name,
+            "visual_regressions": visual_regressions,
         }
         # Distinguish "no scenes found" (misconfigured path) from "scenes failed"
         # — both yield passed=False but consumers must respond differently.
@@ -619,7 +779,8 @@ class GodotAdapter(BaseAdapter):
         self.log(
             f"verify_all: passed={all_passed} step0={step0_passed} "
             f"tests={tests_passed} scenes={scenes_passed}/{len(scene_paths)} "
-            f"slow={slow_scenes} report={report_path}"
+            f"slow={slow_scenes} visual_regressions={visual_regressions} "
+            f"baseline={baseline_root_name or 'none'} report={report_path}"
         )
         return self.ok(
             {
