@@ -71,6 +71,10 @@ text = "Essences"
 layout_mode = 2
 text = "0"
 
+[node name="EssenceCaption" type="Label" parent="MerlinGameUI/MainVBox/TopStatusBar/EssencePanel"]
+layout_mode = 2
+text = "/ 100"
+
 [node name="MiddleZone" type="HBoxContainer" parent="MerlinGameUI/MainVBox"]
 layout_mode = 2
 size_flags_horizontal = 3
