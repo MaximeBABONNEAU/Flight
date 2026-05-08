@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import html
 import json
 import os
 import re
@@ -510,6 +512,15 @@ class GodotAdapter(BaseAdapter):
         except OSError as exc:
             self.log(f"verify_all: WARN failed to write report: {exc}")
 
+        # [C48] HTML report — viewing primitive that complements C47 capture.
+        # Self-contained file (inline CSS, base64 images <100KB) sitting next to
+        # last_verify.json so the Octogent UI can link straight to it.
+        html_path = report_dir / "last_verify.html"
+        try:
+            html_path.write_text(self._render_verify_html(report), encoding="utf-8")
+        except OSError as exc:
+            self.log(f"verify_all: WARN failed to write HTML report: {exc}")
+
         self.log(
             f"verify_all: passed={all_passed} step0={step0_passed} "
             f"scenes={scenes_passed}/{len(scene_paths)} report={report_path}"
@@ -526,6 +537,314 @@ class GodotAdapter(BaseAdapter):
                 else step0,
             }
         )
+
+    def _render_verify_html(self, report: dict) -> str:
+        """[C48] Render a self-contained HTML view of a verify_all report.
+
+        Sister of last_verify.json — same content, browsable. The visibility
+        primitive that complements C47's capture primitive: C47 shoots the
+        screenshots, C48 makes them readable in a single click from the
+        Octogent UI (linked tentacle dir).
+
+        Layout:
+          - Inline CSS (CRT phosphor + parchemin theme — celtic golds/browns/teals)
+          - PASS/FAIL banner header with timestamp + scenes_passed/scenes_total
+          - One <section> per scene: name, badge, capture <img>, script_errors
+          - Footer: link back to last_verify.json + generated-at timestamp
+
+        Image policy:
+          - <100 KB: embed as data:image/png;base64,... (one self-contained file)
+          - >=100 KB: relative <img src="..."> (HTML lives next to JSON in
+            tentacles/godot_runtime/, so capture_path is repo-relative POSIX
+            and we compute a relative POSIX path back from the report dir).
+
+        All user-derived text (scene paths, script_errors, error hints) is
+        passed through html.escape() to prevent injection.
+        """
+        from datetime import datetime, timezone
+
+        passed = bool(report.get("passed"))
+        step0_passed = bool(report.get("step0_passed"))
+        scenes = report.get("scenes", []) or []
+        scenes_total = report.get("scenes_total", len(scenes))
+        scenes_passed_n = report.get("scenes_passed", 0)
+        scenes_failed_n = report.get("scenes_failed", 0)
+        timestamp = report.get("timestamp", "")
+        scenes_dir = report.get("scenes_dir", "")
+        no_scenes_found = bool(report.get("no_scenes_found"))
+        error_hint = report.get("error_hint", "")
+
+        # Tentacle dir — HTML lives at <root>/tools/octogent/.octogent/tentacles/godot_runtime/last_verify.html
+        # Captures live at <root>/tools/octogent/.octogent/tentacles/godot_runtime/captures/<ts>/<scene>/...
+        # so a relative link from the HTML file to a capture is "captures/<ts>/<scene>/frame.png" — but the
+        # capture_path stored in the report is repo-relative POSIX. We resolve absolutely, then compute relative.
+        tentacle_dir = (
+            PROJECT_ROOT
+            / "tools"
+            / "octogent"
+            / ".octogent"
+            / "tentacles"
+            / "godot_runtime"
+        )
+
+        def _img_tag(capture_path: str) -> str:
+            """Return an <img> tag (or empty string if no capture)."""
+            if not capture_path:
+                return ""
+            abs_path = (PROJECT_ROOT / capture_path).resolve()
+            if not abs_path.exists():
+                return (
+                    '<div class="capture-missing">capture missing: '
+                    + html.escape(capture_path)
+                    + "</div>"
+                )
+            try:
+                size = abs_path.stat().st_size
+            except OSError:
+                size = 0
+            # Embed as base64 data URL for small images so the file is fully
+            # self-contained (no external requests, can be sent over chat).
+            if 0 < size < 100 * 1024:
+                try:
+                    raw = abs_path.read_bytes()
+                    b64 = base64.b64encode(raw).decode("ascii")
+                    return (
+                        '<img class="capture" alt="scene capture" '
+                        f'src="data:image/png;base64,{b64}" />'
+                    )
+                except OSError:
+                    pass  # fall through to relative link
+            # Larger images — relative link from the HTML file's dir.
+            try:
+                rel = abs_path.relative_to(tentacle_dir).as_posix()
+            except ValueError:
+                # Capture isn't under the tentacle dir — use absolute file:// URL
+                # as a last resort. file:// links are best-effort across browsers.
+                rel = abs_path.as_uri()
+            return (
+                '<img class="capture" alt="scene capture" src="'
+                + html.escape(rel, quote=True)
+                + '" loading="lazy" />'
+            )
+
+        # Build per-scene sections.
+        section_blocks: list[str] = []
+        for sc in scenes:
+            sc_name = html.escape(str(sc.get("scene", "?")))
+            sc_passed = bool(sc.get("passed"))
+            badge_cls = "badge-pass" if sc_passed else "badge-fail"
+            badge_txt = "PASS" if sc_passed else "FAIL"
+            cap_path = sc.get("capture_path", "") or ""
+            img_html = _img_tag(cap_path)
+            errs = sc.get("script_errors", []) or []
+            if errs:
+                err_items = "".join(
+                    f"<li>{html.escape(str(e))}</li>" for e in errs
+                )
+                err_html = (
+                    '<details class="errors" open><summary>'
+                    f"script_errors ({len(errs)})"
+                    f"</summary><ul>{err_items}</ul></details>"
+                )
+            else:
+                err_html = ""
+            exit_code = sc.get("exit_code")
+            duration = sc.get("duration_s")
+            meta = (
+                f'<div class="meta">exit={html.escape(str(exit_code))} '
+                f"duration={html.escape(str(duration))}s "
+                f"frames={html.escape(str(sc.get('capture_frames', 0)))}</div>"
+            )
+            section_blocks.append(
+                '<section class="scene">'
+                f'<header><span class="scene-name">{sc_name}</span>'
+                f'<span class="badge {badge_cls}">{badge_txt}</span></header>'
+                f"{meta}{img_html}{err_html}"
+                "</section>"
+            )
+
+        if not section_blocks:
+            empty_msg = (
+                html.escape(error_hint)
+                if (no_scenes_found and error_hint)
+                else "no scenes were checked"
+            )
+            section_blocks.append(
+                f'<section class="scene empty"><p>{empty_msg}</p></section>'
+            )
+
+        sections_html = "\n".join(section_blocks)
+        banner_cls = "banner-pass" if passed else "banner-fail"
+        banner_txt = "PASS" if passed else "FAIL"
+        step0_txt = "PASS" if step0_passed else "FAIL"
+        generated_at = datetime.now(timezone.utc).isoformat()
+
+        # CSS: CRT phosphor + parchemin theme (golds/browns/teals matching Octogent)
+        css = """
+        :root {
+          --bg: #1a1410;
+          --bg-elev: #241c14;
+          --parchment: #f0e2c4;
+          --gold: #d4a657;
+          --gold-bright: #e8c47b;
+          --teal: #4a9a99;
+          --teal-bright: #6dc3c2;
+          --pass: #5fbf65;
+          --fail: #d04848;
+          --warn: #e8b34a;
+          --text: #e8d5a8;
+          --text-dim: #a08862;
+          --border: #58422a;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body {
+          background: var(--bg);
+          color: var(--text);
+          font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
+          font-size: 14px;
+          line-height: 1.5;
+          padding: 24px;
+          max-width: 1100px;
+          margin: 0 auto;
+        }
+        h1 { color: var(--gold-bright); margin: 0; font-size: 22px; letter-spacing: 0.05em; }
+        .banner {
+          padding: 18px 22px;
+          margin-bottom: 24px;
+          border: 2px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg-elev);
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          flex-wrap: wrap;
+        }
+        .banner-pass { border-color: var(--pass); box-shadow: 0 0 16px rgba(95,191,101,0.18); }
+        .banner-fail { border-color: var(--fail); box-shadow: 0 0 16px rgba(208,72,72,0.22); }
+        .banner-status {
+          font-size: 28px;
+          font-weight: 700;
+          padding: 4px 14px;
+          border-radius: 4px;
+          letter-spacing: 0.1em;
+        }
+        .banner-pass .banner-status { background: var(--pass); color: #0a1c0c; }
+        .banner-fail .banner-status { background: var(--fail); color: #1c0a0a; }
+        .banner-meta { color: var(--text-dim); font-size: 13px; }
+        .banner-meta strong { color: var(--gold); font-weight: 600; }
+        .scene {
+          background: var(--bg-elev);
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          padding: 16px;
+          margin-bottom: 18px;
+        }
+        .scene header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+        .scene-name { color: var(--teal-bright); font-size: 15px; font-weight: 600; word-break: break-all; }
+        .badge {
+          display: inline-block;
+          padding: 2px 10px;
+          border-radius: 3px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          flex-shrink: 0;
+        }
+        .badge-pass { background: var(--pass); color: #0a1c0c; }
+        .badge-fail { background: var(--fail); color: #1c0a0a; }
+        .meta { color: var(--text-dim); font-size: 12px; margin-bottom: 10px; }
+        .capture {
+          display: block;
+          max-width: 100%;
+          height: auto;
+          margin: 8px 0;
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          background: #000;
+          image-rendering: -webkit-optimize-contrast;
+        }
+        .capture-missing {
+          padding: 10px;
+          background: #2a1a14;
+          border: 1px dashed var(--warn);
+          color: var(--warn);
+          font-size: 12px;
+          border-radius: 4px;
+          margin: 8px 0;
+        }
+        details.errors {
+          background: #2a1414;
+          border: 1px solid var(--fail);
+          border-radius: 4px;
+          padding: 8px 12px;
+          margin-top: 10px;
+        }
+        details.errors summary {
+          cursor: pointer;
+          color: var(--fail);
+          font-weight: 600;
+        }
+        details.errors ul {
+          margin: 8px 0 0;
+          padding-left: 20px;
+          color: var(--text);
+          font-size: 12px;
+        }
+        details.errors li { margin-bottom: 4px; word-break: break-word; }
+        .scene.empty { color: var(--text-dim); font-style: italic; text-align: center; }
+        footer {
+          margin-top: 32px;
+          padding-top: 16px;
+          border-top: 1px solid var(--border);
+          color: var(--text-dim);
+          font-size: 12px;
+          text-align: center;
+        }
+        footer a { color: var(--gold); text-decoration: none; }
+        footer a:hover { color: var(--gold-bright); text-decoration: underline; }
+        """
+
+        # Compose the document. Heredoc-style f-string with html.escape() on every
+        # variable that could contain user-controlled text.
+        doc = (
+            "<!doctype html>\n"
+            '<html lang="en">\n'
+            "<head>\n"
+            '  <meta charset="utf-8" />\n'
+            '  <meta name="viewport" content="width=device-width, initial-scale=1" />\n'
+            f"  <title>verify_all — {banner_txt} ({html.escape(timestamp)})</title>\n"
+            f"  <style>{css}</style>\n"
+            "</head>\n"
+            "<body>\n"
+            f'  <header class="banner {banner_cls}">\n'
+            f'    <span class="banner-status">{banner_txt}</span>\n'
+            "    <div>\n"
+            "      <h1>godot verify_all</h1>\n"
+            f'      <div class="banner-meta">'
+            f"<strong>{scenes_passed_n}</strong>/{scenes_total} scenes passed · "
+            f"step0=<strong>{step0_txt}</strong> · "
+            f"failed=<strong>{scenes_failed_n}</strong> · "
+            f"scenes_dir=<strong>{html.escape(str(scenes_dir))}</strong> · "
+            f"timestamp <strong>{html.escape(timestamp)}</strong>"
+            "</div>\n"
+            "    </div>\n"
+            "  </header>\n"
+            f"  {sections_html}\n"
+            "  <footer>\n"
+            '    <a href="last_verify.json">last_verify.json</a> · '
+            f"generated {html.escape(generated_at)}\n"
+            "  </footer>\n"
+            "</body>\n"
+            "</html>\n"
+        )
+        return doc
 
     def _test(self) -> dict:
         """Run the headless test suite and parse JSON output."""
