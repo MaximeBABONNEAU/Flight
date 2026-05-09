@@ -454,7 +454,7 @@ export const App = () => {
       <ForgeStory />
 
       {/* Phase B+C — SingleScreenForge: strip 8-tab nav + active terminals */}
-      <SingleScreenForge terminals={terminals} />
+      <SingleScreenForge terminals={terminals} runtimeStateStore={runtimeStateStore} />
 
       {/* PHASE_B_DEAD_CODE_START — removed during Phase B+C strip. Phase H
           will reclaim the now-unused state, hooks, and component imports.

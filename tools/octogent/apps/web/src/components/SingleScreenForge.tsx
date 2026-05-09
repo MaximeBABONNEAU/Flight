@@ -1,10 +1,10 @@
-import type { TerminalView } from "../app/types";
+import { useMemo } from "react";
 
-// SingleScreenForge — Phase B+C of .planning/forge_refonte_spec.md.
-// Replaces the 8-tab nav + PrimaryViewRouter with a single above-the-fold
-// canvas: active terminals list + idle hint. The "Lance + oublie" user
-// only needs to see what's running; what got committed is in ForgeStory
-// (mounted above this component).
+import type { TerminalView } from "../app/types";
+import {
+  type TerminalRuntimeStateStore,
+  useTerminalRuntimeStates,
+} from "../app/terminalRuntimeStateStore";
 
 interface TerminalEntry {
   terminalId: string;
@@ -19,6 +19,7 @@ interface TerminalEntry {
 
 interface SingleScreenForgeProps {
   terminals: TerminalView;
+  runtimeStateStore: TerminalRuntimeStateStore;
 }
 
 const STATE_COLOR: Record<string, string> = {
@@ -52,11 +53,15 @@ const rowDisplayName = (t: TerminalEntry): string => {
 const isActive = (t: TerminalEntry): boolean =>
   t.lifecycleState === "running" || t.lifecycleState === "starting";
 
-export const SingleScreenForge = ({ terminals }: SingleScreenForgeProps) => {
+export const SingleScreenForge = ({ terminals, runtimeStateStore }: SingleScreenForgeProps) => {
+  const terminalIds = useMemo(() => terminals.map((t) => t.terminalId), [terminals]);
+  const runtimeStates = useTerminalRuntimeStates(runtimeStateStore, terminalIds);
+
   const activeTerminals = terminals.filter((t) => isActive(t as TerminalEntry));
-  const stuckCount = activeTerminals.filter(
-    (t) => (t as TerminalEntry).agentRuntimeState === "waiting_for_permission",
-  ).length;
+  const stuckCount = activeTerminals.filter((t) => {
+    const rs = runtimeStates.get(t.terminalId);
+    return rs?.state === "waiting_for_permission";
+  }).length;
 
   return (
     <main
@@ -138,7 +143,10 @@ export const SingleScreenForge = ({ terminals }: SingleScreenForgeProps) => {
         >
           {activeTerminals.map((raw) => {
             const t = raw as TerminalEntry;
-            const color = stateColor(t.agentRuntimeState);
+            const rs = runtimeStates.get(t.terminalId);
+            const effectiveState = rs?.state ?? t.agentRuntimeState;
+            const color = stateColor(effectiveState);
+            const isDirector = t.studioRole === "director";
             return (
               <li
                 key={t.terminalId}
@@ -151,19 +159,16 @@ export const SingleScreenForge = ({ terminals }: SingleScreenForgeProps) => {
                   borderRadius: "6px",
                   background: "rgba(0,0,0,0.20)",
                   fontSize: "13px",
+                  borderLeft: isDirector ? "3px solid rgba(214,162,26,0.6)" : "3px solid transparent",
                 }}
               >
                 <span
+                  className="forge-terminal-dot"
+                  data-state={effectiveState ?? "idle"}
                   aria-hidden="true"
                   style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
                     background: color,
-                    boxShadow:
-                      t.agentRuntimeState === "processing"
-                        ? `0 0 6px ${color}`
-                        : "none",
+                    color,
                   }}
                 />
                 <span
@@ -176,7 +181,7 @@ export const SingleScreenForge = ({ terminals }: SingleScreenForgeProps) => {
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {stateLabel(t.agentRuntimeState)}
+                  {isDirector ? "director" : stateLabel(effectiveState)}
                 </span>
                 <span
                   style={{

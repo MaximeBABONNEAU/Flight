@@ -188,16 +188,18 @@ export const ForgeStory = () => {
   const hasCommits = commits.length > 0;
   const showGitError = story?.gitError;
 
+  const isStudioRunning = status?.state === "running";
+
   return (
     <section
       className="forge-story"
+      data-running={String(isStudioRunning)}
       aria-label="Forge activity narrative"
       style={{
         margin: "8px 16px 0",
         padding: "14px 18px",
         borderRadius: "8px",
         background: "rgba(20, 14, 6, 0.55)",
-        border: "1px solid rgba(214, 162, 26, 0.25)",
         fontFamily: "Georgia, 'Cormorant Garamond', serif",
         color: "rgba(255, 245, 220, 0.92)",
         lineHeight: 1.45,
