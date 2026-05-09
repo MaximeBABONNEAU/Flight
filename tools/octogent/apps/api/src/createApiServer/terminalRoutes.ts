@@ -240,6 +240,20 @@ export const handleTerminalsCollectionRoute: ApiRouteHandler = async (
       }
     }
 
+    // BYPASS-BY-DEFAULT (2026-05-09 — user request): every Claude session
+    // spawned by Octogent runs with --permission-mode bypassPermissions
+    // unless the request body explicitly opts out. The forge is an
+    // autonomous studio — there is no human at each session to answer
+    // permission prompts. Stalling on prompts defeats automode. Studio
+    // workers, deck workers, and manual one-off terminals all inherit
+    // the same default. Body can opt OUT explicitly with bypassPermissions:
+    // false (e.g. for a debugging session where the user WANTS prompts).
+    // Subsumes the prior tentacleId === "studio" auto-bypass branch.
+    createTerminalInput.bypassPermissions = true;
+    if (bodyPayload && typeof bodyPayload.bypassPermissions === "boolean") {
+      createTerminalInput.bypassPermissions = bodyPayload.bypassPermissions;
+    }
+
     const snapshot = runtime.createTerminal(createTerminalInput);
     const payload: Record<string, unknown> = { ...snapshot };
     if (createTerminalInput.initialPrompt) {

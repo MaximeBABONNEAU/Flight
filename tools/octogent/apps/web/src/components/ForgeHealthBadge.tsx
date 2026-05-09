@@ -47,6 +47,9 @@ export const ForgeHealthBadge = () => {
     .filter(Boolean)
     .join(" · ");
 
+  // Minimalist styling (2026-05-09): no pulse animation, no glow shadows,
+  // no text-shadow. Just border + dot + label + counts. Per user request:
+  // "pas besoin d'effets superflux".
   return (
     <span
       className="forge-health-badge"
@@ -57,37 +60,33 @@ export const ForgeHealthBadge = () => {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "10px",
-        padding: "6px 14px",
-        borderRadius: "20px",
-        background: "rgba(0,0,0,0.35)",
+        gap: "8px",
+        padding: "4px 12px",
+        borderRadius: "16px",
+        background: "rgba(0,0,0,0.25)",
         border: `1px solid ${color}`,
-        boxShadow: `0 0 8px ${color}33`,
         fontFamily: "Georgia, serif",
         fontSize: "12px",
-        letterSpacing: "0.08em",
-        color: "rgba(255,255,255,0.9)",
+        letterSpacing: "0.06em",
+        color: "rgba(255,255,255,0.88)",
         whiteSpace: "nowrap",
       }}
     >
       <span
         aria-hidden="true"
         style={{
-          width: 8,
-          height: 8,
+          width: 7,
+          height: 7,
           borderRadius: "50%",
           background: color,
-          boxShadow: `0 0 6px ${color}, 0 0 2px ${color} inset`,
-          animation: health.state === "ok" ? "forge-pulse 2.4s ease-in-out infinite" : "none",
         }}
       />
       <span
         style={{
           fontWeight: 600,
           color,
-          letterSpacing: "0.12em",
+          letterSpacing: "0.1em",
           textTransform: "uppercase",
-          textShadow: `0 0 4px ${color}66`,
         }}
       >
         {STATE_LABEL[health.state]}

@@ -478,6 +478,8 @@ export const handleDeckTodoSolveRoute: ApiRouteHandler = async (
       nameOrigin: "generated",
       autoRenamePromptContext: todoItem.text,
       workspaceMode: "shared",
+      // Bypass-by-default for autonomous spawns (2026-05-09 user request).
+      bypassPermissions: true,
       ...(agentProviderResult.agentProvider
         ? { agentProvider: agentProviderResult.agentProvider }
         : {}),
@@ -765,6 +767,8 @@ export const handleDeckTentacleSwarmRoute: ApiRouteHandler = async (
         nameOrigin: "generated",
         autoRenamePromptContext: item.text,
         workspaceMode: workerWorkspaceMode,
+        // Bypass-by-default for autonomous spawns (2026-05-09 user request).
+        bypassPermissions: true,
         ...(agentProviderResult.agentProvider
           ? { agentProvider: agentProviderResult.agentProvider }
           : {}),
@@ -854,6 +858,8 @@ export const handleDeckTentacleSwarmRoute: ApiRouteHandler = async (
         tentacleId,
         tentacleName: `${tentacleName} (coordinator)`,
         workspaceMode: "shared",
+        // Bypass-by-default for autonomous spawns (2026-05-09 user request).
+        bypassPermissions: true,
         ...(agentProviderResult.agentProvider
           ? { agentProvider: agentProviderResult.agentProvider }
           : {}),

@@ -53,22 +53,56 @@ PID_FILE="${PID_FILE:-/tmp/octogent.pid}"
 
 log() { printf '[octogent-persistent] %s\n' "$*"; }
 
-# ── 1. Already running? ───────────────────────────────────────────────────
-if [ -f "$PID_FILE" ]; then
-  EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
-  if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
-    log "Already running (PID $EXISTING_PID)."
-    log "  UI:   http://localhost:$PORT"
-    log "  Logs: tail -f $LOG_FILE"
-    exit 0
+# ── 1. Already running? Curl-first decision tree (fix 2026-05-09) ─────────
+# Single source of truth for "is the forge healthy?":
+#   1. curl /api/deck/tentacles — if HTTP 200 in <3s, definitely up.
+#   2. else inspect port owner via ss -tlnp:
+#        - PID belongs to bin/octogent → zombie, kill + relaunch
+#        - PID is a foreign process → refuse with clear error
+#        - port free → fall through to launch
+# Replaces a fragile PID-file + pgrep early-exit pair that returned
+# "Already running" on zombie processes and blocked watchdog recovery.
+if curl -fsS -o /dev/null -m 8 "http://localhost:${PORT}/api/deck/tentacles" 2>/dev/null; then
+  EXISTING_PID="$(ss -tlnp 2>/dev/null | grep -E ":${PORT}\s" | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)"
+  log "Already running AND healthy (PID ${EXISTING_PID:-unknown}, curl OK). No-op."
+  log "  UI:   http://localhost:$PORT"
+  log "  Logs: tail -f $LOG_FILE"
+  [ -n "$EXISTING_PID" ] && echo "$EXISTING_PID" > "$PID_FILE"
+  exit 0
+fi
+
+# Curl failed. If port is bound, decide whether it's a zombie we own or a
+# foreign process we must not touch.
+if ss -tln 2>/dev/null | grep -qE ":${PORT}\s"; then
+  EXISTING_PID="$(ss -tlnp 2>/dev/null | grep -E ":${PORT}\s" | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)"
+  if [ -z "$EXISTING_PID" ]; then
+    log "ERROR: port $PORT bound but no PID via ss -tlnp."
+    log "  → Investigate manually: ss -tlnp | grep :$PORT"
+    exit 3
+  fi
+  EXISTING_ARGS="$(tr '\0' ' ' < /proc/${EXISTING_PID}/cmdline 2>/dev/null || true)"
+  if echo "$EXISTING_ARGS" | grep -q "bin/octogent"; then
+    log "Octogent zombie detected (PID $EXISTING_PID, curl unresponsive >3s, cmd matches bin/octogent). Killing for restart."
+    kill -9 "$EXISTING_PID" 2>/dev/null || sudo kill -9 "$EXISTING_PID" 2>/dev/null || true
+    sleep 2
+    if ss -tln 2>/dev/null | grep -qE ":${PORT}\s"; then
+      log "ERROR: zombie kill failed — port $PORT still bound after PID $EXISTING_PID. Refuse."
+      exit 3
+    fi
+    rm -f "$PID_FILE" 2>/dev/null
+  else
+    log "ERROR: port $PORT bound by foreign process (PID $EXISTING_PID, cmd='${EXISTING_ARGS:0:80}')."
+    log "  → Investigate: ps -fp $EXISTING_PID"
+    exit 3
   fi
 fi
-# Stale PID file or process by name (e.g. PID file lost across reboot).
-EXISTING_BY_NAME="$(pgrep -f "node tools/octogent/bin/octogent" | head -1 || true)"
-if [ -n "$EXISTING_BY_NAME" ]; then
-  log "Already running (PID $EXISTING_BY_NAME — discovered by name)."
-  echo "$EXISTING_BY_NAME" > "$PID_FILE"
-  exit 0
+
+# Stale PID file cleanup (PID dead but file lingers).
+if [ -f "$PID_FILE" ]; then
+  PFILE_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
+  if [ -n "$PFILE_PID" ] && ! kill -0 "$PFILE_PID" 2>/dev/null; then
+    rm -f "$PID_FILE"
+  fi
 fi
 
 # ── 2. Prereqs ────────────────────────────────────────────────────────────
@@ -92,6 +126,24 @@ if [ ! -d "$OCTOGENT_DIR/dist" ] || [ ! -d "$OCTOGENT_DIR/apps/web/dist" ]; then
   }
 fi
 
+# ── 2.5. Auto-repair corrupt tentacles.json (TIER 1.4) ────────────────────
+# Octogent crashes mid-write can leave a 0-byte or truncated tentacles.json.
+# The next boot then fails parseRegistryDocument with "Unexpected end of JSON
+# input". Rather than asking a human to manually delete the file (twice this
+# session), detect + backup + delete here so the registry rebuilds clean
+# from .octogent/tentacles/*/CONTEXT.md on launch.
+HOME_OCTO="${HOME}/.octogent/projects"
+if [ -d "$HOME_OCTO" ]; then
+  for tjson in "$HOME_OCTO"/*/state/tentacles.json; do
+    [ -f "$tjson" ] || continue
+    if ! python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$tjson" 2>/dev/null; then
+      backup="${tjson}.broken.$(date +%s)"
+      log "Corrupt registry detected: $tjson — backup to $backup"
+      mv "$tjson" "$backup" 2>/dev/null || rm -f "$tjson" 2>/dev/null
+    fi
+  done
+fi
+
 # ── 3. Integrate 103 MERLIN agents on first run ───────────────────────────
 TENTACLE_COUNT=0
 if [ -d "$OCTOGENT_DIR/.octogent/tentacles" ]; then
@@ -112,43 +164,6 @@ fi
 # lives at tools/octogent/.octogent/. project.json there already has
 # displayName="MERLIN" so the dashboard still shows "MERLIN" as the
 # project name.
-# SMART RESTART (2026-05-09 — TIER 1.1 fix): if port is bound, probe the
-# existing instance via /api/deck/tentacles. Three outcomes:
-#   - responsive (HTTP 200 in <3s) → no-op, healthy instance already there
-#   - unresponsive Octogent zombie → kill it + proceed to launch
-#   - bound by non-Octogent process → refuse with clear error
-# This replaces the prior hard-fail guard that blocked the watchdog's
-# recovery path whenever Octogent crashed but kept its socket open.
-if ss -tln 2>/dev/null | grep -qE ":${PORT}\s"; then
-  EXISTING_PID="$(ss -tlnp 2>/dev/null | grep -E ":${PORT}\s" | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)"
-  if curl -fsS -o /dev/null -m 3 "http://localhost:${PORT}/api/deck/tentacles" 2>/dev/null; then
-    log "Port $PORT bound (PID ${EXISTING_PID:-unknown}) AND healthy (curl OK). No-op."
-    log "  → Use 'kill ${EXISTING_PID:-<pid>}' to recycle manually if you must."
-    exit 0
-  fi
-  if [ -z "$EXISTING_PID" ]; then
-    log "ERROR: port $PORT bound but no PID via ss -tlnp. Refuse to start."
-    log "  → Investigate manually: ss -tlnp | grep :$PORT"
-    exit 3
-  fi
-  # Verify it's actually an Octogent process before killing.
-  EXISTING_ARGS="$(tr '\0' ' ' < /proc/${EXISTING_PID}/cmdline 2>/dev/null || true)"
-  if echo "$EXISTING_ARGS" | grep -q "bin/octogent"; then
-    log "Port $PORT bound by zombie Octogent (PID $EXISTING_PID, curl unresponsive >3s). Killing for restart."
-    kill -9 "$EXISTING_PID" 2>/dev/null || sudo kill -9 "$EXISTING_PID" 2>/dev/null || true
-    sleep 2
-    if ss -tln 2>/dev/null | grep -qE ":${PORT}\s"; then
-      log "ERROR: kill of PID $EXISTING_PID failed — port still bound. Refuse to start."
-      exit 3
-    fi
-    log "Zombie killed, port $PORT free. Proceeding with launch."
-  else
-    log "ERROR: port $PORT bound by non-Octogent process (PID $EXISTING_PID, cmd='${EXISTING_ARGS:0:80}'). Refuse to start."
-    log "  → Investigate: ps -fp $EXISTING_PID"
-    exit 3
-  fi
-fi
-
 log "Launching: HOST=$HOST_BIND PORT=$PORT, cwd=$OCTOGENT_DIR"
 cd "$OCTOGENT_DIR"
 setsid -f bash -c "OCTOGENT_NO_OPEN=1 HOST='$HOST_BIND' PORT='$PORT' node bin/octogent > '$LOG_FILE' 2>&1"
