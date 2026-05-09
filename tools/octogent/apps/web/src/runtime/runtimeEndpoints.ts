@@ -393,6 +393,35 @@ export const buildPromptItemUrl = (name: string, runtimeBaseUrl = readRuntimeBas
   return buildAbsoluteUrl(runtimeBaseUrl, path);
 };
 
+export const buildStudioStatusUrl = (runtimeBaseUrl = readRuntimeBaseUrl()) => {
+  if (!runtimeBaseUrl) {
+    return "/api/studio/status";
+  }
+  return buildAbsoluteUrl(runtimeBaseUrl, "/api/studio/status");
+};
+
+export const buildStudioStartUrl = (runtimeBaseUrl = readRuntimeBaseUrl()) => {
+  if (!runtimeBaseUrl) {
+    return "/api/studio/start";
+  }
+  return buildAbsoluteUrl(runtimeBaseUrl, "/api/studio/start");
+};
+
+export const buildStudioStopUrl = (runtimeBaseUrl = readRuntimeBaseUrl()) => {
+  if (!runtimeBaseUrl) {
+    return "/api/studio/stop";
+  }
+  return buildAbsoluteUrl(runtimeBaseUrl, "/api/studio/stop");
+};
+
+// Forge — narrative endpoint backing <ForgeStory />: recent commits + 24h count.
+export const buildForgeStoryUrl = (runtimeBaseUrl = readRuntimeBaseUrl()) => {
+  if (!runtimeBaseUrl) {
+    return "/api/forge/story";
+  }
+  return buildAbsoluteUrl(runtimeBaseUrl, "/api/forge/story");
+};
+
 export const buildTerminalSocketUrl = (
   tentacleId: string,
   runtimeBaseUrl = readRuntimeBaseUrl(),

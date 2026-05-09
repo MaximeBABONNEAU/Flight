@@ -27,9 +27,11 @@ import type { TerminalView } from "./app/types";
 import { clampSidebarWidth } from "./app/uiStateNormalizers";
 import { ActiveAgentsSidebar } from "./components/ActiveAgentsSidebar";
 import { ConsolePrimaryNav } from "./components/ConsolePrimaryNav";
+import { ForgeStory } from "./components/ForgeStory";
 import { PrimaryViewRouter } from "./components/PrimaryViewRouter";
 import { RuntimeStatusStrip } from "./components/RuntimeStatusStrip";
 import { SidebarActionPanel } from "./components/SidebarActionPanel";
+import { StudioLoopPanel } from "./components/StudioLoopPanel";
 import { TelemetryTape } from "./components/TelemetryTape";
 import { HttpTerminalSnapshotReader } from "./runtime/HttpTerminalSnapshotReader";
 import {
@@ -310,6 +312,26 @@ export const App = () => {
     setMinimizedTerminalIds,
     onActiveTerminalIdsChange: handleActiveTerminalIdsChange,
   });
+
+  // Auto-show studio director + workers as columns. Catches:
+  //  1) terminals with studioRole === director (the studio backend sets this)
+  //  2) terminals with tentacleId === "studio" (workers spawned by director
+  //     via `node bin/octogent terminal create --tentacle-id studio` — they
+  //     don't get studioRole set explicitly but share the studio tentacleId)
+  // Any matching terminal is force-removed from minimizedTerminalIds so it
+  // renders as a visible column with live log streaming.
+  useEffect(() => {
+    const studioTerminalIds = terminals
+      .filter((t) => {
+        const role = (t as { studioRole?: string }).studioRole;
+        return role === "director" || role === "worker" || t.tentacleId === "studio";
+      })
+      .map((t) => t.terminalId);
+    if (studioTerminalIds.length === 0) return;
+    setMinimizedTerminalIds((current) =>
+      current.filter((id) => !studioTerminalIds.includes(id)),
+    );
+  }, [terminals, setMinimizedTerminalIds]);
   const { playCompletionSoundPreview } = useTerminalCompletionNotification(
     runtimeStateStore,
     terminalCompletionSound,
@@ -428,6 +450,9 @@ export const App = () => {
           onRefreshClaudeUsage={refreshClaudeUsage}
         />
       )}
+
+      {/* ForgeStory: prose narrative panel (recent commits + uptime + cycle) */}
+      <ForgeStory />
 
       <ConsolePrimaryNav
         activePrimaryNav={activePrimaryNav}
@@ -647,6 +672,7 @@ export const App = () => {
       {isUiStateHydrated && isMonitorVisible && isBottomTelemetryVisible && (
         <TelemetryTape monitorFeed={monitorRuntime.monitorFeed} />
       )}
+      <StudioLoopPanel />
     </div>
   );
 };

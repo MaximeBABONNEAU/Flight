@@ -30,6 +30,7 @@ import {
   handleDeckTodoToggleRoute,
   handleDeckVaultFileRoute,
 } from "./deckRoutes";
+import { handleForgeStoryRoute } from "./forgeStoryRoutes";
 import { handleTentacleGitPullRequestRoute, handleTentacleGitRoute } from "./gitRoutes";
 import {
   handleChannelMessagesRoute,
@@ -50,6 +51,11 @@ import type {
   RouteHandlerDependencies,
   TerminalRuntime,
 } from "./routeHelpers";
+import {
+  handleStudioStartRoute,
+  handleStudioStatusRoute,
+  handleStudioStopRoute,
+} from "./studioRoutes";
 import { writeJson, writeNoContent } from "./routeHelpers";
 import {
   getRequestCorsOrigin,
@@ -87,6 +93,7 @@ const MIME_TYPES: Record<string, string> = {
 
 type CreateApiRequestHandlerOptions = {
   runtime: TerminalRuntime;
+  studioRuntime: import("../studioRuntime").StudioRuntime;
   workspaceCwd: string;
   projectStateDir: string;
   promptsDir: string;
@@ -154,6 +161,9 @@ const API_ROUTE_MAP: ReadonlyMap<string, readonly ApiRouteHandler[]> = new Map([
   ],
   ["tentacles", [handleTentacleGitRoute, handleTentacleGitPullRequestRoute]],
   ["code-intel", [handleCodeIntelEventsRoute]],
+  ["studio", [handleStudioStatusRoute, handleStudioStartRoute, handleStudioStopRoute]],
+  // forge — lance+oublie narrative endpoint (recent commits + git activity).
+  ["forge", [handleForgeStoryRoute]],
 ]);
 
 const extractRoutePrefix = (pathname: string): string | null => {
@@ -198,6 +208,7 @@ const serveStaticFile = async (
 
 export const createApiRequestHandler = ({
   runtime,
+  studioRuntime,
   workspaceCwd,
   projectStateDir,
   promptsDir,
@@ -220,6 +231,7 @@ export const createApiRequestHandler = ({
 
   const routeDependencies: RouteHandlerDependencies = {
     runtime,
+    studioRuntime,
     workspaceCwd,
     projectStateDir,
     promptsDir,
