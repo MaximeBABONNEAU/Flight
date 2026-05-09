@@ -215,6 +215,31 @@ func _trigger_event(trigger_type: String, player_pos: Vector3) -> void:
 	var labels: Array[String] = []
 	for label in event.get("labels", ["A", "B", "C"]):
 		labels.append(str(label))
+
+	# Cycle 10 — card_shown telemetry. Compute has_risk_hint and axis_diversity
+	# from the event's choices array (data not available to the overlay).
+	#  - has_risk_hint: true if ANY choice has a non-empty risk_hint string.
+	#  - axis_diversity: count of UNIQUE axes across the 3 choices (1, 2, or 3).
+	#    Higher = more meaningful branching. 1 means all choices share an axis.
+	# Falls back to labels.size() when the event has no choices array (legacy).
+	var ml_card: SceneTree = Engine.get_main_loop() as SceneTree
+	var metrics_card: Node = ml_card.root.get_node_or_null("MerlinMetrics") if ml_card else null
+	if metrics_card and metrics_card.has_method("card_shown"):
+		var choices_for_telemetry: Array = event.get("choices", []) as Array
+		var has_risk: bool = false
+		var unique_axes: Dictionary = {}
+		for choice_dict in choices_for_telemetry:
+			var c: Dictionary = choice_dict as Dictionary
+			if String(c.get("risk_hint", "")).strip_edges() != "":
+				has_risk = true
+			var ax: String = String(c.get("axis", ""))
+			if ax != "":
+				unique_axes[ax] = true
+		var axis_div: int = unique_axes.size()
+		if axis_div == 0:
+			axis_div = labels.size()
+		metrics_card.card_shown(text.length(), has_risk, axis_div)
+
 	_overlay.show_event(text, labels)
 
 
@@ -862,6 +887,11 @@ func _show_end_of_run_overlay(reason: String) -> void:
 	if sfx_node and sfx_node.has_method("play"):
 		sfx_node.play("partir_fanfare" if reason == "path_complete" else "error")
 	# Telemetry: log run_ended in MerlinMetrics if present.
+	# Cycle 10 — arity fix: MerlinMetrics.run_ended(reason: String) takes ONE
+	# arg. The previous call passed `_cards_played` as a second arg which
+	# raised "Invalid call. Nonexistent function 'run_ended'" at runtime.
+	# Card count is already tracked via per-card card_shown() telemetry, so
+	# the run-ended hook only needs the reason string.
 	var metrics: Node = ml_root.root.get_node_or_null("MerlinMetrics") if ml_root else null
 	if metrics and metrics.has_method("run_ended"):
-		metrics.run_ended(reason, _cards_played)
+		metrics.run_ended(reason)
