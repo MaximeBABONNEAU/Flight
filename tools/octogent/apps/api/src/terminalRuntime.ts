@@ -348,6 +348,15 @@ export const createTerminalRuntime = ({
       ...(terminal.endedAt ? { endedAt: terminal.endedAt } : {}),
       ...(terminal.exitCode !== undefined ? { exitCode: terminal.exitCode } : {}),
       ...(terminal.exitSignal !== undefined ? { exitSignal: terminal.exitSignal } : {}),
+      ...(terminal.bypassPermissions ? { bypassPermissions: true } : {}),
+      ...(terminal.studioRole ? { studioRole: terminal.studioRole } : {}),
+      // Expose agentProvider for debug visibility (2026-05-09).
+      // Was previously omitted; consumers seeing `undefined` in JSON inferred
+      // (incorrectly) that the field was unset. Surfacing the value lets
+      // clients verify which provider Octogent will use to bootstrap the
+      // session (default DEFAULT_AGENT_PROVIDER = "claude-code" applied
+      // at terminalRuntime.ts:466 + sessionRuntime.ts:484).
+      ...(terminal.agentProvider ? { agentProvider: terminal.agentProvider } : {}),
     };
   };
 
@@ -399,6 +408,8 @@ export const createTerminalRuntime = ({
     parentTerminalId,
     nameOrigin,
     autoRenamePromptContext,
+    bypassPermissions,
+    studioRole,
   }: {
     terminalId?: string;
     tentacleId?: string;
@@ -412,6 +423,8 @@ export const createTerminalRuntime = ({
     parentTerminalId?: string;
     nameOrigin?: TerminalNameOrigin;
     autoRenamePromptContext?: string;
+    bypassPermissions?: boolean;
+    studioRole?: "director" | "worker";
   }): TerminalSnapshot => {
     // Enforce max children per parent.
     if (parentTerminalId) {
@@ -464,6 +477,8 @@ export const createTerminalRuntime = ({
       ...(initialInputDraft ? { initialInputDraft } : {}),
       ...(initialPrompt ? { lastActiveAt: new Date().toISOString() } : {}),
       ...(parentTerminalId ? { parentTerminalId } : {}),
+      ...(bypassPermissions ? { bypassPermissions: true } : {}),
+      ...(studioRole ? { studioRole } : {}),
     };
 
     const effectiveWorktreeId = worktreeId ?? tentacleId;

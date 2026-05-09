@@ -11,6 +11,7 @@ export type ForgeHealth = {
   state: ForgeHealthState;
   workersActive: number;
   workersIdle: number;
+  workersStuckPermission: number;
   tentacleTotal: number;
   apiLatencyMs: number | null;
   lastUpdate: number | null;
@@ -52,10 +53,14 @@ const deriveState = (
   terminalsOk: boolean,
   tentaclesOk: boolean,
   apiLatencyMs: number | null,
+  workersStuckPermission: number,
 ): ForgeHealthState => {
   if (!terminalsOk && !tentaclesOk) return "down";
   if (!terminalsOk || !tentaclesOk) return "warn";
   if (apiLatencyMs !== null && apiLatencyMs > SLOW_API_THRESHOLD_MS) return "warn";
+  // Workers blocked on permission prompts = autonomy is leaking.
+  // Surface as DEGRADED so the user notices the friction without polling logs.
+  if (workersStuckPermission > 0) return "warn";
   return "ok";
 };
 
@@ -64,6 +69,7 @@ export const useForgeHealth = (): ForgeHealth => {
     state: "unknown",
     workersActive: 0,
     workersIdle: 0,
+    workersStuckPermission: 0,
     tentacleTotal: 0,
     apiLatencyMs: null,
     lastUpdate: null,
@@ -93,7 +99,20 @@ export const useForgeHealth = (): ForgeHealth => {
           (t) => t.lifecycleState === "running" && t.agentRuntimeState === "processing",
         ).length;
         const workersIdle = termArr.filter(
-          (t) => t.lifecycleState === "running" && t.agentRuntimeState !== "processing",
+          (t) =>
+            t.lifecycleState === "running" &&
+            t.agentRuntimeState !== "processing" &&
+            t.agentRuntimeState !== "waiting_for_permission",
+        ).length;
+        // Stuck-permission count: workers blocked on a permission prompt.
+        // With bypass-by-default (terminalRoutes + deckRoutes commit
+        // 3341b7d0+) this should normally be 0. Non-zero indicates either
+        // pre-fix legacy terminals OR an explicit bypassPermissions: false
+        // opt-out — surface it in the header pill so the user notices
+        // without diving into menus.
+        const workersStuckPermission = termArr.filter(
+          (t) =>
+            t.lifecycleState === "running" && t.agentRuntimeState === "waiting_for_permission",
         ).length;
 
         const tentacleArr = Array.isArray(tentacles.data) ? tentacles.data : [];
@@ -103,9 +122,15 @@ export const useForgeHealth = (): ForgeHealth => {
 
         if (!isDisposed) {
           setHealth({
-            state: deriveState(terminals.data !== null, tentacles.data !== null, slowest),
+            state: deriveState(
+              terminals.data !== null,
+              tentacles.data !== null,
+              slowest,
+              workersStuckPermission,
+            ),
             workersActive,
             workersIdle,
+            workersStuckPermission,
             tentacleTotal,
             apiLatencyMs: slowest,
             lastUpdate: Date.now(),

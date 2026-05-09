@@ -37,10 +37,19 @@ export const ForgeHealthBadge = () => {
     hasData && health.tentacleTotal > 0 ? `${health.tentacleTotal} tentacles` : null;
   const latencyChip =
     hasData && health.apiLatencyMs !== null ? `${health.apiLatencyMs}ms` : null;
+  // Stuck-permission chip (2026-05-09 — user-visible autonomy leak indicator).
+  // Non-zero means a worker is blocked on a permission prompt despite the
+  // bypass-by-default in terminalRoutes/deckRoutes. Surfaces in the badge
+  // tooltip + as a colored chip so the user can purge stale terminals.
+  const stuckChip =
+    hasData && health.workersStuckPermission > 0
+      ? `${health.workersStuckPermission} stuck-permission`
+      : null;
 
   const tooltip = [
     STATE_TITLE[health.state],
     workersChip ? `Workers: ${workersChip}` : null,
+    stuckChip ? `BLOCKED on permission: ${stuckChip}` : null,
     tentacleChip ? `Deck: ${tentacleChip}` : null,
     latencyChip ? `API: ${latencyChip}` : null,
   ]
@@ -93,6 +102,17 @@ export const ForgeHealthBadge = () => {
       </span>
       {workersChip ? (
         <span style={{ opacity: 0.7, fontVariantNumeric: "tabular-nums" }}>· {workersChip}</span>
+      ) : null}
+      {stuckChip ? (
+        <span
+          style={{
+            color: STATE_COLOR.warn,
+            fontWeight: 600,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          · {stuckChip}
+        </span>
       ) : null}
       {tentacleChip ? (
         <span style={{ opacity: 0.5, fontVariantNumeric: "tabular-nums" }}>· {tentacleChip}</span>
