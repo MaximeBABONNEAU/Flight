@@ -204,14 +204,41 @@ func _classify_result(delta: int) -> int:
 	return MerlinConstants.TestResult.CRITICAL_FAILURE
 
 
-## Compute the scaled DC for a given card index (1-5 typically).
-## Returns a DC clamped to [DC_MIN..DC_MAX]. See docs/BALANCE_FORMULA.md.
-##   DC(card_index) = 8 + (card_index * 1.2)
-##   Card 1: DC 9, Card 2: 10, Card 3: 11, Card 4: 12, Card 5: 13.
-static func scaled_dc(card_index: int, base_override: int = -1) -> int:
+## Compute the scaled DC for a given card index. Returns a DC clamped to
+## [DC_MIN..DC_MAX]. See docs/BALANCE_FORMULA.md.
+##
+## Cycle 11 — replaced the prior linear formula `8 + i*1.2` with an
+## asymptotic curve so DC remains feasible for long runs (Vampire-Survivors
+## style: hundreds of cards expected). The curve saturates near DC_MAX
+## as card_index → ∞, leaving headroom so a player with full buffs (stat
+## 10 + ogham +3 + narrative +4 + minigame +2 = +19, vs d10) can still
+## crit on legendary cards.
+##
+##   DC(i) = 8 + 10 * (1 - exp(-i / k))   where k = 8 / difficulty_tier
+##   then clamp to [DC_MIN..DC_MAX]
+##
+## Sample values at difficulty_tier=1:
+##   Card  0 → DC  8 (intro: easy)
+##   Card  1 → DC  9
+##   Card  3 → DC 11
+##   Card  5 → DC 13 (medium)
+##   Card 10 → DC 15
+##   Card 15 → DC 16
+##   Card 20 → DC 17 (hard)
+##   Card 30 → DC 18 (legendary, capped)
+##   Card 50 → DC 18 (capped)
+##
+## A `difficulty_tier` of 1..3 compresses the curve — tier 3 reaches
+## DC 17 by card 7, tier 2 by card 14. Use for biome progression.
+static func scaled_dc(card_index: int, base_override: int = -1, difficulty_tier: int = 1) -> int:
 	if base_override > 0:
 		return clampi(base_override, MerlinConstants.DC_MIN, MerlinConstants.DC_MAX)
-	var dc: int = int(round(8.0 + float(card_index) * 1.2))
+	var i: float = float(maxi(0, card_index))
+	var tier: int = clampi(difficulty_tier, 1, 3)
+	var k: float = 8.0 / float(tier)  # smaller k = steeper curve
+	# Asymptotic curve: starts at 8, climbs toward 18 as i → ∞.
+	var dc_float: float = 8.0 + 10.0 * (1.0 - exp(-i / k))
+	var dc: int = int(round(dc_float))
 	return clampi(dc, MerlinConstants.DC_MIN, MerlinConstants.DC_MAX)
 
 
