@@ -112,16 +112,41 @@ fi
 # lives at tools/octogent/.octogent/. project.json there already has
 # displayName="MERLIN" so the dashboard still shows "MERLIN" as the
 # project name.
-# DURCISSEMENT (autopsy 2026-05-05): refuse de démarrer si $PORT est déjà
-# occupé par un autre processus. Octogent en interne fait un findOpenPort
-# fallback qui peut bind 8788 silently — c'est ce qui a doublé l'instance
-# overnight. Mieux vaut crier.
+# SMART RESTART (2026-05-09 — TIER 1.1 fix): if port is bound, probe the
+# existing instance via /api/deck/tentacles. Three outcomes:
+#   - responsive (HTTP 200 in <3s) → no-op, healthy instance already there
+#   - unresponsive Octogent zombie → kill it + proceed to launch
+#   - bound by non-Octogent process → refuse with clear error
+# This replaces the prior hard-fail guard that blocked the watchdog's
+# recovery path whenever Octogent crashed but kept its socket open.
 if ss -tln 2>/dev/null | grep -qE ":${PORT}\s"; then
   EXISTING_PID="$(ss -tlnp 2>/dev/null | grep -E ":${PORT}\s" | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)"
-  log "ERROR: port $PORT already bound (PID ${EXISTING_PID:-unknown}). Refuse to start."
-  log "  → Stop the existing instance first:  kill -9 ${EXISTING_PID:-<pid>}"
-  log "  → Or set PORT=<other> to use a different port (not recommended for the canonical 8787)."
-  exit 3
+  if curl -fsS -o /dev/null -m 3 "http://localhost:${PORT}/api/deck/tentacles" 2>/dev/null; then
+    log "Port $PORT bound (PID ${EXISTING_PID:-unknown}) AND healthy (curl OK). No-op."
+    log "  → Use 'kill ${EXISTING_PID:-<pid>}' to recycle manually if you must."
+    exit 0
+  fi
+  if [ -z "$EXISTING_PID" ]; then
+    log "ERROR: port $PORT bound but no PID via ss -tlnp. Refuse to start."
+    log "  → Investigate manually: ss -tlnp | grep :$PORT"
+    exit 3
+  fi
+  # Verify it's actually an Octogent process before killing.
+  EXISTING_ARGS="$(tr '\0' ' ' < /proc/${EXISTING_PID}/cmdline 2>/dev/null || true)"
+  if echo "$EXISTING_ARGS" | grep -q "bin/octogent"; then
+    log "Port $PORT bound by zombie Octogent (PID $EXISTING_PID, curl unresponsive >3s). Killing for restart."
+    kill -9 "$EXISTING_PID" 2>/dev/null || sudo kill -9 "$EXISTING_PID" 2>/dev/null || true
+    sleep 2
+    if ss -tln 2>/dev/null | grep -qE ":${PORT}\s"; then
+      log "ERROR: kill of PID $EXISTING_PID failed — port still bound. Refuse to start."
+      exit 3
+    fi
+    log "Zombie killed, port $PORT free. Proceeding with launch."
+  else
+    log "ERROR: port $PORT bound by non-Octogent process (PID $EXISTING_PID, cmd='${EXISTING_ARGS:0:80}'). Refuse to start."
+    log "  → Investigate: ps -fp $EXISTING_PID"
+    exit 3
+  fi
 fi
 
 log "Launching: HOST=$HOST_BIND PORT=$PORT, cwd=$OCTOGENT_DIR"

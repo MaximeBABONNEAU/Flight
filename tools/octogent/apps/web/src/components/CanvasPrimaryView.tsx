@@ -238,7 +238,10 @@ export const CanvasPrimaryView = ({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [terminalsPanelWidth, setTerminalsPanelWidth] = useState<number | null>(null);
   const [pendingOpenAgentId, setPendingOpenAgentId] = useState<string | null>(null);
-  const [hideIdleTerminals, setHideIdleTerminals] = useState(false);
+  // ACTIVE-first canvas (UX simplification 2026-05-09): hide idle terminals
+  // by default so the user sees only what's currently doing work. The button
+  // at line ~1148 still toggles to "Show Idle" when the full picture is needed.
+  const [hideIdleTerminals, setHideIdleTerminals] = useState(true);
   const [isLaunchingWorkspaceSetupPlanner, setIsLaunchingWorkspaceSetupPlanner] = useState(false);
   const hasHydratedTerminals = useRef(false);
   const hasHydratedTentacles = useRef(false);
