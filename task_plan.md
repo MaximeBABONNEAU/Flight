@@ -1,256 +1,90 @@
-# Task Plan — MERLIN
+# Task Plan — MERLIN Game Development
 
-> Live focus + recent history. Older phases archived in git log.
+> **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
+> **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
+> **Last refresh**: 2026-05-10 (post-audit: 0 autonomous worker commits, 872 dead-code refs blocking Phase 0).
 
----
+## Hard Rules for Studio (read this BEFORE picking a task)
 
-## Current focus (2026-05-04): C42b — code-review fixes on autonomous studio
-
-**Trigger**: code-reviewer agent ran on `director-tick.mjs` + `director-watchdog.sh`
-(commit bf8fc3b5) and returned BLOCK verdict — 1 CRITICAL + 1 HIGH + 2 MEDIUM.
-
-**Fixes applied:**
-
-1. [CRITICAL] `director-tick.mjs:88-101` — used `POST /api/terminals body={}`
-   thinking it would list terminals. Octogent's `terminalRoutes.ts:63-271`
-   confirms POST is a CREATE op — every tick was leaking a ghost terminal
-   (24h × 5min interval = 288 ghosts). Replaced with the read-only
-   `GET /api/terminal-snapshots` (terminalRoutes.ts:45-60). Confirmed live:
-   12 terminals existed at the moment of fix (1 legit parent + 11 ghosts /
-   stale).
-
-2. [HIGH] `director-watchdog.sh:57` — `echo "$$" > $PID_FILE` could leak the
-   parent shell PID instead of the `setsid -f` child. Replaced with
-   `$BASHPID`. Behaviorally identical in the canonical launch path but
-   unambiguous if the script is ever wrapped/sourced.
-
-3. [MEDIUM] `director-watchdog.sh:78-82` — single transient curl failure
-   triggered an unnecessary `start-persistent.sh` restart. Added 2-of-3
-   consecutive-failure threshold via `HEALTH_FAILS` counter.
-
-4. [LOW→Doc] kill -9 leaks PID file. Documented in the Stop usage comment;
-   the existing idempotency guard already handles stale PID files via
-   `kill -0` self-healing on next launch.
-
-**Cleanup pending**: DELETE the 11 ghost / stale terminals via Octogent API.
-**Re-launch pending**: watchdog with patched scripts.
+- **GAME WORK ONLY.** No `tools/octogent/`, no `tools/autodev/`, no `server/`, no `validate.bat` edits, no dashboard / Forge UI work. The Forge is the orchestration tool — workers ship the GAME.
+- **Use Windows Godot MCP** for scene/script work: `mcp__godot-mcp__*` tools (Godot Engine v4.5.1.stable.official at `C:/Users/PGNK2128/Godot/Godot_v4.5.1-stable_win64_console.exe`). NEVER spawn `wsl godot` or any Linux Godot binary — the project's runtime target is Windows.
+- **Validate via Windows `validate.bat`**: from WSL workers, call `cmd.exe /c "C:\\Users\\PGNK2128\\Godot-MCP\\validate.bat"`. The bat's parse check is the source of truth — `python tools/cli.py godot validate_step0` is an alias that ALSO routes to Windows Godot via `tools/adapters/godot_adapter.py`.
+- **Conventional commits**: `refactor(cleanup):`, `feat(merlin):`, `fix(merlin):`, etc. NO `[AI-assisted]` tag (personal project).
+- **One task = one commit on `octogent/studio-worker-<N>`**, then `DONE: <task>` to director.
 
 ---
 
-## Older focus (2026-05-01): C41 — MERLIN Forge complete UI redesign
+## Phase 0 — Cleanup Dead Code (BLOCKING — must reach 0 refs)
 
-**User directive:**
-> "Oui remplace tout l'UI complet, complet redesign, on garde les features
->  et ce qui fait la force de la solution octogent, il faut aussi le fond
->  c'est a dire le mode studio (ce qui fais l'interet de la solution)"
+> Audit 2026-05-10: 872 dead-code references in `scripts/`. Each item below targets a specific symbol family. Each task is independently committable.
 
-**Scope** : Redesign visuel complet du portail Octogent en MERLIN Forge.
-Preserve : 8 primary views, studio mode, terminals, canvas, hooks, HTTP API.
-Refonte : palette (forge gold + forest + parchment), typography (Cinzel
-serif), cards (parchemin + bronze borders), studio button (Light/Douse the
-Forge), backgrounds (subtle gradients + Celtic accent).
+### Phase 0 Tasks
 
-**Phases:**
-1. DONE — Hooks fix + initial brand (settings.json, session-start, forge_director)
-2. DONE — Critical brand surfaces (favicon, top logo, central node, WorkspaceCard)
-3. WIP — Theme CSS override massif (merlin-theme.css injectee via index.html)
-4. PENDING — String changes thematiques (Studio button "Light the Forge")
-5. PENDING — Rebuild + restart + visual QA
+- [ ] **P0-A** Remove `souffle` references from `scripts/`. Targets: dead enum entries, unused vars, comment-stripping where Souffle is referenced as an active system. Acceptance: `grep -r "souffle" scripts/ --include="*.gd" | wc -l` returns 0 (or only comments). [agents: bug_hunter, code-reviewer]
 
-**Files:**
-- NEW : tools/octogent/apps/web/public/merlin-theme.css
-- NEW : tools/octogent/dist/web/merlin-theme.css (mirror)
-- EDIT : 2x index.html (link injection)
-- EDIT : StudioToggle.tsx (button labels)
+- [ ] **P0-B** Remove `flux` references from `scripts/`. Same shape as P0-A. Targets: `FLUX_*` constants in `merlin_constants.gd`, flux state keys in `merlin_store.gd`, flux UI hooks. [agents: bug_hunter, code-reviewer]
 
-**Out of scope** : @octogent/core imports, HTTP endpoints, React state
-logic, TDD (design refresh sur code stable).
+- [ ] **P0-C** Remove `triade` references from `scripts/`. Includes `TRIADE_*` action dispatch rename: `TRIADE_START_RUN -> START_RUN`, `TRIADE_GET_CARD -> GET_CARD`, `TRIADE_RESOLVE_CHOICE -> RESOLVE_CHOICE`, `TRIADE_END_RUN -> END_RUN`, `TRIADE_DAMAGE_LIFE -> DAMAGE_LIFE`, `TRIADE_HEAL_LIFE -> HEAL_LIFE`, `TRIADE_GENERATE_MAP -> GENERATE_MAP`, `TRIADE_SELECT_NODE -> SELECT_NODE`, `TRIADE_PROGRESS_MISSION -> PROGRESS_MISSION`, `TRIADE_USE_SKILL -> USE_SKILL`, `TRIADE_APPLY_EFFECTS -> APPLY_EFFECTS`. Update all callers: `merlin_game_controller.gd`, `test_merlin_store.gd`, `test_llm_full_run.gd`, `test_llm_benchmark_run.gd`, `test_llm_intelligence.gd`, `auto_play_runner.gd`, `game_debug_server.gd`. [agents: refactor-cleaner, code-reviewer]
 
----
+- [ ] **P0-D** Remove `bestiole` references from `scripts/`. Includes deletion of `scripts/ui/bestiole_*.gd` files (5 files, ~410 lines), bestiole state in `game_manager.gd`, bestiole UI in `merlin_game_ui.gd`. [agents: refactor-cleaner, code-reviewer]
 
-## Older focus (2026-04-30): C40 — Octogent redeploy + 103-agent integration
+- [ ] **P0-E** Remove `awen` references from `scripts/`. Targets: `REROLL_AWEN_COST` in `Calendar.gd`, awen UI hooks. Replace with biome-currency where the gameplay function is preserved. [agents: refactor-cleaner, code-reviewer]
 
-**User directive:**
-> "Redéploie Octogent comme il se doit, et intègre dès le départ
->  le système des 100+ agents pour le studio autonome qui dev mon
->  jeu dans le Godot sur le PC."
+- [ ] **P0-F** Remove `gauges` references from `scripts/`. Includes `GAUGES` const in `merlin_card_system.gd`, gauge init/check/effect logic, `LEGACY_GAUGE_EFFECTS` in `merlin_effect_engine.gd` (keep `QUEUE_CARD`/`TRIGGER_ARC` in `VALID_CODES`). [agents: refactor-cleaner, code-reviewer]
 
-**Plan (5 phases):**
-1. ✅ Kill prior sed-patched Octogent instance
-2. 🟡 Source-patch `apps/api/src/cli.ts`: `127.0.0.1` → `process.env.HOST ?? "127.0.0.1"` (both bind sites)
-3. ⏳ `pnpm build` to regenerate dist cleanly
-4. ⏳ Write integration script `tools/octogent/integrate-merlin-agents.mjs`:
-   - Reads `tools/autodev/agent_cards/_registry.json` (103 agents)
-   - For each agent → creates `.octogent/tentacles/<id>/CONTEXT.md` with H1=name, body=description+capabilities
-   - Writes `.octogent/state/deck.json` with category-based colors
-5. ⏳ Persistent launcher `tools/octogent/start-persistent.sh`:
-   - Idempotent (skip if PID alive)
-   - `setsid -f` so process survives shell teardown
-   - Runs from MERLIN repo root (workspace = MERLIN)
+- [ ] **P0-G** Remove `essence` references from `scripts/`. Targets: `essence{14}` meta state keys in `merlin_store.gd`, `ESSENCE_*` constants in `merlin_constants.gd`, essence effects in `merlin_effect_engine.gd`. [agents: refactor-cleaner, code-reviewer]
 
-**Gate notes:** auto-router classified this as "design sprint" + 3D
-decomposition. Skipped ui-ux-pro-max / blender_tower_architect /
-content_worldbuilding agents — task is pure infra (Node deploy, Bash
-launcher, JSON munging). No UI/UX, no 3D assets touched. learn-eval
-runs at session end per standard.
+- [ ] **P0-H** Delete `scripts/minigames/mg_de_du_destin.gd` (D20 dice — replaced by minigame system). [agents: refactor-cleaner]
+
+- [ ] **P0-I** Delete `scripts/ui/hub_souffle_bar.gd`, `scripts/ui/hub_triade_hud.gd`. [agents: refactor-cleaner]
+
+- [ ] **P0-J** Update `scripts/autoload/merlin_visual.gd`: remove palette entries `souffle`, `souffle_full`, `bestiole`. Remove `CRT_ASPECT_COLORS Triade` section. Verify GBC has no dead entries. [agents: art_direction, code-reviewer]
+
+- [ ] **P0-K** Final acceptance check: `grep -rE "souffle|flux|triade|bestiole|awen|bond|gauges|essence" scripts/ --include="*.gd"` returns lines only inside commented historical refs. Then run `cmd.exe /c "C:\\Users\\PGNK2128\\Godot-MCP\\validate.bat"` and verify 0 errors / 0 warnings. Commit: `refactor(cleanup): remove all dead systems (Phase 0 closes)`. [agents: code-reviewer, security-reviewer]
 
 ---
 
-## Older focus (2026-04-28): C38 MCP bridge consolidation
+## Phase 1 — Core Data Layer Alignment (after Phase 0)
 
-**User directive:**
-> "Consolide le MCP bridge direct sur le controle du projet Godot,
->  je veux voir en live ta prise de controle CLI ou MCP avec utilisation
->  TOUJOURS en priorite l'usage des fonctions natives over le script."
+> Bible v2.4 has 18 Oghams with specific effects. The current `OGHAM_FULL_SPECS` in `merlin_constants.gd` does NOT match. Phase 1 corrects the divergences.
 
-**Progress:**
-- [x] Load 16 native `mcp__godot-mcp__*` tools via ToolSearch
-- [x] Live demo: `get_project_info` / `get_current_scene` / `list_nodes` parallel
-- [x] Live demo: `execute_editor_script` via `EditorInterface.get_edited_scene_root()`
-- [x] Diagnose: `_replace_print_calls` regex breaks on `print(str(node))` (nested parens)
-- [x] Fix: paren-balance scanner replaces regex in `editor_script_commands.gd`
-- [x] Document priority hierarchy in CLAUDE.md (Native MCP > CLI > Edit > Bash)
-- [ ] Smoke + commit C38
-- [ ] End-of-session learn-eval
+### Phase 1 Tasks
 
-**Active monitor:** `bf1bw7ezi` — tails `MERLIN/logs/godot.log` for live errors.
+- [ ] **P1-A** Read `docs/GAME_DESIGN_BIBLE.md` Ogham specs and `scripts/merlin/merlin_constants.gd:OGHAM_FULL_SPECS`. Produce a diff table (one row per Ogham: bible-effect vs code-effect vs verdict). Output: `docs/audits/ogham_alignment_2026-05.md`. [agents: code-explorer]
 
-**Note:** MCP server addon needs editor restart for the regex fix to take
-effect (addon scripts load at editor startup, not hot-reloaded).
+- [ ] **P1-B** For each diverging Ogham (from P1-A diff), update `OGHAM_FULL_SPECS` to match the bible. One commit per Ogham (18 max). [agents: bug_hunter, code-reviewer]
+
+- [ ] **P1-C** Verify `OGHAM_AFFINITY_SCORE_BONUS` (+10%) and `OGHAM_AFFINITY_COOLDOWN_BONUS` (-1) constants are wired correctly in `merlin_effect_engine.gd`. [agents: code-explorer, code-reviewer]
+
+- [ ] **P1-D** Add unit tests for `MerlinTestEngine.scaled_dc()` (the asymptotic curve from Cycle 11). Test cases: card_index 0/1/3/5/10/20/30/50 + each `difficulty_tier` 1/2/3 + `base_override` path. File: `tests/test_merlin_test_engine.gd`. [agents: tdd-guide, code-reviewer]
 
 ---
 
-## Older phases (archived)
+## Anti-Targets (DO NOT pick these)
 
-# Task Plan — Tri scenes + refactor demo bout en bout
+Studio must NEVER spawn workers for:
 
-> Date: 2026-04-25 | Auteur: Claude (orchestrateur) | Branch: main
-> Mode: MODERATE refactor — agent waves obligatoires
+- Anything in `tools/octogent/` (the dashboard itself — that's "improving the meta-tool")
+- Anything in `tools/autodev/` (autonomous loop infrastructure)
+- Anything in `server/` (MCP server)
+- `validate.bat` modifications
+- `package.json` / `pnpm-lock.yaml` modifications
+- `.claude/agents/` or `.claude/hooks/` edits
+- New audit reports without an explicit user request (they don't ship the game)
 
----
-
-## Objectif
-
-Reduire le projet a la **core experience jouable de bout en bout** :
-
-```
-IntroCeltOS
-  -> First Run 3D (tutoriel guide, scripte, SANS LLM, biome Broceliande)
-    -> Hub (cabane Merlin)
-      -> Run libre 3D (Broceliande, AVEC LLM, choix carte/minigame/effets)
-        -> EndRunScreen
-          -> retour Hub OU Menu Principal (sauvegarde)
-```
-
-**Demo = un seul biome (Broceliande). Un seul hub. Un seul menu. Pas de meta-progression UI (Calendar/Collection/TalentTree/MapMonde) dans la demo.**
-
-## Decisions verrouillees (user 2026-04-25)
-
-| Decision | Reponse user |
-|----------|--------------|
-| Flow demo | Intro -> First Run tuto (sans LLM) -> Hub -> Run libre (LLM) -> Menu/save |
-| Tri | `git rm` direct sur les non-essentiels |
-| Doublons hubs/menus | Supprimer aussi (un seul de chaque) |
-| Priorite | Flow connecte ET boucle gameplay reelle |
-
-## Phases (Agent Waves)
-
-### Wave 1 — Analyse (SEQUENTIAL)
-
-1. **project_curator** : scan complet de `scenes/` + `scripts/` + `addons/`. Produit:
-   - Tableau KEEP/DELETE/CONSOLIDATE pour chaque .tscn
-   - Choix definitif : 1 hub, 1 menu, 1 scene de run 3D
-   - Liste des scripts orphelins une fois les .tscn supprimees
-   - Liste des autoloads/refs a mettre a jour dans project.godot
-2. **game_designer** : valide la chaine cible vs bible v2.4. Confirme que :
-   - First Run = tuto scripte (pas un vrai run avec faction/Ogham — juste le rail + 1 carte demo)
-   - Run libre = boucle complete (drain, carte LLM, choix, minigame, effets, score)
-   - Menu/Save inclut un point de save/load minimal
-
-### Wave 2 — Implementation (SEQUENTIAL)
-
-3. **lead_godot** + **godot_expert** (parallele) :
-   - `git rm` les .tscn DELETE
-   - `git rm` les scripts orphelins associes
-   - Mettre a jour `project.godot` (main_scene, autoloads, input map si necessaire)
-   - Renommer si besoin (ex: `MerlinCabinHub.tscn` -> `Hub.tscn` si c'est le retenu)
-4. **ui_impl** :
-   - Cabler IntroCeltOS -> FirstRunTuto
-   - Cabler fin tuto -> Hub
-   - Cabler bouton Hub "Partir en run" -> Run libre
-   - Cabler EndRunScreen -> retour Hub + bouton Menu
-   - Cabler Menu -> Save/Load
-5. **godot_expert** : Differencier les 2 runs :
-   - First Run guide : sequence scripte (cartes pre-ecrites en JSON local, voix off tuto)
-   - Run libre : pipeline LLM existant (`merlin_card_system` + `merlin_ai`)
-
-### Wave 3 — QA & Commit (SEQUENTIAL)
-
-6. **debug_qa** : `validate.bat` + smoke test du flow via `mcp__godot-mcp__execute_editor_script`
-7. **git_commit** : commit conventional + push
-
-### Wave Finale
-
-8. **Skill `everything-claude-code:learn-eval`** : extraction patterns de cette session
-
-## 2026-04-25 (suite) — Refonte sequentielle tuto + visibilite 3D
-
-### Decisions
-- Plan canonique : `docs/INTRO_TUTO_SEQUENCE.md` (Merlin parle PUIS effet, jamais l'inverse)
-- VO et effet sont SEQUENTIELS, pas concurrents (carte ne charge plus pendant la dialogue)
-- Visibilite 3D : ProceduralSkyMaterial + Sun energy 1.6 + fog atmospherique dans .tscn
-- Captures auto 100-200ms : reportees a un commit 2 (apres validation user de la base)
-
-## Etat d'avancement (live)
-
-- Wave 1 (analyse) : DONE — Explore agent rapport KEEP/DELETE
-- Wave 2a (suppressions) : DONE — 21 .tscn + 22 .gd `git rm`
-- Wave 2b (patches refs) : EN COURS — 7/10 fichiers patches
-- Wave 2c (tutorial flag) : PENDING
-- Wave 3 (validation + commit) : PENDING
-
-## Sortie attendue
-
-- ~10-15 .tscn restantes (vs 32 actuelles)
-- 0 reference cassee (project.godot, autoloads, signals)
-- `validate.bat` passe sans warning
-- Smoke test : Intro -> Tuto -> Hub -> Run -> End -> Menu sans crash
-
-## Risques
-
-| Risque | Mitigation |
-|--------|------------|
-| Suppression d'une scene utilisee par autoload | project_curator fait grep des references AVANT delete |
-| First Run guide encore inexistant | Wave 2 cree un script tutoriel minimal si absent |
-| LLM dans Run libre cassee | Ne pas toucher a `addons/merlin_ai/*` — juste reconnecter |
-| Sauvegarde Menu pas branchee | Si trop complexe, MVP = "Continue" desactive en demo |
+If the LLM auto-gen at Tier 3 proposes any of the above, REJECT and try again with the constraint reinforced.
 
 ---
 
-## Bloc cycles 19→29 (avr 2026 — auto-loop guidé)
+## Effectiveness KPIs (track these per session)
 
-### Faits (committed)
+- **Game-code commit ratio**: target >= 80% of commits should be in `scripts/`, `scenes/`, `assets/`, `addons/merlin_*`. Current baseline (audit 2026-05-10): 25%.
+- **Phase 0 dead-code count**: 872 -> 0. Each `P0-*` task should reduce by 50-150 refs.
+- **Worker autonomous commit count**: target >= 1 per worker per hour while running. Current baseline: 0.
+- **Validate.bat green**: must stay green (0 errors / 0 warnings) at every merge.
 
-| # | Cycle | Sha |
-|---|-------|-----|
-| C19 | Card dynamism (parallax + ornament pulse + hover punch) | bb5fffeb |
-| C20 | Review fixes (per-button tweens + _hide_immediate cleanup) | 3bb1f863 |
-| C21 | Cleanup gitignore + 15 capture dirs supprimés | 3bb1f863 |
-| C22 | Gifts wired aux cartes 2/4 (Vampire-Survivors actif) | 6fba3bef |
-| C23 | run_modifiers consommés (stat_buffs/xp_mult/crit/reroll) | 6fba3bef |
-| C24 | Minigames Souffle/Esprit/Coeur sur chaque test | 9f884892 |
-| C25 | Trait announce surface dans la résolution | c170d1de |
-| C26 | 810 cartes FastRoute migrées au format RPG | fa93cbe3 |
+---
 
-### En cours
+## Older entries (archived)
 
-- **C27** (in progress): switch complet runtime vers pool RPG (data/cards/rpg/*) — tutorial conserve TUTORIAL_CARDS
-- **C28** (next): polish UI HUD cohabitation (gift indicator, ogham hint, faction shift)
-- **C29** (next): polish transitions inter-cartes (handoff propre 3D walk → carte → 3D walk)
-
-### Décisions utilisateur (cette session)
-
-- Pool switch: complet — RPG par défaut hors-tuto
-- Direction prochaine: UI polish (cohabitation HUD)
-- Reviews: code-reviewer en bg sur chaque cycle
-- Cadence: 3 cycles avant pause user
+Older focus blocks (C42b code-review fixes, C41 forge redesign, etc.) have been moved to git history. This file now tracks ONLY the live game-development backlog. The Forge tooling work is complete enough to support autonomous game dev — further forge improvements happen only on user-explicit request.
