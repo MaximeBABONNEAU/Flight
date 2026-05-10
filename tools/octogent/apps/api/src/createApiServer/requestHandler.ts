@@ -30,6 +30,7 @@ import {
   handleDeckTodoToggleRoute,
   handleDeckVaultFileRoute,
 } from "./deckRoutes";
+import { handleForgeAgentsRoute } from "./forgeAgentsRoutes";
 import { handleForgeStoryRoute } from "./forgeStoryRoutes";
 import { handleTentacleGitPullRequestRoute, handleTentacleGitRoute } from "./gitRoutes";
 import {
@@ -171,8 +172,8 @@ const API_ROUTE_MAP: ReadonlyMap<string, readonly ApiRouteHandler[]> = new Map([
       handleStudioDirectiveRoute,
     ],
   ],
-  // forge — lance+oublie narrative endpoint (recent commits + git activity).
-  ["forge", [handleForgeStoryRoute]],
+  // forge — narrative + agents catalog (recent commits, .claude/agents/* list).
+  ["forge", [handleForgeStoryRoute, handleForgeAgentsRoute]],
 ]);
 
 const extractRoutePrefix = (pathname: string): string | null => {

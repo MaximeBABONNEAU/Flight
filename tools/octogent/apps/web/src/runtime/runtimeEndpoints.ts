@@ -432,6 +432,15 @@ export const buildStudioDirectiveUrl = (runtimeBaseUrl = readRuntimeBaseUrl()) =
   return buildAbsoluteUrl(runtimeBaseUrl, "/api/studio/directive");
 };
 
+// Forge — list of MERLIN agents from .claude/agents/*.md. Powers the
+// <AgentLauncher /> picker.
+export const buildForgeAgentsUrl = (runtimeBaseUrl = readRuntimeBaseUrl()) => {
+  if (!runtimeBaseUrl) {
+    return "/api/forge/agents";
+  }
+  return buildAbsoluteUrl(runtimeBaseUrl, "/api/forge/agents");
+};
+
 export const buildTerminalSocketUrl = (
   tentacleId: string,
   runtimeBaseUrl = readRuntimeBaseUrl(),

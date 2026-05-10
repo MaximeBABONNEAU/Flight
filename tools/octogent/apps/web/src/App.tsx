@@ -26,6 +26,7 @@ import {
 import type { TerminalView } from "./app/types";
 import { clampSidebarWidth } from "./app/uiStateNormalizers";
 import { ActiveAgentsSidebar } from "./components/ActiveAgentsSidebar";
+import { AgentLauncher } from "./components/AgentLauncher";
 import { DirectiveBox } from "./components/DirectiveBox";
 import { ForgeStory } from "./components/ForgeStory";
 import { RuntimeStatusStrip } from "./components/RuntimeStatusStrip";
@@ -456,6 +457,9 @@ export const App = () => {
 
       {/* DirectiveBox: user directive to the autonomous studio director */}
       <DirectiveBox />
+
+      {/* AgentLauncher: pick a MERLIN agent + task, spawn a worker on demand */}
+      <AgentLauncher />
 
       {/* Phase B+C — SingleScreenForge: strip 8-tab nav + active terminals */}
       <SingleScreenForge terminals={terminals} runtimeStateStore={runtimeStateStore} />
