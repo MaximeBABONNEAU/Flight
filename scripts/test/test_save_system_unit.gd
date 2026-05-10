@@ -258,12 +258,11 @@ func test_migration_removes_dead_currencies() -> bool:
 	meta["ogham_fragments"] = 5
 	meta["liens"] = 3
 	meta["gloire_points"] = 10
-	meta["bestiole_evolution"] = "advanced"
 	meta["unlocked_evolutions"] = ["evo1"]
 	var data: Dictionary = {"version": "0.4.0", "meta": meta}
 	var migrated: Dictionary = save._migrate(data)
 	var migrated_meta: Dictionary = migrated.get("meta", {})
-	var dead_keys: Array = ["essence", "ogham_fragments", "liens", "gloire_points", "bestiole_evolution", "unlocked_evolutions"]
+	var dead_keys: Array = ["essence", "ogham_fragments", "liens", "gloire_points", "unlocked_evolutions"]
 	for key in dead_keys:
 		if migrated_meta.has(key):
 			push_error("Migration should remove dead currency key: %s" % key)
