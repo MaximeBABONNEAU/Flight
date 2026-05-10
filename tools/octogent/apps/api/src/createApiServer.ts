@@ -16,6 +16,7 @@ import type { CreateApiServerOptions } from "./createApiServer/types";
 import { createUpgradeHandler } from "./createApiServer/upgradeHandler";
 import { readGithubRepoSummary as readGithubRepoSummaryDefault } from "./githubRepoSummary";
 import { createMonitorService } from "./monitor";
+import { createStudioRuntime } from "./studioRuntime";
 import { createTerminalRuntime } from "./terminalRuntime";
 
 export const createApiServer = ({
@@ -114,8 +115,21 @@ export const createApiServer = ({
 
   const codeIntelStore = createCodeIntelStore(resolvedStateDir);
 
+  // Studio runtime drives autonomous /api/studio/* routes (start/stop/status
+  // /directive). Wired here against the terminal runtime so it can spawn
+  // workers and the director PTY. Without this, every studio endpoint
+  // returns 500 ("Cannot read properties of undefined (reading 'getStatus')").
+  const studioRuntime = createStudioRuntime({
+    promptsDir: resolvedPromptsDir,
+    getApiPort,
+    createTerminal: runtime.createTerminal,
+    killTerminal: runtime.killTerminal,
+    listTerminalSnapshots: runtime.listTerminalSnapshots,
+  });
+
   const requestHandler = createApiRequestHandler({
     runtime,
+    studioRuntime,
     workspaceCwd: resolvedWorkspaceCwd,
     projectStateDir: resolvedStateDir,
     promptsDir: resolvedPromptsDir,

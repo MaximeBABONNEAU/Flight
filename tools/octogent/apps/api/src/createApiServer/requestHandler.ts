@@ -51,6 +51,7 @@ import type {
   RouteHandlerDependencies,
   TerminalRuntime,
 } from "./routeHelpers";
+import { handleStudioDirectiveRoute } from "./studioDirectiveRoutes";
 import {
   handleStudioStartRoute,
   handleStudioStatusRoute,
@@ -161,7 +162,15 @@ const API_ROUTE_MAP: ReadonlyMap<string, readonly ApiRouteHandler[]> = new Map([
   ],
   ["tentacles", [handleTentacleGitRoute, handleTentacleGitPullRequestRoute]],
   ["code-intel", [handleCodeIntelEventsRoute]],
-  ["studio", [handleStudioStatusRoute, handleStudioStartRoute, handleStudioStopRoute]],
+  [
+    "studio",
+    [
+      handleStudioStatusRoute,
+      handleStudioStartRoute,
+      handleStudioStopRoute,
+      handleStudioDirectiveRoute,
+    ],
+  ],
   // forge — lance+oublie narrative endpoint (recent commits + git activity).
   ["forge", [handleForgeStoryRoute]],
 ]);

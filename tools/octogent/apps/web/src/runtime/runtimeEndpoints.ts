@@ -422,6 +422,16 @@ export const buildForgeStoryUrl = (runtimeBaseUrl = readRuntimeBaseUrl()) => {
   return buildAbsoluteUrl(runtimeBaseUrl, "/api/forge/story");
 };
 
+// Studio — user directive injection (textarea form). GET reads the current
+// directive; POST persists a new one. The director reads it as Tier 0
+// priority on every wake cycle.
+export const buildStudioDirectiveUrl = (runtimeBaseUrl = readRuntimeBaseUrl()) => {
+  if (!runtimeBaseUrl) {
+    return "/api/studio/directive";
+  }
+  return buildAbsoluteUrl(runtimeBaseUrl, "/api/studio/directive");
+};
+
 export const buildTerminalSocketUrl = (
   tentacleId: string,
   runtimeBaseUrl = readRuntimeBaseUrl(),

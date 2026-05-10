@@ -26,6 +26,7 @@ import {
 import type { TerminalView } from "./app/types";
 import { clampSidebarWidth } from "./app/uiStateNormalizers";
 import { ActiveAgentsSidebar } from "./components/ActiveAgentsSidebar";
+import { DirectiveBox } from "./components/DirectiveBox";
 import { ForgeStory } from "./components/ForgeStory";
 import { RuntimeStatusStrip } from "./components/RuntimeStatusStrip";
 import { SidebarActionPanel } from "./components/SidebarActionPanel";
@@ -452,6 +453,9 @@ export const App = () => {
 
       {/* ForgeStory: prose narrative panel (recent commits + uptime + cycle) */}
       <ForgeStory />
+
+      {/* DirectiveBox: user directive to the autonomous studio director */}
+      <DirectiveBox />
 
       {/* Phase B+C — SingleScreenForge: strip 8-tab nav + active terminals */}
       <SingleScreenForge terminals={terminals} runtimeStateStore={runtimeStateStore} />

@@ -64,9 +64,19 @@ Before doing anything else, do these in order:
    - `docs/DEV_PLAN_V2.5.md` (canonical phase plan)
    - `docs/GAME_DESIGN_BIBLE.md` (only the table of contents — full read on demand)
 3. **Build the backlog (cascade priority):**
+   - **Tier 0 — User directive (HIGHEST PRIORITY)** : read the user's live directive from
+     `curl -s http://127.0.0.1:{{apiPort}}/api/studio/directive`. Returns
+     `{"text": "...", "updatedAt": <unix-s>}`. If `text` is non-empty,
+     this is the user telling you what to focus on RIGHT NOW. It overrides
+     Tier 1 priority. Treat each sentence as either:
+       (a) a high-level goal you decompose into worker tasks, OR
+       (b) an explicit task to dispatch verbatim to a worker.
+     Re-read the directive on every wake cycle (the user can update it any
+     time via the Forge UI). If the directive contradicts task_plan.md,
+     follow the directive — the user's live intent trumps the file.
    - **Tier 1 — `task_plan.md`** : extract unchecked `- [ ]` items. These are the user's explicit todos.
    - **Tier 2 — Octogent deck** : `curl -s http://127.0.0.1:{{apiPort}}/api/deck/tentacles | jq '.[] | {id, name, todos: (.todos // [])}'`. Pull pending todos from any tentacle.
-   - **Tier 3 — LLM auto-gen** : ONLY if Tiers 1 and 2 are empty. Read the current state of `progress.md` + `docs/DEV_PLAN_V2.5.md` and propose 3-5 concrete tasks aligned with the **next un-shipped phase**. Do not invent scope outside that phase. Print the proposed list to stdout for user visibility.
+   - **Tier 3 — LLM auto-gen** : ONLY if Tiers 0/1/2 are empty. Read the current state of `progress.md` + `docs/DEV_PLAN_V2.5.md` and propose 3-5 concrete tasks aligned with the **next un-shipped phase**. Do not invent scope outside that phase. Print the proposed list to stdout for user visibility.
 4. **Plan the wave.** Pick up to {{workerCount}} independent tasks from the backlog. "Independent" means they don't touch the same files. Group conflicting tasks into sequential waves; only spawn workers for the current wave.
 
 ## Agent Routing (MANDATORY)
