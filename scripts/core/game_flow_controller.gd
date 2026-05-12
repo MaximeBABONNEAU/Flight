@@ -25,6 +25,7 @@ enum GamePhase {
 	MENU,
 	HUB,
 	RUN,
+	BOARD_NARRATION,
 	END_SCREEN,
 	TALENT_TREE,
 }
@@ -33,6 +34,7 @@ const PHASE_NAMES: Dictionary = {
 	GamePhase.MENU: "menu",
 	GamePhase.HUB: "hub",
 	GamePhase.RUN: "run",
+	GamePhase.BOARD_NARRATION: "board_narration",
 	GamePhase.END_SCREEN: "end_screen",
 	GamePhase.TALENT_TREE: "talent_tree",
 }
@@ -45,6 +47,7 @@ const PHASE_NAMES: Dictionary = {
 # Single hub = MerlinCabinHub. Single run = BroceliandeForest3D.
 const SCENE_HUB: String = "res://scenes/MerlinCabinHub.tscn"
 const SCENE_RUN: String = "res://scenes/BroceliandeForest3D.tscn"
+const SCENE_BOARD_NARRATION: String = "res://scenes/BoardNarration.tscn"
 const SCENE_END: String = "res://scenes/EndRunScreen.tscn"
 const SCENE_MENU: String = "res://scenes/MerlinCabinHub.tscn"
 const SCENE_TALENT_TREE: String = "res://scenes/MerlinCabinHub.tscn"  # Talent tree disabled, fall back to hub
@@ -232,6 +235,9 @@ func _on_run_requested(biome_id: String, selected_oghams: Array) -> void:
 
 ## Transition from run to end screen.
 ## Called when Run3DController emits run_ended.
+## NEW (2026-05-12): If BoardNarration scene exists, route to it FIRST for
+## cinematic replay, then BoardNarration → EndRunScreen via narration_done signal.
+## Falls back to direct EndRunScreen if BoardNarration unavailable.
 func _on_run_ended(reason: String, data: Dictionary) -> void:
 	if _current_phase != GamePhase.RUN:
 		push_warning("[GameFlow] run_ended ignored: not in RUN phase (current: %s)" % get_current_phase_name())
@@ -248,8 +254,33 @@ func _on_run_ended(reason: String, data: Dictionary) -> void:
 	if _save_system:
 		_save_system.clear_run_state()
 
+	# Route via BoardNarration when available, else direct EndRunScreen.
+	if ResourceLoader.exists(SCENE_BOARD_NARRATION):
+		_set_phase(GamePhase.BOARD_NARRATION)
+		_transition_to(SCENE_BOARD_NARRATION)
+	else:
+		_set_phase(GamePhase.END_SCREEN)
+		_transition_to(SCENE_END)
+
+
+## Transition from board narration to end screen.
+## Called when BoardNarration emits narration_done.
+func _on_board_narration_done() -> void:
+	if _current_phase != GamePhase.BOARD_NARRATION:
+		push_warning("[GameFlow] board_narration_done ignored: not in BOARD_NARRATION phase (current: %s)" % get_current_phase_name())
+		return
 	_set_phase(GamePhase.END_SCREEN)
 	_transition_to(SCENE_END)
+
+
+## Wire a BoardNarration scene instance. Call after instancing the scene.
+## The scene emits `narration_done` once the cinematic replay completes.
+func wire_board_narration(board: Node) -> void:
+	if board == null:
+		return
+	if board.has_signal("narration_done"):
+		if not board.narration_done.is_connected(_on_board_narration_done):
+			board.narration_done.connect(_on_board_narration_done)
 
 
 ## Transition from end screen back to hub.

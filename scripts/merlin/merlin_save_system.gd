@@ -244,6 +244,19 @@ func has_active_run() -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# RUN JOURNAL — Append a post-run narrative journal entry (FIFO cap 30)
+# ═══════════════════════════════════════════════════════════════════════════════
+## Thin wrapper around BoardRunJournal.save_to_profile() for ergonomic access
+## from controllers (BoardNarration, future replay viewer, ...).
+## Returns true on success.
+##
+## Note: BoardRunJournal is class_name-registered; no ResourceLoader.exists
+## guard is needed (review 2026-05-12 — see findings.md).
+func save_run_journal(entry: Dictionary) -> bool:
+	return BoardRunJournal.save_to_profile(self, entry)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # VALIDATION
 # ═══════════════════════════════════════════════════════════════════════════════
 

@@ -2,7 +2,38 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-10 (post-audit: 0 autonomous worker commits, 872 dead-code refs blocking Phase 0).
+> **Last refresh**: 2026-05-12 (added BoardNarration feature task — see §"Active Feature").
+
+---
+
+## Active Feature — BoardNarration (Post-Run Cinematic Replay) [2026-05-12]
+
+**Detailed plan:** `docs/BOARD_NARRATION_PLAN.md`
+**Status:** IN PROGRESS — 3 helper scripts written, controller + scene + wiring pending.
+**Complexity:** MODERATE | **Branch:** main | **Dispatcher classification:** UI Layout + Animation + Shader + LLM Integration
+
+### BoardNarration phase checklist (current sprint)
+
+- [x] AskUserQuestion Wave 1 + 2 (8 dimensions clarified, decisions logged in plan doc)
+- [x] `ui-ux-pro-max` skill invocation (design_sprint FIRST)
+- [x] Dispatcher + store + infra read (game_flow_controller, end_run_screen, save_system, constants, visual palette)
+- [x] `docs/BOARD_NARRATION_PLAN.md` written
+- [x] `scripts/board_narration/sigle_token.gd` (class_name SigleToken)
+- [x] `scripts/board_narration/biome_ambience.gd` (class_name BoardBiomeAmbience, 8 biome presets)
+- [x] `scripts/board_narration/run_journal.gd` (class_name BoardRunJournal, FIFO cap 30)
+- [ ] `scripts/board_narration/board_narration.gd` (controller, orchestrates everything)
+- [ ] `scenes/BoardNarration.tscn` (minimal root + script self-builds)
+- [ ] `scripts/merlin/merlin_save_system.gd` — add `save_run_journal()` thin wrapper
+- [ ] `scripts/core/game_flow_controller.gd` — insert BoardNarration phase between run_ended and EndRunScreen
+- [ ] `validate.bat` parse-check pass
+- [ ] Smoke runtime `python tools/cli.py godot smoke --scene "res://scenes/BoardNarration.tscn" --duration 10`
+- [ ] `everything-claude-code:code-reviewer` agent on 6 touched files
+- [ ] `llm_expert.md` agent review on LLM commentary loop
+- [ ] `superpowers:verification-before-completion` (design_sprint LAST)
+- [ ] `everything-claude-code:learn-eval` (session-end ACTION 5)
+- [ ] Conventional commit `feat(narration): add post-run BoardNarration scene`
+
+---
 
 ## Hard Rules for Studio (read this BEFORE picking a task)
 
