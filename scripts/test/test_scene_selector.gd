@@ -26,8 +26,9 @@ func test_scenes_registry_not_empty() -> bool:
 
 
 func test_scenes_count_matches_expected() -> bool:
+	# v7.7 plateau-only triage (2026-05-15): SCENES trimmed from 14 → 8.
 	var scenes: Array = _get_scenes_const()
-	var expected_min: int = 14
+	var expected_min: int = 7
 	if scenes.size() < expected_min:
 		push_error("SCENES has %d entries, expected at least %d" % [scenes.size(), expected_min])
 		return false
@@ -108,13 +109,14 @@ func test_paths_are_unique() -> bool:
 	return true
 
 
-func test_known_scene_merlingame_present() -> bool:
+func test_known_scene_boardnarration_present() -> bool:
+	# v7.7 plateau-only triage (2026-05-15): MerlinGame.tscn removed; BoardNarration replaces it as the run scene.
 	var scenes: Array = _get_scenes_const()
 	for entry in scenes:
 		var path: String = entry["path"]
-		if path == "res://scenes/MerlinGame.tscn":
+		if path == "res://scenes/BoardNarration.tscn":
 			return true
-	push_error("MerlinGame.tscn not found in SCENES registry")
+	push_error("BoardNarration.tscn not found in SCENES registry")
 	return false
 
 

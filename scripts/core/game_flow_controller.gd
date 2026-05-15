@@ -57,7 +57,7 @@ const SCENE_TALENT_TREE: String = "res://scenes/MerlinCabinHub.tscn"  # Talent t
 
 const SCENE_HUB_ANTRE: String = "res://scenes/MerlinCabinHub.tscn"  # Alias for legacy callers
 const SCENE_FOREST: String = "res://scenes/BoardNarration.tscn"  # v7.7: plateau replaces forest — legacy name kept for callers
-const SCENE_CARD_GAME: String = "res://scenes/MerlinGame.tscn"
+# SCENE_CARD_GAME removed 2026-05-15: MerlinGame.tscn deleted in plateau-only triage. BoardNarration owns cards inline.
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STATE
@@ -161,13 +161,6 @@ func complete_run(reason: String, data: Dictionary = {}) -> void:
 		_save_system.clear_run_state()
 	_set_phase(GamePhase.END_SCREEN)
 	_transition_to(SCENE_END)
-
-
-func enter_card_game() -> void:
-	if _current_phase != GamePhase.RUN:
-		push_warning("[GameFlow] enter_card_game ignored: not in RUN phase (current: %s)" % get_current_phase_name())
-		return
-	_transition_to(SCENE_CARD_GAME)
 
 
 func return_to_hub() -> void:

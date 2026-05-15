@@ -11,12 +11,11 @@ const SCENES: Array[Dictionary] = [
 	{"label": "MenuPrincipal", "path": "res://scenes/MerlinCabinHub.tscn"},
 	{"label": "MenuOptions", "path": "res://scenes/MenuOptions.tscn"},
 	{"label": "SelectionSauvegarde", "path": "res://scenes/SelectionSauvegarde.tscn"},
-	{"label": "ParchmentPreRun", "path": "res://scenes/ParchmentPreRun.tscn"},
 	# — Hub —
 	{"label": "MerlinCabinHub", "path": "res://scenes/MerlinCabinHub.tscn"},
-	# — Gameplay —
+	# — Gameplay (v7.7 plateau-only) —
+	{"label": "ScenarioLoading", "path": "res://scenes/ScenarioLoading.tscn"},
 	{"label": "BoardNarration", "path": "res://scenes/BoardNarration.tscn"},
-	{"label": "MerlinGame", "path": "res://scenes/MerlinGame.tscn"},
 	{"label": "EndRunScreen", "path": "res://scenes/EndRunScreen.tscn"},
 ]
 

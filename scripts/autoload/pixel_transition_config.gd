@@ -58,15 +58,15 @@ const SCENE_PROFILES := {
 		"exit_duration": 0.5,
 		"skip_enter": true,
 	},
-	"res://scenes/MerlinGame.tscn": {
-		"block_size": 8,
-		"exit_duration": 0.5,
-		"enter_duration": 0.7,
-	},
 	"res://scenes/EndRunScreen.tscn": {
 		"block_size": 10,
 		"exit_duration": 0.6,
 		"enter_duration": 0.8,
+	},
+	"res://scenes/ScenarioLoading.tscn": {
+		"block_size": 10,
+		"exit_duration": 0.5,
+		"enter_duration": 0.7,
 	},
 
 	# --- Sub-menus (fast, larger blocks) ---
@@ -82,11 +82,7 @@ const SCENE_PROFILES := {
 		"enter_duration": 0.5,
 		"cascade_order": CascadeOrder.RANDOM,
 	},
-	"res://scenes/ParchmentPreRun.tscn": {
-		"block_size": 10,
-		"exit_duration": 0.5,
-		"enter_duration": 0.7,
-	},
+	# v7.7 cleanup 2026-05-15: MerlinGame.tscn + ParchmentPreRun.tscn entries removed (scenes deleted).
 }
 
 

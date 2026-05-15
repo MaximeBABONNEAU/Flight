@@ -174,7 +174,7 @@ func test_override_preserves_non_overridden_defaults() -> bool:
 
 func test_mutating_profile_does_not_affect_default() -> bool:
 	var original_block: int = PixelTransitionConfig.DEFAULT["block_size"]
-	var profile: Dictionary = PixelTransitionConfig.get_profile("res://scenes/MerlinGame.tscn")
+	var profile: Dictionary = PixelTransitionConfig.get_profile("res://scenes/BoardNarration.tscn")
 	profile["block_size"] = 999
 	if PixelTransitionConfig.DEFAULT["block_size"] != original_block:
 		push_error("Mutating profile changed DEFAULT — get_profile must return independent copy")
