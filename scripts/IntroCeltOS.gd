@@ -412,8 +412,23 @@ func _start_phase_3() -> void:
 
 
 func _show_celtos_3d_logo() -> void:
-	# Spawn a SubViewport rendering a rotating 3D Label3D "CeltOS" with celtic gold tint.
-	# Lasts ~4s before fade-and-transition continues.
+	# v7.7.2.2 — visible 2D→3D MIGRATION per user feedback "l'intro CeltOS doit être
+	# en 2D puis migrer vers de la 3D". Instead of just spawning the 3D viewport
+	# beside the 2D boot text, we ANIMATE the existing _cursor_label (BOOT_FINAL
+	# ogham line) "tipping into 3D space" via Y-skew + scale-up, then crossfade
+	# it with the 3D SubViewport so the player sees the 2D text BECOME 3D.
+	if is_instance_valid(_cursor_label):
+		var tip := create_tween().set_parallel(true)
+		# Scale up : like the text is approaching the player
+		tip.tween_property(_cursor_label, "scale", Vector2(1.4, 1.6), 0.6) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		# Subtle vertical skew via pivot — gives perspective-tilt illusion in 2D space
+		tip.tween_property(_cursor_label, "position:y", _cursor_label.position.y - 18.0, 0.6) \
+			.set_trans(Tween.TRANS_SINE)
+		await tip.finished
+
+	# Spawn the 3D SubViewport at the same screen position as _cursor_label so
+	# the crossfade reads as "the 2D ogham just became 3D".
 	var container: SubViewportContainer = SubViewportContainer.new()
 	container.stretch = true
 	container.set_anchors_preset(Control.PRESET_CENTER)
@@ -423,6 +438,11 @@ func _show_celtos_3d_logo() -> void:
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.modulate = Color(1, 1, 1, 0)
 	add_child(container)
+	# Fade out the 2D cursor label as the 3D viewport fades in (visible migration).
+	if is_instance_valid(_cursor_label):
+		var fade2d := create_tween()
+		fade2d.tween_property(_cursor_label, "modulate:a", 0.0, 0.5) \
+			.set_trans(Tween.TRANS_SINE)
 
 	var sv: SubViewport = SubViewport.new()
 	sv.size = Vector2i(960, 540)

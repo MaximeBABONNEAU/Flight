@@ -17,8 +17,44 @@ var _ui: CanvasLayer = null
 
 func _ready() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	# v7.7.2.2 — hide global overlays (ScreenFrame CRT, MerlinBackdrop, ScreenDither)
+	# that were obscuring the 3D title rendering per user feedback "menu n'est
+	# toujours pas net". Same pattern as BoardNarration._disable_global_overlays.
+	_disable_global_overlays()
+	# Force PixelTransition to complete state — otherwise a pending fade-in keeps
+	# the screen mostly black covering the 3D scene.
+	var pt: Node = get_node_or_null("/root/PixelTransition")
+	if pt and pt.has_method("_force_complete"):
+		pt._force_complete()
 	_build_3d_scene()
 	_build_ui()
+
+
+## v7.7.2.2 — Hide CanvasLayer autoloads that would otherwise sit on top of the
+## 3D scene and either blank out portions of it (CRT frame mask) or wash it out
+## (dither / scanline overlays). Re-shown in _exit_tree.
+var _overlay_prev_visible: Dictionary = {}
+
+func _disable_global_overlays() -> void:
+	# v7.7.2.2 fix — CanvasLayer does NOT inherit from CanvasItem (only Control
+	# and Node2D do). The `as CanvasItem` cast returned null for ScreenFrame
+	# (a CanvasLayer autoload) → SCRIPT ERROR at first smoke. CanvasLayer has
+	# its OWN `visible` property in Godot 4, so direct property access works.
+	for autoload_name in ["ScreenFrame", "MerlinBackdrop", "ScreenDither"]:
+		var node: Node = get_node_or_null("/root/" + autoload_name)
+		if node == null:
+			continue
+		if node is CanvasLayer or node is Control:
+			_overlay_prev_visible[autoload_name] = node.visible
+			node.visible = false
+
+
+func _exit_tree() -> void:
+	# Restore overlay visibility on scene change so they reappear in BoardNarration etc.
+	for autoload_name in _overlay_prev_visible.keys():
+		var node: Node = get_node_or_null("/root/" + autoload_name)
+		if node and (node is CanvasLayer or node is Control):
+			node.visible = bool(_overlay_prev_visible[autoload_name])
 
 
 # ─── 3D scene (dark warm ambiance) ──────────────────────────────────────────
@@ -87,6 +123,39 @@ func _build_ui() -> void:
 	_ui.name = "UI"
 	_ui.layer = 10
 	add_child(_ui)
+
+	# v7.7.2.2 — Primary visible title via 2D Label in CanvasLayer (guaranteed
+	# render even if global overlays misbehave or 3D camera culls the Label3D).
+	# The 3D Label3D in _build_3d_scene now plays a decorative role only.
+	var title2d := Label.new()
+	title2d.name = "Title2D"
+	title2d.text = "M.E.R.L.I.N."
+	title2d.anchor_left = 0.0
+	title2d.anchor_right = 1.0
+	title2d.anchor_top = 0.18
+	title2d.anchor_bottom = 0.32
+	title2d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title2d.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title2d.add_theme_font_size_override("font_size", 96)
+	title2d.add_theme_color_override("font_color", Color(0.96, 0.85, 0.45))
+	title2d.add_theme_color_override("font_outline_color", Color(0.10, 0.06, 0.02))
+	title2d.add_theme_constant_override("outline_size", 8)
+	_ui.add_child(title2d)
+
+	var sub2d := Label.new()
+	sub2d.name = "Subtitle2D"
+	sub2d.text = "— Le Jeu des Oghams —"
+	sub2d.anchor_left = 0.0
+	sub2d.anchor_right = 1.0
+	sub2d.anchor_top = 0.34
+	sub2d.anchor_bottom = 0.40
+	sub2d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub2d.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	sub2d.add_theme_font_size_override("font_size", 28)
+	sub2d.add_theme_color_override("font_color", Color(0.72, 0.62, 0.40))
+	sub2d.add_theme_color_override("font_outline_color", Color(0.05, 0.03, 0.01))
+	sub2d.add_theme_constant_override("outline_size", 4)
+	_ui.add_child(sub2d)
 
 	var btn := Button.new()
 	btn.name = "BtnTester"
