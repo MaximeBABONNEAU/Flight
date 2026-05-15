@@ -1698,10 +1698,16 @@ func _build_scene_tree() -> void:
 
 
 func _on_back_pressed() -> void:
-	# v7.2 — Return to MerlinCabinHub. Save state best-effort, then change scene.
+	# v7.7.1 C1 — Abandon mid-run via the proper lifecycle. Direct change_scene_to_file
+	# bypassed GameFlowController._on_board_narration_done(), leaving the phase machine
+	# stuck in BOARD_NARRATION and rejecting all subsequent _on_run_requested calls.
+	# Now we set outcome + emit narration_done so the controller routes to EndRunScreen
+	# (which shows the "ABANDON" bilan) then back to Hub via hub_requested.
 	if _save_system and _save_system.has_method("save_run_state"):
 		_save_system.save_run_state(_store.state if _store else {})
-	get_tree().change_scene_to_file("res://scenes/MerlinCabinHub.tscn")
+	_outcome = "abandon"
+	_run_data["reason"] = "abandon"
+	_emit_done_once()
 
 
 # ─── Dependencies & data ─────────────────────────────────────────────────────
@@ -1714,6 +1720,20 @@ func _resolve_dependencies() -> void:
 	_flow_controller = get_node_or_null("/root/GameFlowController")
 	if _flow_controller and _flow_controller.has_method("wire_board_narration"):
 		_flow_controller.wire_board_narration(self)
+	else:
+		# v7.7.1 C3 — GameFlowController autoload absent (smoke test, dev-menu launch,
+		# or corrupted project.godot). Without it, narration_done emits into the void
+		# and the player is stranded on a finished plateau. Route to Hub directly.
+		# We pick Hub over EndRunScreen because EndRunScreen depends on GameFlow.get_last_run_data()
+		# which is also unavailable in this branch — would show a black screen anyway.
+		if not narration_done.is_connected(_failsafe_to_hub):
+			narration_done.connect(_failsafe_to_hub)
+
+
+func _failsafe_to_hub() -> void:
+	# v7.7.1 C3 failsafe target — see _resolve_dependencies.
+	if is_inside_tree():
+		get_tree().change_scene_to_file("res://scenes/MerlinCabinHub.tscn")
 
 
 func _load_run_data() -> void:
@@ -2151,7 +2171,12 @@ func _run_live_loop() -> void:
 	await get_tree().create_timer(2.0).timeout
 	# Start a fresh run.
 	if _store == null or not _store.has_method("dispatch"):
+		# v7.7.1 C2 — Don't strand the player on a frozen plateau. Emit narration_done
+		# with outcome=error so the controller (or failsafe in C3) routes elsewhere.
 		push_warning("[BoardNarration] live mode aborted — Store dispatch unavailable")
+		_outcome = "error"
+		_run_data["reason"] = "error"
+		_finish()
 		return
 	var start_action: Dictionary = {"type": "START_RUN", "biome": _biome_id}
 	var start_res = await _store.dispatch(start_action)

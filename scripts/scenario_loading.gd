@@ -42,6 +42,7 @@ var _camera: Camera3D = null
 var _parchemins: Array = []       # Array of MeshInstance3D
 var _pick_buttons: Array = []     # 3 floating 2D Buttons synced to parchemin positions
 var _pending_pick: int = -1       # set by _on_parchemin_clicked, polled by _run_flow
+var _aborted: bool = false        # v7.7.1 C4 — set by back button to break the pick wait loop
 
 
 func _ready() -> void:
@@ -115,6 +116,21 @@ func _setup_ui() -> void:
 	_info_label.text = "Le sage Merlin consulte les Oghams…"
 	_ui_layer.add_child(_info_label)
 
+	# v7.7.1 C4 — back button so the player can escape if title generation hangs
+	# or the parchemin choice is no longer wanted. Routes directly to Hub.
+	var back_btn := Button.new()
+	back_btn.name = "BackBtn"
+	back_btn.text = "← Retour Hub"
+	back_btn.anchor_left = 0.02
+	back_btn.anchor_top = 0.02
+	back_btn.offset_right = 220.0
+	back_btn.offset_bottom = 56.0
+	back_btn.add_theme_font_size_override("font_size", 18)
+	back_btn.add_theme_color_override("font_color", Color(0.85, 0.85, 0.78, 0.85))
+	back_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.78, 1.0))
+	back_btn.pressed.connect(_on_back_to_hub_pressed)
+	_ui_layer.add_child(back_btn)
+
 
 # ═════════ Foundation flow (Phase 2.1.1+2.1.2+2.1.8+2.1.9) ═══════════════════
 
@@ -122,8 +138,15 @@ func _run_flow() -> void:
 	# Step 1 : generate 3 titles
 	_info_label.text = "Le sage Merlin consulte les Oghams…\n(génération des titres)"
 	_titles = await _planner.generate_titles(_biome_id)
+	if _aborted:
+		return
 	if _titles.is_empty():
-		push_warning("[ScenarioLoading] No titles returned — aborting to BoardNarration with fallback")
+		# v7.7.1 C4 — LLM cascade fully exhausted (Ollama down + fallback bug).
+		# Dispatch a minimal skeleton so BoardNarration's idempotency guard prevents
+		# infinite ScenarioLoading re-entry (board would otherwise see no skeleton
+		# and re-launch this scene, looping forever).
+		push_warning("[ScenarioLoading] No titles returned — using fallback skeleton")
+		_dispatch_fallback_skeleton()
 		_return_to_board()
 		return
 
@@ -133,9 +156,12 @@ func _run_flow() -> void:
 	_build_parchemin_meshes(_titles)
 	_build_pick_buttons()
 	# Wait for click — _on_parchemin_clicked sets _pending_pick to chosen index.
+	# v7.7.1 C4 — also break on _aborted (back button) to prevent infinite poll.
 	_pending_pick = -1
-	while _pending_pick < 0:
+	while _pending_pick < 0 and not _aborted:
 		await get_tree().process_frame
+	if _aborted:
+		return
 	# Cleanup pick UI + record choice.
 	var chosen: Dictionary = _titles[_pending_pick] as Dictionary
 	_chosen_title = str(chosen.get("title", ""))
@@ -185,6 +211,35 @@ func _dispatch_skeleton() -> void:
 
 func _return_to_board() -> void:
 	get_tree().change_scene_to_file("res://scenes/BoardNarration.tscn")
+
+
+# ═════════ v7.7.1 C4 — back button + fallback skeleton helpers ═══════════════
+
+func _on_back_to_hub_pressed() -> void:
+	# Set abort flag to break the pick wait loop, then route to Hub. The flag
+	# also short-circuits the post-await _aborted checks in _run_flow.
+	_aborted = true
+	if is_inside_tree():
+		get_tree().change_scene_to_file("res://scenes/MerlinCabinHub.tscn")
+
+
+func _dispatch_fallback_skeleton() -> void:
+	# Minimal hardcoded skeleton — non-empty so the board's idempotency guard
+	# (Store.state.run.scenario_skeleton presence) prevents ScenarioLoading re-entry.
+	# fallback=true lets BoardNarration log/treat this as a degraded run if needed.
+	if _store == null or not _store.has_method("dispatch"):
+		return
+	var fallback: Dictionary = {
+		"title": "Un voyage sans nom",
+		"biome": _biome_id,
+		"beats": [],
+		"fallback": true,
+	}
+	_store.dispatch({
+		"type": "SET_SCENARIO_SKELETON",
+		"skeleton": fallback,
+		"chosen_title": "Un voyage sans nom",
+	})
 
 
 # ═════════ Phase 2.1.3 — 3D parchemin meshes + click handling ════════════════
