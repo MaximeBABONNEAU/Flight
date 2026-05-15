@@ -31,17 +31,89 @@ const TITLES_TIMEOUT_S := 8.0
 const SKELETON_TIMEOUT_S := 15.0
 const JUDGE_TIMEOUT_S := 4.0
 
-# Hardcoded fallback skeletons (Phase 1 stub — to be expanded in Phase 2 with
-# 5 templates per biome × 8 biomes = 40 templates). Currently only Brocéliande.
+# v7.7 Phase 2.6 — 8 fallback skeletons (1 per biome, baseline emotional arc).
+# Each biome leans on its 1-2 dominant factions per the lore. Curiosité→sagesse
+# arc preserves the classic 5-act tension. Used by L3 cascade fallback when both
+# LLM (L1) and FastRoute pool (L2) are unavailable.
 const FALLBACK_SKELETONS: Dictionary = {
 	"foret_broceliande": {
 		"title": "La Voix de Brocéliande",
 		"beats": [
 			{"n": 1, "summary": "Tu pénètres la forêt — une présence te guette.", "faction_tilt": "neutre", "emotion": "curiosite"},
-			{"n": 2, "summary": "Une rencontre te révèle un secret.", "faction_tilt": "druides", "emotion": "tension"},
-			{"n": 3, "summary": "Un choix moral te divise.", "faction_tilt": "korrigans", "emotion": "peur"},
-			{"n": 4, "summary": "L'épreuve se dresse devant toi.", "faction_tilt": "ankou", "emotion": "fascination"},
-			{"n": 5, "summary": "La forêt te juge.", "faction_tilt": "niamh", "emotion": "sagesse"},
+			{"n": 2, "summary": "Une rencontre te révèle un secret du chêne.", "faction_tilt": "druides", "emotion": "tension"},
+			{"n": 3, "summary": "Un choix moral te divise entre nature et soi.", "faction_tilt": "korrigans", "emotion": "peur"},
+			{"n": 4, "summary": "L'épreuve du chêne ancien se dresse devant toi.", "faction_tilt": "ankou", "emotion": "fascination"},
+			{"n": 5, "summary": "La forêt te juge — tu deviens ou tu disparais.", "faction_tilt": "niamh", "emotion": "sagesse"},
+		],
+	},
+	"landes_bruyere": {
+		"title": "Le Vent de Bruyère",
+		"beats": [
+			{"n": 1, "summary": "Le vent te porte vers un cairn battu par les bourrasques.", "faction_tilt": "neutre", "emotion": "curiosite"},
+			{"n": 2, "summary": "Un voile d'Ankou rôde entre les pierres dressées.", "faction_tilt": "ankou", "emotion": "tension"},
+			{"n": 3, "summary": "Une voix t'appelle hors du chemin tracé.", "faction_tilt": "anciens", "emotion": "melancolie"},
+			{"n": 4, "summary": "La lande s'ouvre — un seul cairn t'attend.", "faction_tilt": "ankou", "emotion": "peur"},
+			{"n": 5, "summary": "Tu choisis : te coucher avec les morts ou marcher.", "faction_tilt": "anciens", "emotion": "sagesse"},
+		],
+	},
+	"cotes_sauvages": {
+		"title": "L'Appel des Falaises",
+		"beats": [
+			{"n": 1, "summary": "Les vagues s'écrasent — un naufrage récent fume sur la grève.", "faction_tilt": "neutre", "emotion": "curiosite"},
+			{"n": 2, "summary": "Une grotte béante chante des chants korrigans.", "faction_tilt": "korrigans", "emotion": "fascination"},
+			{"n": 3, "summary": "La marée monte — un choix s'impose à toi.", "faction_tilt": "korrigans", "emotion": "tension"},
+			{"n": 4, "summary": "Un dieu des profondeurs émerge du brouillard.", "faction_tilt": "ankou", "emotion": "peur"},
+			{"n": 5, "summary": "Tu t'élances vers ou tu fuis l'horizon noir.", "faction_tilt": "niamh", "emotion": "espoir"},
+		],
+	},
+	"villages_celtes": {
+		"title": "Le Foyer des Anciens",
+		"beats": [
+			{"n": 1, "summary": "Tu approches d'un village où le feu danse haut.", "faction_tilt": "neutre", "emotion": "curiosite"},
+			{"n": 2, "summary": "Un ancien te raconte une légende oubliée.", "faction_tilt": "anciens", "emotion": "emerveillement"},
+			{"n": 3, "summary": "Un conflit éclate entre tribus — tu dois trancher.", "faction_tilt": "druides", "emotion": "tension"},
+			{"n": 4, "summary": "La nuit tombe — l'épreuve du feu sacré arrive.", "faction_tilt": "druides", "emotion": "fascination"},
+			{"n": 5, "summary": "L'aube te trouve allié ou banni.", "faction_tilt": "anciens", "emotion": "sagesse"},
+		],
+	},
+	"cercles_pierres": {
+		"title": "Le Chœur des Menhirs",
+		"beats": [
+			{"n": 1, "summary": "Un cercle de pierres vibre sous tes pas — équinoxe.", "faction_tilt": "neutre", "emotion": "emerveillement"},
+			{"n": 2, "summary": "Les ogham gravés s'éveillent en lichen lumineux.", "faction_tilt": "druides", "emotion": "curiosite"},
+			{"n": 3, "summary": "Un gardien minéral te défie de prouver ta voie.", "faction_tilt": "anciens", "emotion": "tension"},
+			{"n": 4, "summary": "Le ciel ouvre une porte au-dessus du dolmen central.", "faction_tilt": "niamh", "emotion": "fascination"},
+			{"n": 5, "summary": "Tu deviens initié ou tu disparais entre les pierres.", "faction_tilt": "druides", "emotion": "sagesse"},
+		],
+	},
+	"marais_korrigans": {
+		"title": "La Lumière qui Trompe",
+		"beats": [
+			{"n": 1, "summary": "La tourbière t'engloutit jusqu'à mi-jambe — une lueur vacille.", "faction_tilt": "neutre", "emotion": "tension"},
+			{"n": 2, "summary": "Un will-o-wisp t'invite à le suivre dans les roseaux.", "faction_tilt": "korrigans", "emotion": "fascination"},
+			{"n": 3, "summary": "Une voix d'enfant chante — mais sous l'eau.", "faction_tilt": "korrigans", "emotion": "peur"},
+			{"n": 4, "summary": "La boue te révèle ce qu'elle a gardé.", "faction_tilt": "ankou", "emotion": "melancolie"},
+			{"n": 5, "summary": "Tu sors illuminé ou tu rejoins la danse.", "faction_tilt": "korrigans", "emotion": "sagesse"},
+		],
+	},
+	"collines_dolmens": {
+		"title": "Sous le Souffle des Ancêtres",
+		"beats": [
+			{"n": 1, "summary": "Les collines verdoyantes s'étalent — un dolmen massif perce le ciel.", "faction_tilt": "neutre", "emotion": "curiosite"},
+			{"n": 2, "summary": "Un mégalithe s'ouvre — l'écho d'un ancêtre te nomme.", "faction_tilt": "anciens", "emotion": "emerveillement"},
+			{"n": 3, "summary": "Un rite tribal te demande de prouver ta lignée.", "faction_tilt": "anciens", "emotion": "tension"},
+			{"n": 4, "summary": "Une vision te montre ce que tu pourrais devenir.", "faction_tilt": "druides", "emotion": "fascination"},
+			{"n": 5, "summary": "Tu acceptes l'héritage ou tu t'en libères.", "faction_tilt": "anciens", "emotion": "sagesse"},
+		],
+	},
+	"iles_mystiques": {
+		"title": "Le Chant de Niamh",
+		"beats": [
+			{"n": 1, "summary": "Une brume éclatante t'enveloppe — l'île dérive au-dessus de l'eau.", "faction_tilt": "neutre", "emotion": "emerveillement"},
+			{"n": 2, "summary": "Une fée te tend une fleur qui ne saurait flétrir.", "faction_tilt": "niamh", "emotion": "fascination"},
+			{"n": 3, "summary": "Tu réalises que la brume avale les heures qui passent.", "faction_tilt": "niamh", "emotion": "tension"},
+			{"n": 4, "summary": "Niamh elle-même t'offre l'éternité — à un prix.", "faction_tilt": "niamh", "emotion": "espoir"},
+			{"n": 5, "summary": "Tu rentres mortel ou tu restes fée.", "faction_tilt": "niamh", "emotion": "sagesse"},
 		],
 	},
 }
@@ -228,8 +300,8 @@ func _fallback_skeleton(biome_id: String, chosen_title: String) -> Dictionary:
 # ═════════ Phase 1.3 : Per-beat card generation (delegates to BiBrainPipeline) ═
 
 ## Generate the card for beat[beat_idx] using the skeleton context + player state.
-## Delegates to the v7.6 bi_brain_pipeline. Phase 2 will inject the full beat-context
-## (faction_tilt + emotion + summary) directly into the bi-brain system prompts.
+## v7.7 Phase 2.3 : passes the full beat Dict (faction_tilt + emotion + summary)
+## as beat_context to BiBrainPipeline → GM + Narrator system prompts inject it.
 func generate_card_for_beat(skeleton: Dictionary, beat_idx: int, player_state: Dictionary) -> Dictionary:
 	if _bi_brain == null:
 		return {}
@@ -240,7 +312,7 @@ func generate_card_for_beat(skeleton: Dictionary, beat_idx: int, player_state: D
 	var act_type: String = _beat_to_act_type(int(beat.get("n", beat_idx + 1)))
 	var ogham_used: String = str(player_state.get("active_ogham", ""))
 	var biome_id: String = str(player_state.get("biome", "foret_broceliande"))
-	return await _bi_brain.generate_card(biome_id, act_type, ogham_used)
+	return await _bi_brain.generate_card(biome_id, act_type, ogham_used, beat)
 
 
 static func _beat_to_act_type(beat_n: int) -> String:
@@ -255,18 +327,174 @@ static func _beat_to_act_type(beat_n: int) -> String:
 
 # ═════════ Phase 2 stubs : judge + replan (TODO) ══════════════════════════════
 
-## Phase 2 (TODO) : LLM-judge brain decides if player choice diverged from
-## the expected beat tilt. Returns true if a re-plan is needed.
-func judge_divergence(_skeleton: Dictionary, _beat_idx: int,
-		_last_card: Dictionary, _player_choice: Dictionary) -> bool:
-	# Phase 1 placeholder : always returns false (no replan).
-	# Phase 2 will call a 3rd brain (mini qwen3.5:2b) to score divergence.
-	return false
+## v7.7 Phase 2.4 — LLM-judge primary + heuristic fallback.
+## Hybrid : if MerlinAI available → mini LLM call (~1-2s, qwen3.5:2b via narrator path).
+## Else → heuristic comparison of dominant faction in player_choice.effects vs beat.faction_tilt.
+## Returns true if the player diverged from the expected arc (caller should replan).
+##
+## Conservative defaults : returns false on any error or ambiguous signal.
+## "neutre" beats never count as diverged (any choice is on-arc).
+func judge_divergence(skeleton: Dictionary, beat_idx: int,
+		_last_card: Dictionary, player_choice: Dictionary) -> bool:
+	var beats: Array = skeleton.get("beats", [])
+	if not (beats is Array) or beat_idx < 0 or beat_idx >= beats.size():
+		return false
+	var beat: Dictionary = beats[beat_idx]
+	var expected_tilt: String = str(beat.get("faction_tilt", "neutre"))
+	# Neutral beats accept anything — no divergence possible.
+	if expected_tilt == "neutre":
+		return false
+
+	# Step 1 : extract dominant faction signal from player's choice effects.
+	var effects: Array = player_choice.get("effects", [])
+	var actual_dominant: String = _extract_dominant_faction_from_effects(effects)
+	# If no faction signal at all, heuristic = no divergence.
+	if actual_dominant == "":
+		return false
+
+	# Step 2 : LLM-judge if available, heuristic otherwise.
+	if _merlin_ai != null and _merlin_ai.has_method("generate_with_system"):
+		return await _llm_judge_divergence(expected_tilt, actual_dominant,
+			str(beat.get("emotion", "")), player_choice)
+	# Heuristic fallback : direct comparison.
+	return actual_dominant != expected_tilt
 
 
-## Phase 2 (TODO) : re-plan beats[from_beat..5] given current player state.
-## Returns a new skeleton with refreshed remaining beats.
-func replan_from_beat(skeleton: Dictionary, _from_beat: int,
-		_player_state: Dictionary) -> Dictionary:
-	# Phase 1 placeholder : returns the skeleton unchanged.
-	return skeleton
+static func _extract_dominant_faction_from_effects(effects: Array) -> String:
+	# Sum ADD_REPUTATION amounts per faction, return the highest-magnitude one
+	# (or "" if no ADD_REPUTATION effect at all). Ignores HEAL/DAMAGE/ANAM.
+	var deltas: Dictionary = {}
+	for e in effects:
+		if not (e is Dictionary):
+			continue
+		var ed: Dictionary = e as Dictionary
+		if str(ed.get("type", "")) != "ADD_REPUTATION":
+			continue
+		var fac: String = str(ed.get("faction", ""))
+		if fac == "":
+			continue
+		var amt: int = int(ed.get("amount", 0))
+		deltas[fac] = int(deltas.get(fac, 0)) + amt
+	if deltas.is_empty():
+		return ""
+	var best: String = ""
+	var best_abs: int = -1
+	for fac in deltas.keys():
+		var v: int = abs(int(deltas[fac]))
+		if v > best_abs:
+			best_abs = v
+			best = str(fac)
+	return best
+
+
+func _llm_judge_divergence(expected_tilt: String, actual_dominant: String,
+		expected_emotion: String, player_choice: Dictionary) -> bool:
+	var label: String = str(player_choice.get("label", "?"))
+	var system_prompt: String = ("Tu juges si le choix du joueur a dévié de l'arc narratif attendu.\n" +
+		"Beat attendu : faction_tilt=%s, emotion=%s\n" +
+		"Joueur a fait : \"%s\" → faction dominante du choix=%s\n" +
+		"Le joueur a-t-il DÉVIÉ ? Réponds UNIQUEMENT par OUI ou NON. Pas d'explication."
+	) % [expected_tilt, expected_emotion, label, actual_dominant]
+	var params: Dictionary = {
+		"max_tokens": 8,
+		"temperature": 0.1,  # déterministe pour décision binaire
+		"timeout_ms": int(JUDGE_TIMEOUT_S * 1000),
+	}
+	var result: Dictionary = await _merlin_ai.generate_with_system(system_prompt, "Réponds.", params)
+	if result.get("error", "") != "":
+		# LLM fail → fallback heuristic
+		return actual_dominant != expected_tilt
+	var raw: String = str(result.get("text", result.get("output", ""))).strip_edges().to_lower()
+	# Look for explicit OUI / YES tokens. Default to false (conservative).
+	if raw.begins_with("oui") or raw.begins_with("yes"):
+		return true
+	if raw.begins_with("non") or raw.begins_with("no"):
+		return false
+	# Ambiguous response → fall back to heuristic.
+	return actual_dominant != expected_tilt
+
+
+## v7.7 Phase 2.5 — Re-plan beats[from_beat..4] given player divergence.
+## Preserves beats[0..from_beat-1] (already played), regenerates the remainder
+## via LLM with context = preserved beats + player_state (faction_rep + life).
+## Falls back to the original skeleton on any failure (graceful).
+##
+## from_beat is 0-indexed in the `beats` array (NOT the 1-indexed `n` field).
+func replan_from_beat(skeleton: Dictionary, from_beat: int,
+		player_state: Dictionary) -> Dictionary:
+	# Guard rails.
+	var beats: Array = skeleton.get("beats", [])
+	if not (beats is Array) or beats.size() != 5:
+		return skeleton
+	if from_beat <= 0 or from_beat >= beats.size():
+		# from_beat==0 means "regenerate from start" → equivalent to a fresh skeleton.
+		# from_beat>=5 means nothing to replan (last beat or beyond).
+		return skeleton
+	if _merlin_ai == null or not _merlin_ai.has_method("generate_with_system"):
+		return skeleton
+
+	# Build the divergence-aware system prompt.
+	var preserved: Array = beats.slice(0, from_beat)
+	var biome_id: String = str(player_state.get("biome", "foret_broceliande"))
+	var chosen_title: String = str(skeleton.get("title", "L'Aventure"))
+	var system_prompt: String = _replan_system_prompt(
+		biome_id, chosen_title, preserved, player_state
+	)
+	var user_input: String = "Régénère le skeleton avec les nouveaux beats post-divergence."
+	var params: Dictionary = {
+		"grammar": _gbnf_skeleton,
+		"max_tokens": 500,
+		"temperature": 0.85,
+		"timeout_ms": int(SKELETON_TIMEOUT_S * 1000),
+	}
+	var result: Dictionary = await _merlin_ai.generate_with_system(system_prompt, user_input, params)
+	if result.get("error", "") != "":
+		push_warning("[ScenarioPlanner] Replan LLM error : %s — keeping original skeleton" % result.get("error"))
+		return skeleton
+	var raw: String = str(result.get("text", result.get("output", "")))
+	var fresh: Dictionary = _parse_skeleton(raw, biome_id, chosen_title)
+	var fresh_beats: Array = fresh.get("beats", [])
+	if not (fresh_beats is Array) or fresh_beats.size() != 5:
+		return skeleton
+
+	# Splice : preserve [0..from_beat-1] + take fresh [from_beat..4].
+	var out_beats: Array = []
+	for i in range(from_beat):
+		out_beats.append(beats[i])
+	for j in range(from_beat, 5):
+		out_beats.append(fresh_beats[j])
+	# Renumber n to stay 1..5 in case LLM emitted different n values.
+	for k in range(out_beats.size()):
+		(out_beats[k] as Dictionary)["n"] = k + 1
+
+	var out: Dictionary = skeleton.duplicate(true)
+	out["beats"] = out_beats
+	return out
+
+
+func _replan_system_prompt(biome_id: String, chosen_title: String,
+		preserved_beats: Array, player_state: Dictionary) -> String:
+	var faction_rep: Dictionary = player_state.get("faction_rep", {})
+	var life: int = int(player_state.get("life_essence", 100))
+	var rep_lines: Array = []
+	for fac in ["druides", "anciens", "korrigans", "niamh", "ankou"]:
+		var v: int = int(faction_rep.get(fac, 0))
+		if v != 0:
+			rep_lines.append("  - %s: %+d" % [fac, v])
+	var preserved_summary: Array = []
+	for b in preserved_beats:
+		if b is Dictionary:
+			preserved_summary.append("  - beat %d (%s) : %s" % [
+				int(b.get("n", 0)), str(b.get("faction_tilt", "?")), str(b.get("summary", ""))
+			])
+	return ("Tu es le Gamemaster M.E.R.L.I.N.. Le joueur a DIVERGÉ de l'arc initial.\n" +
+		"Tu régénères le skeleton complet (5 beats) en PRÉSERVANT les beats déjà vécus.\n" +
+		"Format JSON strict imposé par GBNF.\n\n" +
+		"Titre : \"%s\" (biome : %s)\n" +
+		"Vie joueur actuelle : %d/100\n" +
+		"Réputations factions :\n%s\n\n" +
+		"Beats déjà vécus (REPRENDS-LES TELS QUELS dans la sortie) :\n%s\n\n" +
+		"Les beats restants doivent réagir à la trajectoire actuelle du joueur."
+	) % [chosen_title, biome_id, life,
+		"\n".join(rep_lines) if not rep_lines.is_empty() else "  (aucune)",
+		"\n".join(preserved_summary)]

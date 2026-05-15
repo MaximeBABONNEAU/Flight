@@ -37,6 +37,10 @@ func _init(merlin_ai_ref: Node, rag_ref: Node = null) -> void:
 	_merlin_ai = merlin_ai_ref
 	_rag = rag_ref
 	_load_gbnf()
+	# v7.7 (audit 2026-05-15) : warn if running on single-brain config — pipeline
+	# code stays correct but parallel/LoRA-specialized benefit is gone.
+	if _merlin_ai != null and _merlin_ai.get("brain_count") is int and int(_merlin_ai.brain_count) < 2:
+		push_warning("[BiBrain] running on brain_count=%d (SINGLE/NANO profile). Set BrainSwarmConfig.Profile.DUAL+ for true bi-brain." % int(_merlin_ai.brain_count))
 
 
 func _load_gbnf() -> void:
@@ -50,17 +54,22 @@ func _load_gbnf() -> void:
 
 
 ## Generate a card via the bi-brain pipeline. Returns empty Dictionary on full failure.
-func generate_card(biome_id: String, act_type: String, ogham_used: String = "") -> Dictionary:
+## v7.7 Phase 2.3 — `beat_context` optional Dictionary injects scenario skeleton metadata
+## into both GM + Narrator system prompts. Schema (per scenario_skeleton.gbnf) :
+##   {n: int 1-5, summary: String, faction_tilt: enum-6, emotion: enum-9}
+## Empty Dict = legacy JIT mode (no skeleton context).
+func generate_card(biome_id: String, act_type: String, ogham_used: String = "",
+		beat_context: Dictionary = {}) -> Dictionary:
 	if _merlin_ai == null:
 		return {}
 
 	# Phase A : GM brain — structured JSON via GBNF.
-	var gm_card: Dictionary = await _call_gm_brain(biome_id, act_type, ogham_used)
+	var gm_card: Dictionary = await _call_gm_brain(biome_id, act_type, ogham_used, beat_context)
 	if gm_card.is_empty():
 		return {}
 
 	# Phase B : Narrator brain — rich prose from scratch given GM structure.
-	var narrative_text: String = await _call_narrator_brain(gm_card, biome_id, act_type)
+	var narrative_text: String = await _call_narrator_brain(gm_card, biome_id, act_type, beat_context)
 
 	# Phase C : fusion. If narrator failed, keep GM text as fallback.
 	if narrative_text != "":
@@ -78,10 +87,11 @@ func generate_card(biome_id: String, act_type: String, ogham_used: String = "") 
 
 # ═════════ Phase A : GM brain ═════════════════════════════════════════════════
 
-func _call_gm_brain(biome_id: String, act_type: String, ogham_used: String) -> Dictionary:
+func _call_gm_brain(biome_id: String, act_type: String, ogham_used: String,
+		beat_context: Dictionary = {}) -> Dictionary:
 	if not _merlin_ai.has_method("generate_with_system"):
 		return {}
-	var system_prompt: String = _gm_system_prompt(biome_id, act_type, ogham_used)
+	var system_prompt: String = _gm_system_prompt(biome_id, act_type, ogham_used, beat_context)
 	var user_input: String = _gm_user_input(biome_id, act_type, ogham_used)
 	# v1.1 (code-review HIGH fix) : `merlin_ai.generate_with_system` reads
 	# `timeout_ms` (not `timeout_s`) and routes brain via `grammar` presence
@@ -100,7 +110,8 @@ func _call_gm_brain(biome_id: String, act_type: String, ogham_used: String) -> D
 	return _parse_gm_json(raw_text)
 
 
-func _gm_system_prompt(biome_id: String, act_type: String, ogham_used: String) -> String:
+func _gm_system_prompt(biome_id: String, act_type: String, ogham_used: String,
+		beat_context: Dictionary = {}) -> String:
 	var lines: Array = [
 		"Tu es le Gamemaster de M.E.R.L.I.N.. Tu produis UNE carte au format JSON strict.",
 		"Format imposé par GBNF : {text, speaker:\"merlin\", options:[3]{label, effects:[1-3]}}.",
@@ -110,6 +121,13 @@ func _gm_system_prompt(biome_id: String, act_type: String, ogham_used: String) -
 	]
 	if ogham_used != "":
 		lines.append("Ogham actif : %s — module les effets en accord." % ogham_used)
+	# v7.7 Phase 2.3 : inject skeleton beat-context (faction_tilt + emotion + summary).
+	if not beat_context.is_empty():
+		var tilt: String = str(beat_context.get("faction_tilt", "neutre"))
+		var emotion: String = str(beat_context.get("emotion", ""))
+		var summary: String = str(beat_context.get("summary", ""))
+		lines.append("Beat narratif : %s (tilt=%s, emotion=%s)." % [summary, tilt, emotion])
+		lines.append("Les effets DOIVENT tilt vers la faction %s." % tilt)
 	var ctx: String = _build_rag_context("gamemaster", biome_id)
 	if ctx != "":
 		lines.append("Contexte des cartes précédentes :")
@@ -153,10 +171,11 @@ func _parse_gm_json(raw_text: String) -> Dictionary:
 
 # ═════════ Phase B : Narrator brain ═══════════════════════════════════════════
 
-func _call_narrator_brain(gm_card: Dictionary, biome_id: String, act_type: String) -> String:
+func _call_narrator_brain(gm_card: Dictionary, biome_id: String, act_type: String,
+		beat_context: Dictionary = {}) -> String:
 	if not _merlin_ai.has_method("generate_with_system"):
 		return ""
-	var system_prompt: String = _narrator_system_prompt(biome_id, act_type)
+	var system_prompt: String = _narrator_system_prompt(biome_id, act_type, beat_context)
 	var user_input: String = _narrator_user_input(gm_card, biome_id)
 	# v1.1 (code-review HIGH fix) : narrator routing via empty `grammar` (default
 	# path in merlin_ai.generate_with_system → narrator_llm). `timeout_ms` not `_s`.
@@ -172,13 +191,22 @@ func _call_narrator_brain(gm_card: Dictionary, biome_id: String, act_type: Strin
 	return str(result.get("text", result.get("output", ""))).strip_edges()
 
 
-func _narrator_system_prompt(biome_id: String, _act_type: String) -> String:
+func _narrator_system_prompt(biome_id: String, _act_type: String,
+		beat_context: Dictionary = {}) -> String:
 	var lines: Array = [
 		"Tu es le narrateur de M.E.R.L.I.N.. Tu écris UNE phrase narrative celtique (15-30 mots).",
 		"Style : mystique, druidique, évocateur, présent. Pas de méta-commentaire.",
 		"Biome : %s. Ton tient compte de la faction dominante." % biome_id,
 		"Pas de guillemets internes. Pas de Merlin parlant à la 1ère personne (sauf si requis).",
 	]
+	# v7.7 Phase 2.3 : inject skeleton beat-context — Narrator uses it for tone.
+	if not beat_context.is_empty():
+		var emotion: String = str(beat_context.get("emotion", ""))
+		var summary: String = str(beat_context.get("summary", ""))
+		if emotion != "":
+			lines.append("Émotion dominante de la scène : %s." % emotion)
+		if summary != "":
+			lines.append("Intention du beat : %s" % summary)
 	var ctx: String = _build_rag_context("narrator", biome_id)
 	if ctx != "":
 		lines.append("Mémoire récente du joueur :")
