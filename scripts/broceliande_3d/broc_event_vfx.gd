@@ -161,6 +161,8 @@ func _vfx_shadow_pass(player_pos: Vector3) -> void:
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	shadow.position = player_pos + Vector3(12.0, 0.9, _rng.randf_range(-3.0, 3.0))
 	_forest_root.add_child(shadow)
+	# v7.7 outline audit — bible §20 signature.
+	CelShadingManager.apply(shadow, {"outline_thickness": 0.006})
 	_active_nodes.append(shadow)
 
 
@@ -194,6 +196,7 @@ func _vfx_spawn_glow(player_pos: Vector3) -> void:
 			_rng.randf_range(-5.0, 5.0), 0.5 + _rng.randf() * 2.0,
 			_rng.randf_range(-5.0, 5.0))
 		_forest_root.add_child(orb)
+		CelShadingManager.apply(orb, {"outline_thickness": 0.004})
 		_active_nodes.append(orb)
 
 
@@ -232,6 +235,7 @@ func _vfx_mushroom_circle(player_pos: Vector3) -> void:
 		mush.position = pos
 		mush.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_forest_root.add_child(mush)
+		CelShadingManager.apply(mush, {"outline_thickness": 0.006})
 		_active_nodes.append(mush)
 
 

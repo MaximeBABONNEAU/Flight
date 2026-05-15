@@ -417,6 +417,7 @@ func _random_pos(rng: RandomNumberGenerator, z_range: Vector2) -> Vector3:
 # MULTIMESH FINALIZATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# v7.7 outline audit — bible §20 signature (MultiMesh pair).
 func _finalize_multimesh(container: Node3D, key: String, xforms: Array[Transform3D]) -> void:
 	if xforms.is_empty():
 		return
@@ -424,29 +425,30 @@ func _finalize_multimesh(container: Node3D, key: String, xforms: Array[Transform
 	if not mesh:
 		return
 
-	var mm: MultiMesh = MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.mesh = mesh
-	mm.instance_count = xforms.size()
+	# Pair (main + outline) via MultiMeshOutlineHelper.
+	var pair: Dictionary = MultiMeshOutlineHelper.build_pair(
+		mesh, xforms, {"outline_thickness": 0.012}
+	)
+	var mmi: MultiMeshInstance3D = pair.get("main") as MultiMeshInstance3D
+	var outline_mmi: MultiMeshInstance3D = pair.get("outline") as MultiMeshInstance3D
+	if mmi == null:
+		return
 
-	# Determine base color for per-instance jitter
+	# Re-enable per-instance color jitter on the main MultiMesh (build_pair only copies transforms).
+	var main_mm: MultiMesh = mmi.multimesh
+	main_mm.use_colors = true
 	var base_col: Color = _get_category_color(key)
 	var jitter_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	jitter_rng.seed = hash(key)
-
 	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
 		var j: float = jitter_rng.randf_range(0.85, 1.15)
-		mm.set_instance_color(i, Color(
+		main_mm.set_instance_color(i, Color(
 			clampf(base_col.r * j, 0.0, 1.0),
 			clampf(base_col.g * j, 0.0, 1.0),
 			clampf(base_col.b * j, 0.0, 1.0),
 			base_col.a
 		))
 
-	var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	mmi.multimesh = mm
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	# Apply material from pool if available
@@ -467,6 +469,12 @@ func _finalize_multimesh(container: Node3D, key: String, xforms: Array[Transform
 	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
 	container.add_child(mmi)
+	if outline_mmi:
+		outline_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		outline_mmi.visibility_range_begin = mmi.visibility_range_begin
+		outline_mmi.visibility_range_end = mmi.visibility_range_end
+		outline_mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		container.add_child(outline_mmi)
 
 
 func _get_category_color(key: String) -> Color:
@@ -501,20 +509,24 @@ func _spawn_canopy_spheres(container: Node3D, xforms: Array[Transform3D]) -> voi
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	sphere.material = mat
 
-	var mm: MultiMesh = MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = sphere
-	mm.instance_count = xforms.size()
+	# Pair (main + outline) via MultiMeshOutlineHelper.
+	var pair: Dictionary = MultiMeshOutlineHelper.build_pair(
+		sphere, xforms, {"outline_thickness": 0.015}
+	)
+	var mmi: MultiMeshInstance3D = pair.get("main") as MultiMeshInstance3D
+	var outline_mmi: MultiMeshInstance3D = pair.get("outline") as MultiMeshInstance3D
+	if mmi == null:
+		return
 
-	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
-
-	var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	mmi.multimesh = mm
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mmi.visibility_range_end = VIS_RANGE_CANOPY
 	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	container.add_child(mmi)
+	if outline_mmi:
+		outline_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		outline_mmi.visibility_range_end = VIS_RANGE_CANOPY
+		outline_mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		container.add_child(outline_mmi)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

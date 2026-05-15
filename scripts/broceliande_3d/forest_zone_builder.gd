@@ -132,6 +132,8 @@ func _create_water(pos: Vector3, radius: float) -> void:
 	mat.metallic = 0.3
 	mi.material_override = mat
 	_forest_root.add_child(mi)
+	# v7.7 outline audit — bible §20 signature.
+	CelShadingManager.apply(mi, {"outline_thickness": 0.008})
 
 
 func _add_point_light(pos: Vector3, color: Color, energy: float, rng: float) -> void:

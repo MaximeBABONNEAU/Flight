@@ -127,6 +127,8 @@ func _event_giant_firefly(player_pos: Vector3) -> void:
 	orb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	orb.position = player_pos + Vector3(2.0, 1.0, -3.0)
 	_forest_root.add_child(orb)
+	# v7.7 outline audit — bible §20 signature.
+	CelShadingManager.apply(orb, {"outline_thickness": 0.004})
 
 	var light: OmniLight3D = OmniLight3D.new()
 	light.light_color = Color(0.5, 1.0, 0.3)
@@ -172,6 +174,7 @@ func _event_mushroom_circle(player_pos: Vector3) -> void:
 		mush.position = pos
 		mush.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_forest_root.add_child(mush)
+		CelShadingManager.apply(mush, {"outline_thickness": 0.006})
 		nodes.append(mush)
 	_active_event["nodes"] = nodes
 
@@ -200,6 +203,7 @@ func _event_shadow(player_pos: Vector3) -> void:
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	shadow.position = player_pos + Vector3(15.0, 0.9, _rng.randf_range(-5.0, 5.0))
 	_forest_root.add_child(shadow)
+	CelShadingManager.apply(shadow, {"outline_thickness": 0.006})
 	_active_event["nodes"] = [shadow]
 	_active_event["start_pos"] = shadow.position
 	_active_event["end_pos"] = shadow.position + Vector3(-30.0, 0.0, _rng.randf_range(-3.0, 3.0))

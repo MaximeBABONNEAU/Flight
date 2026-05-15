@@ -1009,6 +1009,8 @@ func _spawn_ground_details() -> void:
 		rock.rotation.y = rng_local.randf_range(0.0, TAU)
 		rock.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		forest_root.add_child(rock)
+		# v7.7 outline audit — bible §20 signature.
+		CelShadingManager.apply(rock, {"outline_thickness": 0.010})
 
 		# Grass patch (flat disc on ground)
 		if i % 2 == 0:
@@ -1029,6 +1031,7 @@ func _spawn_ground_details() -> void:
 			)
 			grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			forest_root.add_child(grass)
+			CelShadingManager.apply(grass, {"outline_thickness": 0.006})
 
 
 func _spawn_merlin() -> void:

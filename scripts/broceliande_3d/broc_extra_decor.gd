@@ -82,6 +82,8 @@ func _spawn_crystal(pos: Vector3) -> void:
 	inst.visibility_range_end = 35.0
 	inst.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	_forest_root.add_child(inst)
+	# v7.7 outline audit — bible §20 signature.
+	CelShadingManager.apply(inst, {"outline_thickness": 0.008})
 
 
 func _spawn_glow_orb(pos: Vector3) -> void:
@@ -113,6 +115,7 @@ func _spawn_glow_orb(pos: Vector3) -> void:
 	inst.visibility_range_end = 30.0
 	inst.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	_forest_root.add_child(inst)
+	CelShadingManager.apply(inst, {"outline_thickness": 0.004})
 
 
 func _spawn_stone_pillar(pos: Vector3) -> void:
@@ -140,6 +143,7 @@ func _spawn_stone_pillar(pos: Vector3) -> void:
 	inst.visibility_range_end = 45.0
 	inst.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	_forest_root.add_child(inst)
+	CelShadingManager.apply(inst, {"outline_thickness": 0.014})
 
 
 func _spawn_ground_rune(pos: Vector3) -> void:
@@ -164,6 +168,7 @@ func _spawn_ground_rune(pos: Vector3) -> void:
 	inst.visibility_range_end = 25.0
 	inst.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	_forest_root.add_child(inst)
+	CelShadingManager.apply(inst, {"outline_thickness": 0.004})
 
 
 func _roff(min_r: float, max_r: float) -> Vector3:

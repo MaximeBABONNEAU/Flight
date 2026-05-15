@@ -89,6 +89,8 @@ func _build_rig(rig: Node3D) -> void:
 			px.set_meta("t", target)
 			px.set_meta("r", row)
 			rig.add_child(px)
+			# v7.7 outline audit — bible §20 signature.
+			CelShadingManager.apply(px, {"outline_thickness": 0.004})
 			pixels.append(px)
 			if ci == 6:
 				orb = target

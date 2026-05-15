@@ -48,6 +48,7 @@ func build_ground() -> void:
 	ground.add_child(col)
 
 	# Ground mesh with better color
+	# v7.7 outline audit — bible §20 signature (MultiMesh pair).
 	var mi: MeshInstance3D = MeshInstance3D.new()
 	var bm: BoxMesh = BoxMesh.new()
 	bm.size = Vector3(120.0, 0.2, 320.0)
@@ -58,6 +59,7 @@ func build_ground() -> void:
 	mat.roughness = 0.95
 	mi.material_override = mat
 	ground.add_child(mi)
+	CelShadingManager.apply(mi, {"outline_thickness": 0.012})
 
 	# Rolling hills (vallonné) — 32 mounds scattered far from the path with sin-cos
 	# heightfield to give the world a non-flat feel. Below path level so player walks on
@@ -91,6 +93,7 @@ func _spawn_rolling_hills() -> void:
 		hill.material_override = hmat
 		hill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		hill_root.add_child(hill)
+		CelShadingManager.apply(hill, {"outline_thickness": 0.014})
 
 
 func build_path_terrain() -> void:
@@ -179,17 +182,42 @@ func build_path_terrain() -> void:
 func _create_path_multimesh(xforms: Array[Transform3D], mesh: Mesh, mat: Material) -> void:
 	if xforms.is_empty():
 		return
-	var mm: MultiMesh = MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = mesh
-	mm.instance_count = xforms.size()
-	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
-	var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = mat
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_forest_root.add_child(mmi)
+	# SKIP outline on alpha glow layer (transparent + unshaded emission, would alias as
+	# a black halo around glow markers). Outline only on opaque dirt + root layers.
+	var skip_outline: bool = false
+	if mat is StandardMaterial3D:
+		var sm: StandardMaterial3D = mat as StandardMaterial3D
+		if sm.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+			skip_outline = true
+
+	if skip_outline:
+		var mm: MultiMesh = MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = xforms.size()
+		for i in xforms.size():
+			mm.set_instance_transform(i, xforms[i])
+		var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_forest_root.add_child(mmi)
+		return
+
+	# Pair (main + outline) via MultiMeshOutlineHelper.
+	var pair: Dictionary = MultiMeshOutlineHelper.build_pair(
+		mesh, xforms, {"outline_thickness": 0.012}
+	)
+	var mmi_pair: MultiMeshInstance3D = pair.get("main") as MultiMeshInstance3D
+	var outline_mmi: MultiMeshInstance3D = pair.get("outline") as MultiMeshInstance3D
+	if mmi_pair == null:
+		return
+	mmi_pair.material_override = mat
+	mmi_pair.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_forest_root.add_child(mmi_pair)
+	if outline_mmi:
+		outline_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_forest_root.add_child(outline_mmi)
 
 
 func _get_zone_for_pos(pos: Vector3) -> int:

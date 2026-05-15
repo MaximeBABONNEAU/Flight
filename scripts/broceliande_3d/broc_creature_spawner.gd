@@ -242,6 +242,8 @@ func _build_pixel_rig(creature_type: String) -> Node3D:
 			var y_off: float = (float(grid.size()) - float(row_idx) - float(grid.size()) * 0.5) * PX * creature_scale
 			mi.position = Vector3(x_off, y_off, 0.0)
 			root.add_child(mi)
+			# v7.7 outline audit — bible §20 signature.
+			CelShadingManager.apply(mi, {"outline_thickness": 0.004})
 
 	return root
 
