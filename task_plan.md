@@ -6,6 +6,34 @@
 
 ---
 
+## Active Feature — v7.7.2.1 Playtest Polish [2026-05-15]
+
+**User feedback (verbatim, post-playthrough with screenshot)** :
+*« Le menu principal n'a pas de titre, est flou et comporte des bordures à enlever ... Regarde egalement le texte des cartes, les choix sont sur le côté et illisible et sur la carte elle même aussi, il faut du texte contenu forcemment dedans, limiter le nombre de charactères et /ou prévoir que les cartes puissent se retourner pour afficher plus de scénario »*
+
+### Phase 1 — Quick wins (THIS COMMIT)
+- [x] MenuTest : retirer `fog_enabled` (cause flou) + retirer `border_width` du bouton (bordures parasites)
+- [x] LiveCard3D : `MAX_BODY_CHARS = 140` + `_truncate_at_word()` smart cut + ellipsis "…"
+- [x] LiveCard3D : options Label3D réduites à des ▸ markers (plus de texte qui overlap)
+- [x] LiveCard3D : `get_option_texts()` API pour exposer le texte aux Button2D
+- [x] BoardNarration : `_build_floating_option_buttons` met le TEXTE dans le Button2D + fixed anchor (bottom 30%, vertical stack centré)
+- [x] BoardNarration : `_sync_floating_buttons_to_card_3d` no-op (plus de sync à la position de la carte)
+- [ ] Parse + smoke + commit
+
+### Phase 2 — Common asset spawn animation (DEFERRED v7.7.3)
+*User : « pour l'intro de celtos, tu utilises les animations de chargement 3D d'asset, ce que tu as utilisé pour le deck de départ ... ces animations d'assets doivent être communes à tous les assets, plateau de jeu compris »*
+- Extraire `SigleToken.animate_in` pattern → module commun `asset_spawn_animator.gd`
+- Appliquer dans : IntroCeltOS phase 3 (assets 3D au boot), ScenarioLoading parchemins, BoardNarration biome assets, plateau, CardDeck3D
+- Pattern : digital upload effect (scale 0→1 + outline trace + opacity 0→1, staggered)
+
+### Phase 3 — ScenarioLoading polish (DEFERRED v7.7.3)
+*User : « Le choix des scénarios doit etre mieux animé, essaie de trouver des projets d'animation facile qui correspond à notre jeu pour du godot project que tu pourras manier »*
+- Rechercher projets Godot 4 d'animation parchemin/scroll unfurl (GitHub, Godot Asset Lib)
+- Améliorer parchemin reveal : unfurl scale Y + ink-write typewriter + plume CPUParticles3D
+- TTS Merlin commentary pendant la génération (Phase 2.1.6 backlog)
+
+---
+
 ## Active Feature — v7.7.2 Plateau-Only Unified Flow [2026-05-15]
 
 **User directive (verbatim)** : *« Connecte toi en MCP à Godot et lie les scénarios entre eux : intro → menu simple 3D → bouton test → BoardNarration (plateau vide, pièce sombre + lampe vers plateau + bouche Merlin au fond) → biome pick → 3 parchemins LLM → scénario écrit + Merlin commente (clustering, cuisine interne) → assets progressifs → board complet. Tout dans la même scène. »*

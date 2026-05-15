@@ -30,10 +30,15 @@ const INK_COLOR := Color("#1c1208")
 const INK_OUTLINE := Color("#3a2410")
 const BRONZE := Color("#8a6a3a")
 
+## v7.7.2.1 — body text hard-truncated to MAX_BODY_CHARS per user feedback :
+## « limiter le nombre de charactères » + « texte n'est pas strictement contenu dedans »
+const MAX_BODY_CHARS: int = 140
+
 var _mesh: MeshInstance3D = null
 var _badge_label: Label3D = null
 var _body_label: Label3D = null
 var _option_labels: Array = []
+var _option_texts: Array = []  ## v7.7.2.1 — exposed via get_option_texts() for Button2D
 var _idle_tween: Tween = null
 var _pending_choice: int = -1
 
@@ -138,10 +143,12 @@ func _build_badge(card: Dictionary) -> void:
 
 
 func _build_body(card: Dictionary) -> void:
-	# v7.1 — Drop manual _wrap_text; rely on Label3D autowrap with constrained
-	# width so text STRICTLY stays inside the 1.2m card face (per user feedback
-	# 2026-05-14 part 15 : "le texte n'est pas strictement contenu dedans").
+	# v7.7.2.1 — body text hard-truncated to MAX_BODY_CHARS to stop the autowrap
+	# from pushing lines DOWN past the card height and overlapping with options.
+	# Truncation happens at word boundary when possible + "…" ellipsis.
 	var prompt: String = str(card.get("text", card.get("prompt", "Une rune se pose.")))
+	if prompt.length() > MAX_BODY_CHARS:
+		prompt = _truncate_at_word(prompt, MAX_BODY_CHARS) + "…"
 	_body_label = _make_label3d(
 		prompt,
 		Vector3(0, CARD_H * 0.10, CARD_D * 0.6),
@@ -149,33 +156,57 @@ func _build_body(card: Dictionary) -> void:
 	)
 	_body_label.name = "Body"
 	_body_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	# Constrain body to ~0.96m world (CARD_W 1.20m - 0.12m margin each side).
-	# pixel_size = 0.045 * 0.055 = 0.002475 → width 380 = 0.94m. Fits.
-	_body_label.width = 380
+	_body_label.width = 380  # ~0.94m world width — fits inside CARD_W
 	add_child(_body_label)
 
 
+## v7.7.2.1 — Truncate at the last word boundary within max_chars budget.
+static func _truncate_at_word(text: String, max_chars: int) -> String:
+	if text.length() <= max_chars:
+		return text
+	var slice := text.substr(0, max_chars - 1)
+	var last_space := slice.rfind(" ")
+	# If we found a space in the last quarter, cut there. Otherwise hard cut.
+	if last_space > int(max_chars * 0.75):
+		return slice.substr(0, last_space).strip_edges()
+	return slice.strip_edges()
+
+
 func _build_options(card: Dictionary) -> void:
+	# v7.7.2.1 — options no longer rendered on the card face (Label3D options were
+	# overlapping the truncated body when text wrapped 4+ lines, per user feedback
+	# « les choix sont sur le côté et illisible et sur la carte elle même aussi »).
+	# Instead, we expose the option texts via get_option_texts() and the host
+	# (board_narration.gd) renders them as TEXT inside the floating Button2D at
+	# fixed screen positions BELOW the card. This guarantees readability + no
+	# overlap with body text.
 	_option_labels.clear()
+	_option_texts.clear()
 	var options: Array = card.get("options", [])
 	for i in range(3):
 		if i >= options.size():
 			break
 		var opt: Dictionary = options[i] if options[i] is Dictionary else {}
-		var label_text: String = "▸ " + str(opt.get("text", opt.get("label", "Option %d" % (i + 1))))
-		var y_offset: float = CARD_H * (-0.10 - i * 0.12)
-		var lbl: Label3D = _make_label3d(
-			label_text,
-			Vector3(-CARD_W * 0.35, y_offset, CARD_D * 0.6),
-			0.042, INK_COLOR
+		var raw: String = str(opt.get("text", opt.get("label", "Option %d" % (i + 1))))
+		_option_texts.append(raw)
+		# Discrete ▸ marker at the bottom-edge of card (no full text — preserves
+		# the "card has choices" affordance without overlap).
+		var marker: Label3D = _make_label3d(
+			"▸",
+			Vector3(-CARD_W * 0.30 + float(i) * 0.30, CARD_H * -0.36, CARD_D * 0.6),
+			0.05, INK_COLOR
 		)
-		lbl.name = "Option_%d" % i
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		# Options pixel_size = 0.042 * 0.055 = 0.00231 → width 380 ≈ 0.88m, left-anchored.
-		# Anchor is at x=-0.42 so right edge lands at -0.42 + 0.88 = 0.46 (inside 0.6 card half).
-		lbl.width = 380
-		add_child(lbl)
-		_option_labels.append(lbl)
+		marker.name = "OptionMarker_%d" % i
+		marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		marker.width = 60
+		add_child(marker)
+		_option_labels.append(marker)
+
+
+## v7.7.2.1 — Expose raw option texts so board_narration can put readable text
+## inside the floating Button2D (instead of empty buttons on the card side).
+func get_option_texts() -> Array:
+	return _option_texts.duplicate()
 
 
 static func _make_label3d(text: String, local_pos: Vector3, size: float,

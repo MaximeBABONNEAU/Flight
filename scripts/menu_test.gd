@@ -29,11 +29,12 @@ func _build_3d_scene() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.02, 0.02, 0.03)
-	env.ambient_light_color = Color(0.10, 0.08, 0.06)
-	env.ambient_light_energy = 0.35
-	env.fog_enabled = true
-	env.fog_light_color = Color(0.18, 0.12, 0.06)
-	env.fog_density = 0.025
+	env.ambient_light_color = Color(0.18, 0.14, 0.10)  # raised so title isn't washed
+	env.ambient_light_energy = 0.55
+	# v7.7.2.1 — fog disabled per user feedback ("menu flou"). Fog was bleaching
+	# the title outline + giving the whole scene a hazy look. Pure black bg + warm
+	# ambient lights the title cleanly.
+	env.fog_enabled = false
 	world_env.environment = env
 	add_child(world_env)
 
@@ -102,19 +103,19 @@ func _build_ui() -> void:
 	btn.add_theme_color_override("font_color", Color(0.96, 0.85, 0.45))
 	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.55))
 	btn.add_theme_color_override("font_pressed_color", Color(0.85, 0.70, 0.30))
+	# v7.7.2.1 — no borders per user feedback ("bordures à enlever"). Use only
+	# a subtle bg color shift on hover for affordance. Border width = 0 across states.
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.08, 0.06, 0.04, 0.85)
-	normal.border_color = Color(0.55, 0.42, 0.18)
-	normal.set_border_width_all(2)
-	normal.set_corner_radius_all(6)
+	normal.bg_color = Color(0.08, 0.06, 0.04, 0.40)
+	normal.set_border_width_all(0)
+	normal.set_corner_radius_all(4)
 	normal.set_content_margin_all(14)
 	btn.add_theme_stylebox_override("normal", normal)
 	var hover := normal.duplicate()
-	hover.bg_color = Color(0.14, 0.10, 0.06, 0.95)
-	hover.border_color = Color(0.85, 0.65, 0.30)
+	hover.bg_color = Color(0.18, 0.12, 0.06, 0.70)
 	btn.add_theme_stylebox_override("hover", hover)
 	var pressed := normal.duplicate()
-	pressed.bg_color = Color(0.05, 0.04, 0.02, 1.0)
+	pressed.bg_color = Color(0.04, 0.03, 0.02, 0.85)
 	btn.add_theme_stylebox_override("pressed", pressed)
 	btn.pressed.connect(_on_tester_pressed)
 	_ui.add_child(btn)

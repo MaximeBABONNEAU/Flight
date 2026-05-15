@@ -2631,43 +2631,58 @@ func _show_live_card_3d(card: Dictionary) -> void:
 	_build_floating_option_buttons()
 
 
-## v6 — Build 3 transparent overlay buttons in screen-space, hover/click
-## triggers the corresponding option index. Positioned each frame via
-## _sync_floating_buttons_to_card_3d() to follow the floating 3D card.
+## v7.7.2.1 — Build 3 readable Button2D with full option text INSIDE, positioned
+## at fixed screen anchors below the card (no more sync-to-Label3D-world-pos which
+## caused buttons to land ON the card and overlap body text). Per user feedback :
+## « les choix sont sur le côté et illisible et sur la carte elle même aussi ».
 func _build_floating_option_buttons() -> void:
 	if _ui_layer == null or _live_card_3d == null:
 		return
+	# Pull option text directly from the LiveCard3D so buttons display readable
+	# labels (cards only show ▸ markers now — text lives on the buttons).
+	var texts: Array = []
+	if _live_card_3d.has_method("get_option_texts"):
+		texts = _live_card_3d.get_option_texts()
 	for i in range(3):
 		var btn := Button.new()
 		btn.name = "FloatOption_%d" % i
-		btn.text = ""  # we let the Label3D on the card show the text
-		btn.flat = false  # v6.5 : flat=false so styleboxes apply
-		btn.custom_minimum_size = Vector2(360, 48)
-		# v6.5 — Button VISIBLE permanently (not hover-only) per user feedback.
-		# Normal : dark bronze translucent with amber border visible.
+		# v7.7.2.1 — text rendered ON the button itself (was empty "")
+		btn.text = str(texts[i]) if i < texts.size() else ("Option %d" % (i + 1))
+		btn.flat = false
+		btn.custom_minimum_size = Vector2(560, 56)
+		btn.clip_text = true  # cut overlong option text rather than overflow
+		btn.add_theme_font_size_override("font_size", 18)
+		btn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.62))
+		btn.add_theme_color_override("font_hover_color", Color(1.0, 0.96, 0.72))
+		btn.add_theme_color_override("font_pressed_color", Color(0.85, 0.68, 0.30))
+		# Stylebox : translucent dark with amber border — readable on any biome bg.
 		var normal_sb := StyleBoxFlat.new()
-		normal_sb.bg_color = Color(0.30, 0.20, 0.12, 0.25)
-		normal_sb.border_color = Color(0.90, 0.68, 0.30, 0.55)
+		normal_sb.bg_color = Color(0.08, 0.05, 0.03, 0.78)
+		normal_sb.border_color = Color(0.90, 0.68, 0.30, 0.75)
 		normal_sb.set_border_width_all(2)
-		normal_sb.set_corner_radius_all(6)
+		normal_sb.set_corner_radius_all(8)
+		normal_sb.set_content_margin_all(12)
 		btn.add_theme_stylebox_override("normal", normal_sb)
-		# Hover : stronger amber wash + brighter border.
-		var hover_sb := StyleBoxFlat.new()
-		hover_sb.bg_color = Color(0.90, 0.68, 0.30, 0.55)
+		var hover_sb := normal_sb.duplicate()
+		hover_sb.bg_color = Color(0.20, 0.14, 0.06, 0.92)
 		hover_sb.border_color = Color(1.0, 0.85, 0.45, 1.0)
-		hover_sb.set_border_width_all(3)
-		hover_sb.set_corner_radius_all(6)
 		btn.add_theme_stylebox_override("hover", hover_sb)
-		# Pressed : full bright.
-		var pressed_sb := StyleBoxFlat.new()
-		pressed_sb.bg_color = Color(1.0, 0.85, 0.45, 0.75)
-		pressed_sb.set_corner_radius_all(6)
+		var pressed_sb := normal_sb.duplicate()
+		pressed_sb.bg_color = Color(0.85, 0.65, 0.30, 0.85)
 		btn.add_theme_stylebox_override("pressed", pressed_sb)
-		btn.modulate = Color(1, 1, 1, 1)
+		# v7.7.2.1 — FIXED screen position : vertical stack centered, bottom 30% of screen.
+		# This stops them from following the card and overlapping body text.
+		btn.anchor_left = 0.5
+		btn.anchor_right = 0.5
+		btn.anchor_top = 0.65
+		btn.anchor_bottom = 0.65
+		btn.offset_left = -280  # half of 560
+		btn.offset_right = 280
+		btn.offset_top = float(i) * 64  # 64 = button height + small gap
+		btn.offset_bottom = float(i) * 64 + 56
 		btn.visible = true
 		var idx: int = i
 		btn.pressed.connect(func() -> void: _on_floating_button_pressed(idx))
-		# v7.2 — QA MEDIUM 3.15 : hover SFX (<100ms cue, bible §21.1 retour visuel/audio).
 		btn.mouse_entered.connect(func() -> void:
 			var s: Node = get_node_or_null("/root/SFXManager")
 			if s and s.has_method("play"):
@@ -2676,25 +2691,14 @@ func _build_floating_option_buttons() -> void:
 		_floating_option_buttons.append(btn)
 
 
-## v6 — Each frame, re-anchor the 3 floating Button2D to the Label3D world
-## positions on the LiveCard3D. Uses _camera.unproject_position to convert
-## world → screen coords.
+## v7.7.2.1 — DEPRECATED. Buttons now use fixed screen anchors (bottom 30%)
+## set once in _build_floating_option_buttons, so no per-frame sync is needed.
+## Kept as no-op to preserve call sites that still invoke it.
 func _sync_floating_buttons_to_card_3d() -> void:
-	if _live_card_3d == null or _camera == null or _floating_option_buttons.is_empty():
-		return
-	var positions: Array = _live_card_3d.get_option_world_positions()
-	for i in range(_floating_option_buttons.size()):
-		var btn: Button = _floating_option_buttons[i] as Button
-		if btn == null or i >= positions.size():
-			continue
-		var world_pos: Vector3 = positions[i]
-		# Check the point is in front of the camera (avoid wrap-around).
-		if _camera.is_position_behind(world_pos):
-			btn.visible = false
-			continue
-		var screen_pos: Vector2 = _camera.unproject_position(world_pos)
-		btn.visible = true
-		btn.position = screen_pos - Vector2(btn.size.x * 0.5, btn.size.y * 0.5)
+	# Intentional no-op : buttons are now anchored via anchor_top/offset_top
+	# rather than projected from 3D Label positions. Removing the call sites
+	# is a follow-up cleanup (search for _sync_floating_buttons_to_card_3d).
+	pass
 
 
 ## v6 — Click handler for the floating option buttons. Routes through the same
