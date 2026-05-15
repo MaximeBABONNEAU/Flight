@@ -127,7 +127,22 @@ const OGHAM_GLYPHS: Array = ["beith", "luis", "quert", "fearn", "saille", "nuin"
 # source-of-truth const, not buried in a match statement. Decision 2026-05-15
 # part 21 : [standard, shop, standard, event, boss]. If the bible §1 evolves
 # to change this sequence, this const is the single point of edit.
-const BEAT_ACT_SEQUENCE: Array = ["standard", "shop", "standard", "event", "boss"]
+#
+# v7.7 Phase 2.7 (2026-05-15 part 22) : extended to 10 entries for variable
+# 5-10 beat skeletons. Pattern keeps shop early + boss last + events sprinkled.
+# Skeletons of size 5/7/10 truncate to first N entries.
+const BEAT_ACT_SEQUENCE: Array = [
+	"standard",  # 1 — opening
+	"shop",      # 2 — early shop respite
+	"standard",  # 3
+	"event",     # 4 — first event twist
+	"standard",  # 5 — also boss slot for 5-beat skeletons
+	"event",     # 6 — second event for 7+ skeletons
+	"standard",  # 7 — climax for 7-beat skeletons
+	"shop",      # 8 — late shop for epic 10-beat
+	"event",     # 9 — penultimate event for 10-beat
+	"boss",      # 10 — final climax (any size : last entry becomes boss via clamp)
+]
 
 # v7.7 (code-review MEDIUM fix #6) : max acceptable title length from LLM
 # (defensive against LLM emitting a synopsis instead of a 3-7 word title).
@@ -250,16 +265,30 @@ func generate_skeleton(biome_id: String, chosen_title: String) -> Dictionary:
 
 
 func _skeleton_system_prompt(biome_id: String, chosen_title: String) -> String:
+	# v7.7 Phase 2.7 — chain-of-thought : LLM choisit 5/7/10 actes selon l'ambition.
 	return ("Tu es le Gamemaster M.E.R.L.I.N..\n" +
 		"Génère un SKELETON narratif au format JSON strict (GBNF imposé) pour le titre :\n" +
 		"  \"%s\" (biome : %s)\n\n" +
-		"Structure : {title, beats:[5]}. Chaque beat = {n, summary, faction_tilt, emotion}.\n" +
-		"Beats : 1=ouverture/curiosite, 2=développement/tension, 3=twist, 4=climax, 5=résolution.\n" +
+		"ÉTAPE 1 (réflexion) : décide d'abord du nombre d'actes selon l'ambition du titre :\n" +
+		"  - SIMPLE (5 actes) : intro mystique, une seule épreuve\n" +
+		"  - CLASSIQUE (7 actes) : voyage complet, twist au milieu\n" +
+		"  - ÉPIQUE (10 actes) : saga riche, multiples bifurcations\n\n" +
+		"ÉTAPE 2 (écriture) : écris EXACTEMENT ce nombre de beats dans le JSON.\n\n" +
+		"Structure : {title, beats:[N entries]}. Chaque beat = {n: 1..N, summary, faction_tilt, emotion}.\n" +
+		"Arc émotionnel : beat 1=curiosite/intro, beats milieu=tension/peur/twist, beat N=résolution/sagesse.\n" +
 		"faction_tilt ∈ {druides, anciens, korrigans, niamh, ankou, neutre}.\n" +
 		"emotion ∈ {curiosite, tension, peur, espoir, sagesse, fascination, colere, melancolie, emerveillement}.\n" +
 		"Summaries : 1 phrase 10-20 mots, narratif celtique évocateur."
 	) % [chosen_title, biome_id]
 
+
+## v7.7 Phase 2.7c — Parse skeleton + clamp beats to [5..10] :
+##   - >10 beats : truncate to first 10
+##   - <5 beats  : pad with fallback skeleton beats (matching biome)
+##   - Renumber `n` field to 1..final-size
+##   - Returns fallback skeleton if parse fails entirely
+const MIN_BEATS := 5
+const MAX_BEATS := 10
 
 func _parse_skeleton(raw_text: String, biome_id: String, chosen_title: String) -> Dictionary:
 	var trimmed: String = raw_text.strip_edges()
@@ -278,9 +307,31 @@ func _parse_skeleton(raw_text: String, biome_id: String, chosen_title: String) -
 	if not (parsed is Dictionary):
 		return _fallback_skeleton(biome_id, chosen_title)
 	var dict: Dictionary = parsed as Dictionary
-	var beats = dict.get("beats", [])
-	if not (beats is Array) or (beats as Array).size() != 5:
+	var beats_any = dict.get("beats", [])
+	if not (beats_any is Array):
 		return _fallback_skeleton(biome_id, chosen_title)
+	var beats: Array = beats_any as Array
+
+	# v7.7 Phase 2.7c — clamp to [MIN_BEATS..MAX_BEATS].
+	if beats.size() > MAX_BEATS:
+		push_warning("[ScenarioPlanner] LLM emitted %d beats, truncating to %d" % [beats.size(), MAX_BEATS])
+		beats = beats.slice(0, MAX_BEATS)
+	elif beats.size() < MIN_BEATS:
+		push_warning("[ScenarioPlanner] LLM emitted %d beats (<%d), padding from fallback" % [beats.size(), MIN_BEATS])
+		var fallback: Dictionary = _fallback_skeleton(biome_id, chosen_title)
+		var fb_beats: Array = fallback.get("beats", [])
+		while beats.size() < MIN_BEATS and beats.size() < fb_beats.size():
+			beats.append((fb_beats[beats.size()] as Dictionary).duplicate(true))
+		# If even fallback is short (shouldn't happen — fallback is 5), fail to fallback.
+		if beats.size() < MIN_BEATS:
+			return fallback
+
+	# Renumber `n` to 1..final-size (defensive : LLM may have emitted any values).
+	for i in range(beats.size()):
+		if beats[i] is Dictionary:
+			(beats[i] as Dictionary)["n"] = i + 1
+
+	dict["beats"] = beats
 	# Override title to match user pick (in case LLM rewrote it).
 	dict["title"] = chosen_title
 	return dict
@@ -309,16 +360,23 @@ func generate_card_for_beat(skeleton: Dictionary, beat_idx: int, player_state: D
 	if beat_idx < 0 or beat_idx >= beats.size():
 		return {}
 	var beat: Dictionary = beats[beat_idx]
-	var act_type: String = _beat_to_act_type(int(beat.get("n", beat_idx + 1)))
+	# v7.7 Phase 2.7 — pass total count so last beat is always "boss" regardless
+	# of skeleton size (5/7/10). Without this, 5-beat skeletons would have a
+	# "standard" final beat instead of climactic boss.
+	var act_type: String = _beat_to_act_type(int(beat.get("n", beat_idx + 1)), beats.size())
 	var ogham_used: String = str(player_state.get("active_ogham", ""))
 	var biome_id: String = str(player_state.get("biome", "foret_broceliande"))
 	return await _bi_brain.generate_card(biome_id, act_type, ogham_used, beat)
 
 
-static func _beat_to_act_type(beat_n: int) -> String:
-	# v7.7 (code-review MEDIUM fix #3) : driven from BEAT_ACT_SEQUENCE const so
-	# the 5-beat → act_type mapping is single-source-of-truth and visible at the
-	# top of the file. To change the sequence, edit BEAT_ACT_SEQUENCE.
+static func _beat_to_act_type(beat_n: int, total: int = 5) -> String:
+	# v7.7 (code-review MEDIUM fix #3 + Phase 2.7) : driven from BEAT_ACT_SEQUENCE
+	# const + last-beat-always-boss invariant for variable-size skeletons (5..10).
+	# Without the invariant, 5-beat skeletons would have a "standard" final beat
+	# instead of climactic boss. The const remains the source of truth for the
+	# middle beats; only the last index is forced to "boss".
+	if total > 0 and beat_n == total:
+		return "boss"
 	var idx: int = beat_n - 1
 	if idx < 0 or idx >= BEAT_ACT_SEQUENCE.size():
 		return "standard"
@@ -435,12 +493,13 @@ func _llm_judge_divergence(expected_tilt: String, actual_dominant: String,
 func replan_from_beat(skeleton: Dictionary, from_beat: int,
 		player_state: Dictionary) -> Dictionary:
 	# Guard rails.
+	# v7.7 Phase 2.7 : accept variable-size skeletons [MIN_BEATS..MAX_BEATS].
 	var beats: Array = skeleton.get("beats", [])
-	if not (beats is Array) or beats.size() != 5:
+	if not (beats is Array) or beats.size() < MIN_BEATS or beats.size() > MAX_BEATS:
 		return skeleton
 	if from_beat <= 0 or from_beat >= beats.size():
 		# from_beat==0 means "regenerate from start" → equivalent to a fresh skeleton.
-		# from_beat>=5 means nothing to replan (last beat or beyond).
+		# from_beat>=size means nothing to replan (last beat or beyond).
 		return skeleton
 	if _merlin_ai == null or not _merlin_ai.has_method("generate_with_system"):
 		return skeleton
@@ -466,16 +525,24 @@ func replan_from_beat(skeleton: Dictionary, from_beat: int,
 	var raw: String = str(result.get("text", result.get("output", "")))
 	var fresh: Dictionary = _parse_skeleton(raw, biome_id, chosen_title)
 	var fresh_beats: Array = fresh.get("beats", [])
-	if not (fresh_beats is Array) or fresh_beats.size() != 5:
+	# v7.7 Phase 2.7 : accept variable fresh size [MIN_BEATS..MAX_BEATS].
+	if not (fresh_beats is Array) or fresh_beats.size() < MIN_BEATS or fresh_beats.size() > MAX_BEATS:
 		return skeleton
 
-	# Splice : preserve [0..from_beat-1] + take fresh [from_beat..4].
+	# Splice : preserve [0..from_beat-1] + take fresh [from_beat..end].
+	# Final size matches original skeleton size (we don't shrink/grow mid-run).
+	var target_size: int = beats.size()
 	var out_beats: Array = []
 	for i in range(from_beat):
 		out_beats.append(beats[i])
-	for j in range(from_beat, 5):
-		out_beats.append(fresh_beats[j])
-	# Renumber n to stay 1..5 in case LLM emitted different n values.
+	for j in range(from_beat, target_size):
+		# Take from fresh_beats if available, else preserve original beat
+		# (graceful : LLM may have emitted fewer beats than target).
+		if j < fresh_beats.size():
+			out_beats.append(fresh_beats[j])
+		else:
+			out_beats.append(beats[j])
+	# Renumber n to stay 1..size in case LLM emitted different n values.
 	for k in range(out_beats.size()):
 		(out_beats[k] as Dictionary)["n"] = k + 1
 

@@ -1,25 +1,30 @@
 # GBNF Grammar for Scenario Skeleton JSON — M.E.R.L.I.N. v7.7
-# Réf user AskUserQuestion 2026-05-15 part 21 : skeleton = beats + faction-tilt + emotion arc.
-# Forces LLM to produce valid JSON for the 5-beat scenario plan.
+# Réf user AskUserQuestion 2026-05-15 part 21 + 22 :
+#   - skeleton = beats + faction-tilt + emotion arc
+#   - v7.7 Phase 2.7 (2026-05-15) : variable 1-N beats. Client clamps to [5..10].
 #
 # Schema :
 #   {
 #     "title": "<chosen title>",
 #     "beats": [
-#       {"n": 1, "summary": "...", "faction_tilt": "<faction>|neutre", "emotion": "<emotion>"},
-#       ... × 5
+#       {"n": <1..10>, "summary": "...", "faction_tilt": "<faction>|neutre", "emotion": "<emotion>"},
+#       ... × 1 à N
 #     ]
 #   }
+# Le LLM décide du nombre d'actes (5/7/10) selon l'ambition narrative (prompt chain-of-thought).
+# Le client clamp à [5..10] post-parse (tronque si >10, pad avec fallback si <5).
 
 root      ::= ws "{" ws title-kv "," ws beats-kv ws "}" ws
 
 title-kv  ::= "\"title\"" ws ":" ws string
-beats-kv  ::= "\"beats\"" ws ":" ws "[" ws beat "," ws beat "," ws beat "," ws beat "," ws beat ws "]"
+# v7.7 Phase 2.7 : beats now accepts 1-N entries (was fixed 5).
+beats-kv  ::= "\"beats\"" ws ":" ws "[" ws beat ("," ws beat)* ws "]"
 
 beat      ::= "{" ws n-kv "," ws summary-kv "," ws tilt-kv "," ws emotion-kv ws "}"
 
 n-kv         ::= "\"n\"" ws ":" ws beat-num
-beat-num     ::= "1" | "2" | "3" | "4" | "5"
+# v7.7 Phase 2.7 : beat-num extended to 1-10 (was 1-5). 10 first for grammar greediness.
+beat-num     ::= "10" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 
 summary-kv   ::= "\"summary\"" ws ":" ws string
 
