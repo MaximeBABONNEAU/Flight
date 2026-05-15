@@ -487,6 +487,72 @@ Older focus blocks (C42b code-review fixes, C41 forge redesign, etc.) have been 
 - [ ] 2.3 — Extend `BiBrainPipeline` to accept beat-context Dictionary (faction_tilt + emotion + summary) injected into GM + Narrator prompts
 - [ ] 2.4 — Implement `judge_divergence` (3rd brain mini qwen3.5:2b, ~2s budget)
 - [ ] 2.5 — Implement `replan_from_beat` (regen beats[from..5] preserving 1..from-1)
-- [ ] 2.6 — Expand `FALLBACK_SKELETONS` to 8 biomes (5 templates × 8 = 40 entries)
-- [ ] 2.7 — Pre-fetch carte N+1 async after render carte N
-- [ ] 2.8 — Smoke + capture validation (loading screen + 5-card playthrough)
+- [x] 2.3 — beat-context injection in BiBrainPipeline (commit 8dbbe1cc)
+- [x] 2.4 — judge_divergence hybrid LLM+heuristic (commit 8dbbe1cc + c6f2196d HIGH fix)
+- [x] 2.5 — replan_from_beat real implementation (commit 8dbbe1cc, variable size in 70ce9f80)
+- [x] 2.6 — FALLBACK_SKELETONS expanded 1→8 biomes (commit 8dbbe1cc)
+- [x] 2.7 — Variable beat count 5-10 (GBNF flex + chain-of-thought + clamp) (commit 70ce9f80)
+- [ ] 2.8 — Smoke + capture validation (loading screen + variable-card playthrough)
+
+### v7.7 Phase 2.1 SPEC (locked 2026-05-15 part 23 via 8 AskUserQuestion answers)
+
+**Run start flow finalized** :
+1. Empty scene → plateau materialize (v7.5 digital-upload, shipped)
+2. Biome selector (existing)
+3. Backdrop assets cascade reveal (v7.5, shipped)
+4. **Scene change to `scenes/ScenarioLoading.tscn`** (NEW)
+5. 3 parchemins 3D floating in front of camera (LiveCard3D-style) — unfurl + ink-write animation
+6. Player picks 1 parchemin (title + ogham glyph)
+7. **Quill phase** — CPUParticles3D dorées + Merlin speech-bar pulsing + TTS robot voice
+8. LLM writes 5/7/10-beat skeleton (chain-of-thought decides ambition)
+9. Transition back to BoardNarration with skeleton loaded
+10. JIT per-beat cards via BiBrainPipeline + judge + replan (Phase 2.3/2.4/2.5 shipped)
+
+**Phase 2.1 deliverables (~600 LOC + 1 .tscn + 1 .gdshader)** :
+- [ ] 2.1.1 — `scenes/ScenarioLoading.tscn` skeleton (Node3D root + Camera3D + DirectionalLight3D + UI CanvasLayer)
+- [ ] 2.1.2 — `scripts/scenario_loading.gd` — controller : instantiate ScenarioPlanner, run titles+skeleton flow, handle parchemin picks
+- [ ] 2.1.3 — 3D parchemin mesh (PlaneMesh + parchment NoiseTexture + ogham glyph Label3D + title Label3D) — apply CelShadingManager
+- [ ] 2.1.4 — Parchemin unfurl animation : scale Y 0→1 over 0.5s, ink-write typewriter on title 30 cps
+- [ ] 2.1.5 — Merlin speech-bar widget (2D Control + .gdshader fragment shader for pulse-on-amplitude glow #d4a868 — EDI/GLaDOS style)
+- [ ] 2.1.6 — TTS pipeline : route via `use_my_voice` skill + AudioEffectChorus + Distortion for robot effect
+- [ ] 2.1.7 — CPUParticles3D quill node : 30 particles, gold albedo, gravity=0, lifetime 2s, emission ring
+- [ ] 2.1.8 — Wire `board_narration._on_biome_picked` → set `_PARAMS` autoload biome_id → scene change to ScenarioLoading
+- [ ] 2.1.9 — Wire ScenarioLoading completion → return to BoardNarration with skeleton in `_run_data["scenario_skeleton"]`
+- [ ] 2.1.10 — Smoke + capture validation : titles render, parchemin unfurl visible, speech-bar pulses, particles drift, transition smooth
+
+---
+
+## ACTIVE: v7.7 outline coverage audit (2026-05-15 part 24)
+
+**Audit summary (Wave 1 agent)** : 57 spawn sites, 14 covered, **43 missing** outline. Skip list : 5 (billboards, fog quads, dev tools, grass shader, god-rays). Real gaps : **38 across 13 files**.
+
+### Batch 1 SHIPPED — 14 sites (4 files, this session)
+- [x] sigle_token.gd : 4 sites (base + body + head + accessory)
+- [x] scenario_loading.gd : 1 site (parchemin PlaneMesh)
+- [x] merlin_cabin_hub.gd : 5 sites (floor + cauldron + crystal + tapestry + wall_map + lanterns + walls) — via agent
+- [x] forest_asset_spawner.gd : 5 sites (procedural trunk + canopy + fallback trunk + crown loop + shrub) — via agent
+
+### Batch 2 BACKLOG — 24 remaining sites (9 files, next session orchestration)
+- [ ] broceliande_forest_3d.gd : 2 (rocks + grass patches)
+- [ ] broc_chunk_manager.gd : 2 (vegetation MM + canopy spheres MM) — needs `MultiMeshOutlineHelper.build_pair` refactor
+- [ ] broc_creature_spawner.gd : 1 (voxel creature pixel)
+- [ ] broc_events.gd : 3 (firefly + mushroom circle + shadow figure)
+- [ ] broc_extra_decor.gd : 4 (crystal + glow orb + stone pillar + ground rune)
+- [ ] broc_event_vfx.gd : 3 (shadow pass + spawn glow orbs + mushroom circle VFX)
+- [ ] forest_merlin_npc.gd : 1 (voxel Merlin NPC)
+- [ ] forest_zone_builder.gd : 1 (water cylinder)
+- [ ] forest_terrain_builder.gd : 3 (main ground + rolling hills + path MM)
+- [ ] vegetation_manager.gd : 2 (canopy MM + generic vegetation MM)
+
+### Orchestration plan next session
+Spawn 3 parallel agents :
+- **Agent A** : `broc_events.gd` + `broc_event_vfx.gd` + `broc_extra_decor.gd` (10 sites, MEDIUM/HIGH)
+- **Agent B** : `broc_creature_spawner.gd` + `forest_merlin_npc.gd` + `forest_zone_builder.gd` + `broceliande_forest_3d.gd` (5 sites, mixed)
+- **Agent C** : MultiMesh refactor — `broc_chunk_manager.gd` + `forest_terrain_builder.gd` + `vegetation_manager.gd` (7 sites, HIGH, requires `MultiMeshOutlineHelper.build_pair` API migration)
+Then smoke verify + commit.
+
+### UI Slack audit (deferred)
+Per user request "UI slack très limitée" — separate audit needed of `board_narration.gd` HUD / `scenario_loading.gd` UI / `merlin_cabin_hub.gd` HUD against bible §21.1 minimal (≤7 affordances). Spawn `ux_flow.md` agent in next session.
+
+### Visual polish audit (deferred)
+Per user request "beaux effets visuels" — survey lighting / post-process / particle FX / transitions for polish opportunities. Spawn `motion_designer.md` + `vis_particle.md` agents in next session.
