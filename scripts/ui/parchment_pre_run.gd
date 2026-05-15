@@ -4,7 +4,7 @@
 
 extends Control
 
-const SCENE_FOREST := "res://scenes/BroceliandeForest3D.tscn"
+const SCENE_FOREST := "res://scenes/BoardNarration.tscn"
 const BIOME_DEFAULT := "foret_broceliande"
 
 ## Parchment instance.

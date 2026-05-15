@@ -15,7 +15,7 @@ const SCENES: Array[Dictionary] = [
 	# — Hub —
 	{"label": "MerlinCabinHub", "path": "res://scenes/MerlinCabinHub.tscn"},
 	# — Gameplay —
-	{"label": "BroceliandeForest3D", "path": "res://scenes/BroceliandeForest3D.tscn"},
+	{"label": "BoardNarration", "path": "res://scenes/BoardNarration.tscn"},
 	{"label": "MerlinGame", "path": "res://scenes/MerlinGame.tscn"},
 	{"label": "EndRunScreen", "path": "res://scenes/EndRunScreen.tscn"},
 ]

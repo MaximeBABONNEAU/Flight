@@ -53,7 +53,7 @@ const SCENE_PROFILES := {
 		"block_size": 10,
 		"enter_duration": 0.9,
 	},
-	"res://scenes/BroceliandeForest3D.tscn": {
+	"res://scenes/BoardNarration.tscn": {
 		"block_size": 12,
 		"exit_duration": 0.5,
 		"skip_enter": true,

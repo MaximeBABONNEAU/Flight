@@ -44,16 +44,19 @@ const PHASE_NAMES: Dictionary = {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Demo cleanup (2026-04-25): HubScreen, Run3D, TalentTree, HubAntre removed.
-# Single hub = MerlinCabinHub. Single run = BroceliandeForest3D.
+# v7.7 plateau-only (2026-05-15): SCENE_RUN/SCENE_FOREST point to BoardNarration —
+# the 3D forest walk is deprecated; the run now happens on the board narration plateau.
+# SCENE_RUN and SCENE_BOARD_NARRATION are intentionally identical until SCENE_FOREST
+# legacy callers are renamed (follow-up).
 const SCENE_HUB: String = "res://scenes/MerlinCabinHub.tscn"
-const SCENE_RUN: String = "res://scenes/BroceliandeForest3D.tscn"
+const SCENE_RUN: String = "res://scenes/BoardNarration.tscn"
 const SCENE_BOARD_NARRATION: String = "res://scenes/BoardNarration.tscn"
 const SCENE_END: String = "res://scenes/EndRunScreen.tscn"
 const SCENE_MENU: String = "res://scenes/MerlinCabinHub.tscn"
 const SCENE_TALENT_TREE: String = "res://scenes/MerlinCabinHub.tscn"  # Talent tree disabled, fall back to hub
 
 const SCENE_HUB_ANTRE: String = "res://scenes/MerlinCabinHub.tscn"  # Alias for legacy callers
-const SCENE_FOREST: String = "res://scenes/BroceliandeForest3D.tscn"
+const SCENE_FOREST: String = "res://scenes/BoardNarration.tscn"  # v7.7: plateau replaces forest — legacy name kept for callers
 const SCENE_CARD_GAME: String = "res://scenes/MerlinGame.tscn"
 
 # ═══════════════════════════════════════════════════════════════════════════════

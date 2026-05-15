@@ -14,7 +14,7 @@
 
 extends Control
 
-const NEXT_SCENE := "res://scenes/BroceliandeForest3D.tscn"  # 3D forest walk → then MerlinGame
+const NEXT_SCENE := "res://scenes/BoardNarration.tscn"  # v7.7 plateau-only flow — board narration replaces forest walk
 const DATA_PATH := "res://data/post_intro_dialogues.json"
 
 const ANIMATION_SPEED_FACTOR := 1.7

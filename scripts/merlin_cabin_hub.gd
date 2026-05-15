@@ -3,7 +3,7 @@ extends Node
 ## Tapestry (talent tree), wall map (biome choice), Merlin NPC (LLM dialogue).
 ## Post-run: stats display, Anam rewards, progression.
 
-const FOREST_SCENE: String = "res://scenes/BroceliandeForest3D.tscn"
+const FOREST_SCENE: String = "res://scenes/BoardNarration.tscn"
 const MENU_SCENE: String = "res://scenes/MerlinCabinHub.tscn"
 
 var _world: Node3D

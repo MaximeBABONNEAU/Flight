@@ -524,11 +524,12 @@ func _transition_to_menu() -> void:
 		return
 
 	if force_tutorial or not tutorial_completed:
-		print("[IntroCeltOS] First Run tutorial (Broceliande, no LLM) — completed=%s" % str(tutorial_completed))
-		var game_mgr_2: Node = get_tree().root.get_node_or_null("GameManager")
-		if game_mgr_2:
-			game_mgr_2.set_meta("first_run_tutorial", true)
-		PixelTransition.transition_to("res://scenes/BroceliandeForest3D.tscn")
+		# v7.7 plateau-only (2026-05-15): forest walk deprecated, route goes straight to BoardNarration.
+		# The legacy `first_run_tutorial` meta was consumed only by BroceliandeForest3D._ready()
+		# to disable LLM and use scripted fallback cards. BoardNarration owns its own first-run
+		# LLM-lite handling; setting the meta here would be a dangling write — removed.
+		print("[IntroCeltOS] First Run -> BoardNarration (plateau-only) — completed=%s" % str(tutorial_completed))
+		PixelTransition.transition_to("res://scenes/BoardNarration.tscn")
 		return
 
 	PixelTransition.transition_to("res://scenes/MerlinCabinHub.tscn")
