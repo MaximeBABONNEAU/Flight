@@ -37,6 +37,12 @@ var _ui_layer: CanvasLayer = null
 var _info_label: Label = null     # foundation : displays current step textually
 var _camera: Camera3D = null
 
+# v7.7 Phase 2.1.3 — 3 parchemin 3D meshes (PlaneMesh + parchment NoiseTexture +
+# title Label3D + ogham Label3D). Player clicks one to pick the title.
+var _parchemins: Array = []       # Array of MeshInstance3D
+var _pick_buttons: Array = []     # 3 floating 2D Buttons synced to parchemin positions
+var _pending_pick: int = -1       # set by _on_parchemin_clicked, polled by _run_flow
+
 
 func _ready() -> void:
 	_resolve_autoloads()
@@ -121,10 +127,34 @@ func _run_flow() -> void:
 		_return_to_board()
 		return
 
-	# Step 2 (foundation) : auto-pick first title.
-	# Sub-iteration 2.1.3+ replaces this with parchemin UI player interaction.
-	var first: Dictionary = _titles[0] as Dictionary
-	_chosen_title = str(first.get("title", ""))
+	# v7.7 Phase 2.1.3 — Spawn 3 parchemin 3D meshes + wait for player click.
+	# Foundation auto-pick replaced with real player choice via floating buttons.
+	_info_label.text = "Choisis ta voie…"
+	_build_parchemin_meshes(_titles)
+	_build_pick_buttons()
+	# Wait for click — _on_parchemin_clicked sets _pending_pick to chosen index.
+	_pending_pick = -1
+	while _pending_pick < 0:
+		await get_tree().process_frame
+	# Cleanup pick UI + record choice.
+	var chosen: Dictionary = _titles[_pending_pick] as Dictionary
+	_chosen_title = str(chosen.get("title", ""))
+	_clear_pick_buttons()
+	# Subtle confirmation animation : selected parchemin pulses, others fade out.
+	for i in range(_parchemins.size()):
+		var p: MeshInstance3D = _parchemins[i] as MeshInstance3D
+		if p == null or not is_instance_valid(p):
+			continue
+		if i == _pending_pick:
+			var pulse := create_tween().set_parallel(true)
+			pulse.tween_property(p, "scale", Vector3.ONE * 1.10, 0.25).set_trans(Tween.TRANS_BACK)
+			pulse.tween_property(p, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_SINE).set_delay(0.25)
+		else:
+			var mat: StandardMaterial3D = p.material_override as StandardMaterial3D
+			if mat:
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				create_tween().tween_property(mat, "albedo_color:a", 0.0, 0.4)
+	await get_tree().create_timer(0.5).timeout
 	_info_label.text = "Titre choisi : %s\n(Merlin écrit le scénario…)" % _chosen_title
 
 	# Step 3 : generate skeleton
@@ -155,3 +185,135 @@ func _dispatch_skeleton() -> void:
 
 func _return_to_board() -> void:
 	get_tree().change_scene_to_file("res://scenes/BoardNarration.tscn")
+
+
+# ═════════ Phase 2.1.3 — 3D parchemin meshes + click handling ════════════════
+
+const PARCHEMIN_W := 1.20
+const PARCHEMIN_H := 1.70
+const PARCHEMIN_GAP := 1.60         # horizontal spacing between centers
+const PARCHEMIN_Y := 1.20           # height above plateau plane
+const PARCHEMIN_Z := 1.5            # forward of origin, in front of camera (camera at z=4.5)
+const PARCHMENT_COLOR := Color("#f0e2c4")  # cream parchment per bible §13
+const INK_DARK := Color("#0a0500")  # outline noir signature bible §20
+
+## Spawn 3 floating 3D parchemins side-by-side in front of camera.
+## Each parchemin = PlaneMesh + NoiseTexture parchment + Label3D for title + ogham.
+## Phase 2.1.4 will add unfurl + ink-write animations (foundation : static reveal).
+func _build_parchemin_meshes(titles: Array) -> void:
+	_parchemins.clear()
+	for i in range(min(3, titles.size())):
+		var entry: Dictionary = titles[i] as Dictionary
+		var title_text: String = str(entry.get("title", "?"))
+		var ogham_id: String = str(entry.get("ogham", ""))
+		var mi := _build_single_parchemin(title_text, ogham_id, i)
+		_parchemins.append(mi)
+
+
+func _build_single_parchemin(title_text: String, ogham_id: String, idx: int) -> MeshInstance3D:
+	# Mesh = PlaneMesh acting as a flat parchment card.
+	var mi := MeshInstance3D.new()
+	mi.name = "Parchemin_%d" % idx
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(PARCHEMIN_W, PARCHEMIN_H)
+	plane.orientation = PlaneMesh.FACE_Z  # face forward, toward camera
+	mi.mesh = plane
+	# Position : centered row of 3 at y=PARCHEMIN_Y, z=PARCHEMIN_Z.
+	var center_offset: float = (idx - 1) * PARCHEMIN_GAP  # idx 0 → left, 1 → center, 2 → right
+	mi.position = Vector3(center_offset, PARCHEMIN_Y, PARCHEMIN_Z)
+	# Procedural parchment material (parchment cream + noise grain).
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = PARCHMENT_COLOR
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	noise.frequency = 0.015
+	noise.fractal_octaves = 3
+	var tex := NoiseTexture2D.new()
+	tex.noise = noise
+	tex.width = 256
+	tex.height = 256
+	mat.albedo_texture = tex
+	mat.roughness = 0.92
+	mat.metallic = 0.0
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	add_child(mi)
+	# Title Label3D (top half of parchemin)
+	var lbl := Label3D.new()
+	lbl.text = title_text
+	lbl.modulate = INK_DARK
+	lbl.outline_modulate = Color(1, 1, 1, 0.5)
+	lbl.outline_size = 4
+	lbl.font_size = 36
+	lbl.pixel_size = 0.0025
+	lbl.width = 380
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.position = Vector3(0, 0.15, 0.01)
+	lbl.no_depth_test = true
+	mi.add_child(lbl)
+	# Ogham glyph (bottom — uses ogham_id as text, future : map to celtic font/glyph).
+	if ogham_id != "":
+		var ogham_lbl := Label3D.new()
+		ogham_lbl.text = "᚛" + ogham_id.to_upper() + "᚜"
+		ogham_lbl.modulate = Color("#d4a868")  # accent gold (bible §22)
+		ogham_lbl.font_size = 28
+		ogham_lbl.pixel_size = 0.0028
+		ogham_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ogham_lbl.position = Vector3(0, -0.55, 0.01)
+		ogham_lbl.no_depth_test = true
+		mi.add_child(ogham_lbl)
+	# Subtle reveal : scale-in TRANS_BACK with staggered delay per parchemin.
+	mi.scale = Vector3.ZERO
+	var t := create_tween()
+	t.tween_interval(float(idx) * 0.18)
+	t.tween_property(mi, "scale", Vector3.ONE, 0.45) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	return mi
+
+
+## Build 3 floating 2D Buttons on the UI layer, positioned at the unproject of each
+## parchemin's center on screen. Updates per-frame via _process to follow camera.
+func _build_pick_buttons() -> void:
+	_clear_pick_buttons()
+	for i in range(_parchemins.size()):
+		var btn := Button.new()
+		btn.name = "PickBtn_%d" % i
+		btn.text = ""
+		btn.flat = true
+		btn.custom_minimum_size = Vector2(220, 360)  # roughly the parchemin footprint
+		var idx: int = i
+		btn.pressed.connect(func() -> void: _on_parchemin_clicked(idx))
+		_ui_layer.add_child(btn)
+		_pick_buttons.append(btn)
+
+
+func _clear_pick_buttons() -> void:
+	for b in _pick_buttons:
+		if is_instance_valid(b):
+			(b as Node).queue_free()
+	_pick_buttons.clear()
+
+
+func _on_parchemin_clicked(idx: int) -> void:
+	if _pending_pick >= 0:
+		return  # already picked, ignore subsequent clicks
+	_pending_pick = clampi(idx, 0, _parchemins.size() - 1)
+
+
+## v7.7 Phase 2.1.3 — sync the 3 pick buttons to the parchemin screen positions
+## each frame so they remain clickable as the parchemin reveal tweens play.
+func _process(_delta: float) -> void:
+	if _camera == null or _pick_buttons.is_empty():
+		return
+	for i in range(_pick_buttons.size()):
+		var btn: Button = _pick_buttons[i] as Button
+		var p: MeshInstance3D = _parchemins[i] if i < _parchemins.size() else null
+		if btn == null or p == null or not is_instance_valid(p):
+			continue
+		if _camera.is_position_behind(p.global_position):
+			btn.visible = false
+			continue
+		var screen: Vector2 = _camera.unproject_position(p.global_position)
+		btn.visible = true
+		btn.position = screen - Vector2(btn.size.x * 0.5, btn.size.y * 0.5)
