@@ -127,6 +127,37 @@ En debut de session MODERATE+:
 
 **Skill**: `/maxime:status` — affiche l'etat complet de la memoire
 
+### 9. Game Design & Playthrough — Cascade Obligatoire (NON-NÉGOCIABLE)
+
+**Décrété 2026-05-14 part 16.** Toute activité touchant au game design DOIT
+déclencher une cascade d'agents spécialisés AVANT toute implémentation.
+
+**Déclencheurs (auto-détection)** :
+- Mots-clés : `playthrough`, `jouer`, `playtest`, `game design`, `UX`, `parcours joueur`,
+  `mécanique`, `balance`, `équilibrage`, `flow`, `écran`, `transition`, `carte`, `minigame`,
+  `choix`, `effet`, `HUD`, `tutoriel`, `onboarding`
+- Toute "réflexion sur le jeu" (l'utilisateur réfléchit au gameplay à voix haute)
+- Tout playthrough simulé via smoke + capture screenshots
+
+**Cascade obligatoire** (voir bible §21.4) :
+```
+Wave 1 (parallèle):
+  - game_designer.md       → cohérence bible §1-§20
+  - ux_flow.md             → flow + navigation
+  - game_playtester.md     → simulation 5 archétypes joueur
+
+Wave 2 (séquentiel):
+  - game_design_auditor.md → audit final contre les 4 piliers UX §21.1
+```
+
+**Les 4 piliers UX** (à vérifier par TOUT agent UI/UX/game design) :
+1. **FACILE** — action en ≤2 gestes
+2. **ÉVIDENT** — intention lisible <2s sans tuto
+3. **MINIMAL** — aucun élément UI sans rôle actif
+4. **TACTILE + DESKTOP** — cibles ≥44×44 px, no hover-only, retour visuel ≤100ms
+
+**Référence** : `docs/GAME_DESIGN_BIBLE.md` §21 (source de vérité unique).
+
 ---
 
 ## Commits

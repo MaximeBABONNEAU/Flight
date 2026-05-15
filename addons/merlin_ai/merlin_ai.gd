@@ -1177,6 +1177,12 @@ func reload_models() -> void:
 	_init_local_models()
 
 func ensure_ready() -> void:
+	# v7.4 — Allow capture/screenshot tests to skip the synchronous LLM warmup
+	# which blocks the main thread for ~30s on first init (preventing the
+	# CaptureRecorder Timer from firing). Set MERLIN_SKIP_LLM_INIT=1.
+	if OS.get_environment("MERLIN_SKIP_LLM_INIT") == "1":
+		print("[MerlinAI] ensure_ready: SKIP_LLM_INIT=1, leaving is_ready=false")
+		return
 	if not is_ready:
 		print("[MerlinAI] ensure_ready: not ready, triggering warmup")
 		start_warmup()

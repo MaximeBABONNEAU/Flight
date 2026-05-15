@@ -18,12 +18,16 @@ var _max_frames: int = 200
 var _frame_count: int = 0
 var _accum_ms: int = 0
 var _last_tick_ms: int = 0
+# v7.4 — Skip first N _process frames so the viewport renders at least once
+# before we try to read it (otherwise all captures are pure-black startup frames).
+var _bootstrap_frames: int = 0
+const BOOTSTRAP_SKIP := 3
 
 
 func _ready() -> void:
-	set_process(false)  # Timer drives capture, not _process
 	_out_dir = OS.get_environment("MERLIN_CAPTURE_DIR")
 	if _out_dir.is_empty():
+		set_process(false)
 		return
 	# Read optional knobs
 	var interval_env: String = OS.get_environment("MERLIN_CAPTURE_INTERVAL_MS")
@@ -37,33 +41,39 @@ func _ready() -> void:
 		var err := DirAccess.make_dir_recursive_absolute(_out_dir)
 		if err != OK:
 			push_warning("[CaptureRecorder] Cannot create dir '%s' err=%d — disabled" % [_out_dir, err])
+			set_process(false)
 			return
 	_enabled = true
-	_last_tick_ms = Time.get_ticks_msec()
-	# Timer-driven capture: independent of frame rate / scene _process.
-	var t: Timer = Timer.new()
-	t.name = "CaptureTimer"
-	t.wait_time = float(_interval_ms) / 1000.0
-	t.one_shot = false
-	t.autostart = true
-	t.process_callback = Timer.TIMER_PROCESS_IDLE
-	add_child(t)
-	t.timeout.connect(_on_capture_tick)
-	print("[CaptureRecorder] active dir=%s interval=%dms max=%d (Timer-driven)" % [_out_dir, _interval_ms, _max_frames])
+	# v7.4 — Subtract _interval_ms so the FIRST _process call fires immediately
+	# (capture occurs at frame 1 instead of waiting a full interval — important
+	# when smoke scenes pause early in cinematic mode).
+	_last_tick_ms = Time.get_ticks_msec() - _interval_ms
+	# v7.4 — _process-driven (was Timer-driven, but autostart Timer didn't tick
+	# reliably in headless smoke runs even with TIMER_PROCESS_IDLE).
+	# PROCESS_MODE_ALWAYS bypasses scene-tree pause states (cinematic mode etc.)
+	# that would otherwise suppress _process on this autoload.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_process(true)
+	print("[CaptureRecorder] active dir=%s interval=%dms max=%d (process-driven, ALWAYS)" % [_out_dir, _interval_ms, _max_frames])
 
 
-func _on_capture_tick() -> void:
-	print("[CaptureRecorder] TICK at %dms (count=%d)" % [Time.get_ticks_msec(), _frame_count])
+func _process(_delta: float) -> void:
 	if not _enabled:
 		return
+	# v7.4 — Skip first N _process frames so the viewport has rendered at least
+	# once before we try to read its texture (otherwise we capture pure black).
+	if _bootstrap_frames < BOOTSTRAP_SKIP:
+		_bootstrap_frames += 1
+		return
+	var now_ms: int = Time.get_ticks_msec()
+	if now_ms - _last_tick_ms < _interval_ms:
+		return
+	_last_tick_ms = now_ms
 	if _frame_count >= _max_frames:
 		_enabled = false
-		print("[CaptureRecorder] max frames reached (%d) — stopped at %dms" % [_max_frames, Time.get_ticks_msec()])
+		print("[CaptureRecorder] max frames reached (%d) — stopped at %dms" % [_max_frames, now_ms])
 		return
 	_capture_frame()
-
-
-# _process is disabled — Timer drives capture, see _on_capture_tick.
 
 
 func _capture_frame() -> void:

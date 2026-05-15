@@ -1,7 +1,23 @@
 # ===========================================
 # M.E.R.L.I.N. Project .gitignore
-# Updated: 2026-02-22
+# Updated: 2026-05-15 (v7.5 — external reference repos)
 # ===========================================
+
+# -------------------------------------------
+# External reference repos (v7.5 — clones for pattern reference, not deps)
+# Keep PERF_REPOS.md + .gdignore inside external/, ignore cloned repos.
+# -------------------------------------------
+external/multi_mesh_manager/
+external/MeshLodGenerator/
+external/godot-blender-exporter/
+external/VDLM/
+external/godot-svg/
+external/context-free/
+
+# -------------------------------------------
+# Runtime capture artifacts (v7.4+ — binary screenshots, do not commit)
+# -------------------------------------------
+output/captures/
 
 # -------------------------------------------
 # Godot 4+ Engine

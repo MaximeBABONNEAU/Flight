@@ -1,0 +1,35 @@
+# GBNF Grammar for Scenario Skeleton JSON — M.E.R.L.I.N. v7.7
+# Réf user AskUserQuestion 2026-05-15 part 21 : skeleton = beats + faction-tilt + emotion arc.
+# Forces LLM to produce valid JSON for the 5-beat scenario plan.
+#
+# Schema :
+#   {
+#     "title": "<chosen title>",
+#     "beats": [
+#       {"n": 1, "summary": "...", "faction_tilt": "<faction>|neutre", "emotion": "<emotion>"},
+#       ... × 5
+#     ]
+#   }
+
+root      ::= ws "{" ws title-kv "," ws beats-kv ws "}" ws
+
+title-kv  ::= "\"title\"" ws ":" ws string
+beats-kv  ::= "\"beats\"" ws ":" ws "[" ws beat "," ws beat "," ws beat "," ws beat "," ws beat ws "]"
+
+beat      ::= "{" ws n-kv "," ws summary-kv "," ws tilt-kv "," ws emotion-kv ws "}"
+
+n-kv         ::= "\"n\"" ws ":" ws beat-num
+beat-num     ::= "1" | "2" | "3" | "4" | "5"
+
+summary-kv   ::= "\"summary\"" ws ":" ws string
+
+tilt-kv      ::= "\"faction_tilt\"" ws ":" ws faction
+faction      ::= "\"druides\"" | "\"anciens\"" | "\"korrigans\"" | "\"niamh\"" | "\"ankou\"" | "\"neutre\""
+
+emotion-kv   ::= "\"emotion\"" ws ":" ws emotion
+emotion      ::= "\"curiosite\"" | "\"tension\"" | "\"peur\"" | "\"espoir\"" | "\"sagesse\"" | "\"fascination\"" | "\"colere\"" | "\"melancolie\"" | "\"emerveillement\""
+
+# Common terminals
+string ::= "\"" char* "\""
+char   ::= [^"\\\x00-\x1f] | "\\" ["\\/bfnrt]
+ws     ::= [ \t\n]*

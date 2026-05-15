@@ -158,11 +158,23 @@ func _generate_all_sounds() -> void:
 		"biome_dissolve",
 		"amb_broceliande", "amb_landes", "amb_cotes", "amb_cercles",
 		"amb_marais", "amb_collines", "amb_villages",
+		# v5.5 Round B — Brocéliande ambient variants per dominant faction.
+		"amb_broc_druides", "amb_broc_anciens", "amb_broc_korrigans",
+		"amb_broc_niamh", "amb_broc_ankou",
 		"card_reveal", "confirm", "encounter", "success", "fail", "neutral", "danger",
 	]
 	for snd_name in names:
 		var method_name: String = "gen_" + snd_name
+		var stream: AudioStreamWAV = null
 		if recipes.has_method(method_name):
-			_sounds[snd_name] = recipes.call(method_name)
+			stream = recipes.call(method_name)
 		elif recipes_amb.has_method(method_name):
-			_sounds[snd_name] = recipes_amb.call(method_name)
+			stream = recipes_amb.call(method_name)
+		# QA v1 CRITICAL 9.2 — Ambient streams MUST loop. Without this they play
+		# once (~1.2s) then go silent, breaking biome immersion.
+		# Per user AskUserQuestion 2026-05-14 part 17 (Batch A).
+		if stream and snd_name.begins_with("amb_"):
+			stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			stream.loop_begin = 0
+			stream.loop_end = int(stream.data.size() / 2)  # 16-bit samples
+		_sounds[snd_name] = stream

@@ -99,7 +99,7 @@ const XP_PER_STAT_LEVEL: int = 100  # +1 axis stat per 100 XP cumulated
 
 const LIFE_ESSENCE_MAX := 100
 const LIFE_ESSENCE_START := 100
-const LIFE_ESSENCE_DRAIN_PER_CARD := 0      # No drain per card (director decision q-20260412-001)
+const LIFE_ESSENCE_DRAIN_PER_CARD := 1      # Drain -1 par carte au début pipeline (bible §13.3). Reverses prior director q-20260412-001 (QA v1 2026-05-14 CRITICAL).
 const MIN_CARDS_FOR_VICTORY := 25           # Victory requires 25+ cards (= MOS target_cards_max). See MOS_CONVERGENCE for full zones.
 const CARDS_PER_DAY := 5                    # Cards played per in-game day (day counter for LLM context)
 const LIFE_ESSENCE_FAIL_DAMAGE := 0         # Normal failure = no life damage
@@ -387,7 +387,7 @@ const EFFECT_CAPS := {
 	"LIFE_MIN": 0,
 	"effects_per_option": 3,
 	"score_bonus_cap": 2.0,
-	"drain_per_card": 0,
+	"drain_per_card": 1,
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
