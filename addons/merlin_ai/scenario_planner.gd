@@ -361,8 +361,17 @@ func judge_divergence(skeleton: Dictionary, beat_idx: int,
 
 
 static func _extract_dominant_faction_from_effects(effects: Array) -> String:
-	# Sum ADD_REPUTATION amounts per faction, return the highest-magnitude one
-	# (or "" if no ADD_REPUTATION effect at all). Ignores HEAL/DAMAGE/ANAM.
+	# Sum ADD_REPUTATION amounts per faction, return the faction the player
+	# STRENGTHENED the most (max POSITIVE signed delta). Ignores HEAL/DAMAGE/ANAM.
+	#
+	# v7.7 code-review HIGH fix (commit 8dbbe1cc) : was `abs(int)` which incorrectly
+	# returned the BURNED faction as "dominant" when the player penalized it.
+	# Example pre-fix : card with [-10 druides, +5 ankou] → returned "druides"
+	# (|-10|=10 > 5). Judge compared "druides" == expected_tilt="druides" → false
+	# divergence. WRONG : the player actively chose against the druide arc.
+	# Post-fix : returns "ankou" (the faction the player actually strengthened).
+	# If no faction has a positive net delta, returns "" → judge defaults to no
+	# divergence (conservative — the player only burned factions, no alignment signal).
 	var deltas: Dictionary = {}
 	for e in effects:
 		if not (e is Dictionary):
@@ -378,11 +387,11 @@ static func _extract_dominant_faction_from_effects(effects: Array) -> String:
 	if deltas.is_empty():
 		return ""
 	var best: String = ""
-	var best_abs: int = -1
+	var best_signed: int = 0  # only positive deltas qualify as "strengthened"
 	for fac in deltas.keys():
-		var v: int = abs(int(deltas[fac]))
-		if v > best_abs:
-			best_abs = v
+		var v: int = int(deltas[fac])
+		if v > best_signed:
+			best_signed = v
 			best = str(fac)
 	return best
 
@@ -402,7 +411,10 @@ func _llm_judge_divergence(expected_tilt: String, actual_dominant: String,
 	}
 	var result: Dictionary = await _merlin_ai.generate_with_system(system_prompt, "Réponds.", params)
 	if result.get("error", "") != "":
-		# LLM fail → fallback heuristic
+		# LLM fail → fallback heuristic.
+		# Heuristic semantics (intentional) : ANY faction mismatch counts as
+		# divergence. The 5 factions are independent axes (bible §13) — there
+		# are no "family groups" of aligned factions, so cross-faction = divergent.
 		return actual_dominant != expected_tilt
 	var raw: String = str(result.get("text", result.get("output", ""))).strip_edges().to_lower()
 	# Look for explicit OUI / YES tokens. Default to false (conservative).
