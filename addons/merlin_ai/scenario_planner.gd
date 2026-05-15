@@ -509,7 +509,7 @@ func replan_from_beat(skeleton: Dictionary, from_beat: int,
 	var biome_id: String = str(player_state.get("biome", "foret_broceliande"))
 	var chosen_title: String = str(skeleton.get("title", "L'Aventure"))
 	var system_prompt: String = _replan_system_prompt(
-		biome_id, chosen_title, preserved, player_state
+		biome_id, chosen_title, preserved, player_state, beats.size()
 	)
 	var user_input: String = "Régénère le skeleton avec les nouveaux beats post-divergence."
 	var params: Dictionary = {
@@ -552,7 +552,9 @@ func replan_from_beat(skeleton: Dictionary, from_beat: int,
 
 
 func _replan_system_prompt(biome_id: String, chosen_title: String,
-		preserved_beats: Array, player_state: Dictionary) -> String:
+		preserved_beats: Array, player_state: Dictionary, target_size: int = 5) -> String:
+	# v7.7 Phase 2.7 / code-review MEDIUM fix : target_size is the original skeleton
+	# size (5/7/10) — was hardcoded "5 beats" which truncated 7/10-beat skeletons.
 	var faction_rep: Dictionary = player_state.get("faction_rep", {})
 	var life: int = int(player_state.get("life_essence", 100))
 	var rep_lines: Array = []
@@ -567,13 +569,13 @@ func _replan_system_prompt(biome_id: String, chosen_title: String,
 				int(b.get("n", 0)), str(b.get("faction_tilt", "?")), str(b.get("summary", ""))
 			])
 	return ("Tu es le Gamemaster M.E.R.L.I.N.. Le joueur a DIVERGÉ de l'arc initial.\n" +
-		"Tu régénères le skeleton complet (5 beats) en PRÉSERVANT les beats déjà vécus.\n" +
+		"Tu régénères le skeleton complet (%d beats au total) en PRÉSERVANT les beats déjà vécus.\n" +
 		"Format JSON strict imposé par GBNF.\n\n" +
 		"Titre : \"%s\" (biome : %s)\n" +
 		"Vie joueur actuelle : %d/100\n" +
 		"Réputations factions :\n%s\n\n" +
 		"Beats déjà vécus (REPRENDS-LES TELS QUELS dans la sortie) :\n%s\n\n" +
 		"Les beats restants doivent réagir à la trajectoire actuelle du joueur."
-	) % [chosen_title, biome_id, life,
+	) % [target_size, chosen_title, biome_id, life,
 		"\n".join(rep_lines) if not rep_lines.is_empty() else "  (aucune)",
 		"\n".join(preserved_summary)]

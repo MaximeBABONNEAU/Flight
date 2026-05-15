@@ -508,6 +508,29 @@ func _reduce(action: Dictionary) -> Dictionary:
 				return {"ok": false, "error": "No skill_id provided"}
 			return _use_ogham(skill_id)
 
+		# v7.7 Phase 2.1.8 — lightweight biome setter (cross-scene transfer for
+		# ScenarioLoading). Unlike START_RUN, no run-state reset / no signals fired.
+		"SET_BIOME":
+			var biome_key: String = str(action.get("biome", MerlinConstants.BIOME_DEFAULT))
+			if biome_key not in MerlinConstants.BIOMES:
+				push_warning("[MerlinStore] SET_BIOME rejected unknown biome: %s" % biome_key)
+				return {"ok": false, "error": "Unknown biome"}
+			if not (state.get("run") is Dictionary):
+				state["run"] = {}
+			state["run"]["current_biome"] = biome_key
+			return {"ok": true, "biome": biome_key}
+
+		# v7.7 Phase 2.1.9 — store the generated scenario skeleton so BoardNarration
+		# can pick it up on re-entry after the ScenarioLoading scene change.
+		# Schema : action = {type, skeleton: Dict, chosen_title: String}
+		# Stored at state.run.scenario_skeleton + state.run.scenario_chosen_title.
+		"SET_SCENARIO_SKELETON":
+			if not (state.get("run") is Dictionary):
+				state["run"] = {}
+			state["run"]["scenario_skeleton"] = action.get("skeleton", {})
+			state["run"]["scenario_chosen_title"] = str(action.get("chosen_title", ""))
+			return {"ok": true}
+
 		_:
 			return {"ok": false, "error": "Unknown action"}
 

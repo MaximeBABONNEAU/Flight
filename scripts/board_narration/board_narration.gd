@@ -325,6 +325,23 @@ func _on_biome_picked(biome_id: String) -> void:
 	_biome_id = biome_id
 	_run_data["current_biome"] = biome_id
 	_run_data["biome"] = biome_id
+	# v7.7 Phase 2.1.8 — route to ScenarioLoading FIRST (3 titles → skeleton → return).
+	# Skip the loading screen when :
+	#   (a) capture/smoke mode is active (MERLIN_CAPTURE_DIR set) — preserves the
+	#       proven smoke-test path used through v7.5/v7.6/v7.7 validation
+	#   (b) a scenario skeleton is already present in _run_data (we returned from
+	#       ScenarioLoading and shouldn't re-enter it — would create a scene loop)
+	var skeleton_loaded: bool = _run_data.has("scenario_skeleton")
+	var capture_mode: bool = OS.get_environment("MERLIN_CAPTURE_DIR") != ""
+	if not skeleton_loaded and not capture_mode:
+		# v7.7 Phase 2.1.8 (code-review MEDIUM fix) — proper dispatch instead of
+		# direct state mutation (preserves Redux semantics + state_changed signal +
+		# transition log). SET_BIOME is the lightweight biome setter, distinct from
+		# START_RUN which would reset the run state.
+		if _store and _store.has_method("dispatch"):
+			_store.dispatch({"type": "SET_BIOME", "biome": biome_id})
+		get_tree().change_scene_to_file("res://scenes/ScenarioLoading.tscn")
+		return
 	_reveal_biome_sequence()
 
 
@@ -1731,6 +1748,13 @@ func _load_run_data() -> void:
 				"factions": run.get("factions", {}),
 				"story_log": [],
 			}
+			# v7.7 Phase 2.1.9 — hydrate scenario_skeleton from Store if ScenarioLoading
+			# wrote one before scene-changing back here. Makes the idempotency guard
+			# in _on_biome_picked actually live (was dead code per code-review HIGH).
+			if run.has("scenario_skeleton"):
+				_run_data["scenario_skeleton"] = run.get("scenario_skeleton", {})
+			if run.has("scenario_chosen_title"):
+				_run_data["scenario_chosen_title"] = str(run.get("scenario_chosen_title", ""))
 			_outcome = "live"
 			return
 	_run_data = BoardRunJournal.build_mock_run_data()
