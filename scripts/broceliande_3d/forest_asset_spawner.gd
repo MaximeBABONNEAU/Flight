@@ -81,6 +81,8 @@ func _create_procedural_trees() -> void:
 		trunk.material_override = trunk_mat
 		trunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		tree_root.add_child(trunk)
+		# v7.7 outline audit — bible §20 signature on procedural/fallback trees.
+		CelShadingManager.apply(trunk, {"outline_thickness": 0.014})
 
 		# Canopy
 		var canopy: MeshInstance3D = MeshInstance3D.new()
@@ -95,6 +97,7 @@ func _create_procedural_trees() -> void:
 		canopy.material_override = canopy_mat
 		canopy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		tree_root.add_child(canopy)
+		CelShadingManager.apply(canopy, {"outline_thickness": 0.014})
 
 		# Pack as scene — we can't create PackedScene at runtime,
 		# so we store the root nodes and spawn_glb will use them directly
@@ -209,6 +212,7 @@ func create_fallback_tree(pos: Vector3, scale_f: float) -> Node3D:
 	t_mat.roughness = 1.0
 	trunk.material_override = t_mat
 	tree.add_child(trunk)
+	CelShadingManager.apply(trunk, {"outline_thickness": 0.014})
 	for layer in 3:
 		var crown: MeshInstance3D = MeshInstance3D.new()
 		var cone: CylinderMesh = CylinderMesh.new()
@@ -223,6 +227,7 @@ func create_fallback_tree(pos: Vector3, scale_f: float) -> Node3D:
 		lm.roughness = 1.0
 		crown.material_override = lm
 		tree.add_child(crown)
+		CelShadingManager.apply(crown, {"outline_thickness": 0.012})
 	sway_nodes.append(tree)
 	return tree
 
@@ -231,6 +236,7 @@ func create_fallback_shrub(pos: Vector3, scale_f: float) -> Node3D:
 	var shrub: MeshInstance3D = MeshInstance3D.new()
 	shrub.position = pos + Vector3(0.0, 0.35 * scale_f, 0.0)
 	_forest_root.add_child(shrub)
+	CelShadingManager.apply(shrub, {"outline_thickness": 0.010})
 	var sm: SphereMesh = SphereMesh.new()
 	sm.radius = 0.5 * scale_f
 	sm.height = 0.7 * scale_f

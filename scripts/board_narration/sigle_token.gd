@@ -187,6 +187,8 @@ func _build_figurine() -> void:
 	_base_mesh.position = Vector3(0, BASE_HEIGHT * 0.5, 0)
 	_base_mesh.material_override = _make_stone_material(body_color * 0.4)
 	add_child(_base_mesh)
+	# v7.7 outline audit fix — bible §20 signature on plateau figurine pedestal.
+	CelShadingManager.apply(_base_mesh, {"outline_thickness": 0.008})
 
 	# Body (robed cone)
 	_body_mesh = MeshInstance3D.new()
@@ -200,6 +202,7 @@ func _build_figurine() -> void:
 	_body_mesh.position = Vector3(0, BASE_HEIGHT + BODY_HEIGHT * 0.5, 0)
 	_body_mesh.material_override = _make_solid_material(body_color, accent_color, 0.10)
 	add_child(_body_mesh)
+	CelShadingManager.apply(_body_mesh, {"outline_thickness": 0.008})
 
 	# Head
 	_head_mesh = MeshInstance3D.new()
@@ -213,11 +216,13 @@ func _build_figurine() -> void:
 	_head_mesh.position = Vector3(0, BASE_HEIGHT + BODY_HEIGHT + HEAD_RADIUS * 0.85, 0)
 	_head_mesh.material_override = _make_solid_material(body_color.lerp(Color.WHITE, 0.15), accent_color, 0.05)
 	add_child(_head_mesh)
+	CelShadingManager.apply(_head_mesh, {"outline_thickness": 0.008})
 
 	# Accessory
 	_accessory = _build_accessory(str(spec.get("accessory", "staff")), body_color, accent_color)
 	if _accessory:
 		add_child(_accessory)
+		CelShadingManager.apply(_accessory, {"outline_thickness": 0.006})
 
 	# Ogham glyph above head — small, sharp
 	_glyph_label = Label3D.new()

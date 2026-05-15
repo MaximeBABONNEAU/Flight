@@ -238,6 +238,10 @@ func _build_single_parchemin(title_text: String, ogham_id: String, idx: int) -> 
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mi.material_override = mat
 	add_child(mi)
+	# v7.7 outline audit fix — bible §20 signature on the parchemins (first 3D
+	# asset player sees per run, pre-skeleton). PlaneMesh outline thickness slim
+	# (0.005) to keep silhouette discreet on the flat face.
+	CelShadingManager.apply(mi, {"outline_thickness": 0.005})
 	# Title Label3D (top half of parchemin)
 	var lbl := Label3D.new()
 	lbl.text = title_text

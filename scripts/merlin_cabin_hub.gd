@@ -127,6 +127,8 @@ func _build_3d_cabin() -> void:
 	floor_mat.roughness = 0.9
 	floor_mesh.material_override = floor_mat
 	_world.add_child(floor_mesh)
+	# v7.7 outline audit — bible §20 signature.
+	CelShadingManager.apply(floor_mesh, {"outline_thickness": 0.010})
 
 	# Walls (simple boxes)
 	_add_wall(Vector3(0, 2, -4), Vector3(8, 4, 0.2), Color(0.12, 0.08, 0.05))  # Back
@@ -146,6 +148,7 @@ func _build_3d_cabin() -> void:
 	cauldron_mat.metallic = 0.8
 	cauldron.material_override = cauldron_mat
 	_world.add_child(cauldron)
+	CelShadingManager.apply(cauldron, {"outline_thickness": 0.012})
 	_make_interactable(cauldron, Vector3(0.4, 0.4, 0.4), "cauldron")
 
 	# Cristal d'Anam (small floating glowing crystal — placeholder for Anam stat)
@@ -161,6 +164,7 @@ func _build_3d_cabin() -> void:
 	crystal_mat.emission_energy_multiplier = 1.8
 	crystal.material_override = crystal_mat
 	_world.add_child(crystal)
+	CelShadingManager.apply(crystal, {"outline_thickness": 0.010})
 	_make_interactable(crystal, Vector3(0.18, 0.30, 0.18), "cauldron")
 
 	# Tapestry placeholder (talent tree removed in demo cleanup 2026-04-25 — solid colored quad)
@@ -174,6 +178,7 @@ func _build_3d_cabin() -> void:
 	tap_mat.roughness = 1.0
 	tapestry.material_override = tap_mat
 	_world.add_child(tapestry)
+	CelShadingManager.apply(tapestry, {"outline_thickness": 0.010})
 	_make_interactable(tapestry, Vector3(1.5, 1.15, 0.1), "tapestry")
 
 	# Wall map (left wall — biome selection via SubViewport)
@@ -200,6 +205,7 @@ func _build_3d_cabin() -> void:
 	map_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	wall_map.material_override = map_mat
 	_world.add_child(wall_map)
+	CelShadingManager.apply(wall_map, {"outline_thickness": 0.010})
 	_make_interactable(wall_map, Vector3(1.25, 1.0, 0.1), "map")
 
 	# Fairy lanterns (atmospheric)
