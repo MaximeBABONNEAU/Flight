@@ -2,7 +2,45 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-14 part 6 (Persona/Yakuza UI juice + Rogue-like 5-act run).
+> **Last refresh**: 2026-05-15 (v7.7.2 plateau-only unified flow).
+
+---
+
+## Active Feature — v7.7.2 Plateau-Only Unified Flow [2026-05-15]
+
+**User directive (verbatim)** : *« Connecte toi en MCP à Godot et lie les scénarios entre eux : intro → menu simple 3D → bouton test → BoardNarration (plateau vide, pièce sombre + lampe vers plateau + bouche Merlin au fond) → biome pick → 3 parchemins LLM → scénario écrit + Merlin commente (clustering, cuisine interne) → assets progressifs → board complet. Tout dans la même scène. »*
+
+### Architecture choices (locked via AskUserQuestion)
+| Choice | Decision |
+|---|---|
+| ScenarioLoading fusion | Sub-scene instanciée en enfant (option 1) — `add_child` au lieu de `change_scene_to_file` |
+| Menu simple | Nouvelle scène `MenuTest.tscn` (option 1) — gateway intro→board |
+| Ambiance | Vraie ambiance dark + lampe + silhouette Merlin (option 1) — KeyLight + Label3D ogham au fond |
+
+### Implementation Phases
+- [x] Phase 1.1 — Créer `scenes/MenuTest.tscn` + `scripts/menu_test.gd`
+- [ ] Phase 1.2 — Router IntroCeltOS → MenuTest (3 sites L523, L532, L535)
+- [ ] Phase 2.1 — Muscler `BoardNarration._apply_neutral_lighting` : background near-black + ambient dim + fog volumétrique
+- [ ] Phase 2.2 — Ajouter `BoardNarration._build_merlin_mouth_silhouette` : Label3D ogham au fond
+- [ ] Phase 2.3 — Modifier `BoardNarration._on_biome_picked` : load+instantiate+add_child ScenarioLoading
+- [ ] Phase 2.4 — Ajouter `BoardNarration._on_scenario_done` callback
+- [ ] Phase 3.1 — `scenario_loading.gd` : signal `skeleton_dispatched` + sub-scene aware `_return_to_board`
+- [ ] Phase 4 — Parse check + smoke MenuTest + smoke BoardNarration + commit
+
+### Deferred v7.7.3+
+- [ ] Merlin speech-bar widget during scenario writing (Phase 2.1.5 backlog)
+- [ ] TTS commentary via use_my_voice (Phase 2.1.6)
+- [ ] CPUParticles3D plume mécanique (Phase 2.1.7)
+- [ ] Progressive asset cascade visualisation
+
+### UX compliance (4 piliers bible §21.1 + ui-ux-pro-max)
+- FACILE : Intro auto → MenuTest click TESTER → Board. 1 click full flow.
+- ÉVIDENT : Titre + bouton unique, intention <2s.
+- MINIMAL : Pas d'UI parasite.
+- TACTILE+DESKTOP : Bouton 360×72 ≥ 44×44, hover stylebox ≤100ms.
+
+### Dispatch Plan
+Per `task_dispatcher.md` : UI Layout + Animation + LLM Integration. Direct execution (single-agent) — scope trop petit pour multi-wave. `code-reviewer` invoké en fin de phase.
 
 ---
 

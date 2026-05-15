@@ -22,6 +22,14 @@
 
 extends Node3D
 
+## v7.7.2 — Can run in two modes :
+##   - Standalone (legacy) : scene-changed via change_scene_to_file. _return_to_board
+##     fires another change_scene_to_file back to BoardNarration.
+##   - Sub-scene (v7.7.2)  : instantiated as child of BoardNarration. The parent
+##     listens to skeleton_dispatched signal, queue_frees this child, and continues
+##     its own flow. Detected via skeleton_dispatched.get_connections().
+signal skeleton_dispatched  ## Emitted right before _return_to_board when skeleton is ready (Store.dispatch done)
+
 const FALLBACK_BIOME := "foret_broceliande"
 
 var _planner: ScenarioPlanner = null
@@ -210,6 +218,12 @@ func _dispatch_skeleton() -> void:
 
 
 func _return_to_board() -> void:
+	# v7.7.2 — emit skeleton_dispatched first. If a parent (BoardNarration in
+	# sub-scene mode) is listening, it will handle our cleanup + continue its flow.
+	# If no listener (standalone legacy mode), fall back to change_scene_to_file.
+	if skeleton_dispatched.get_connections().size() > 0:
+		skeleton_dispatched.emit()
+		return
 	get_tree().change_scene_to_file("res://scenes/BoardNarration.tscn")
 
 

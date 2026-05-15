@@ -520,7 +520,7 @@ func _transition_to_menu() -> void:
 
 	if skip_tutorial:
 		print("[IntroCeltOS] --menu flag -> MenuPrincipal (tutorial skipped)")
-		PixelTransition.transition_to("res://scenes/MerlinCabinHub.tscn")
+		PixelTransition.transition_to("res://scenes/MenuTest.tscn")
 		return
 
 	if force_tutorial or not tutorial_completed:
@@ -528,11 +528,13 @@ func _transition_to_menu() -> void:
 		# The legacy `first_run_tutorial` meta was consumed only by BroceliandeForest3D._ready()
 		# to disable LLM and use scripted fallback cards. BoardNarration owns its own first-run
 		# LLM-lite handling; setting the meta here would be a dangling write — removed.
-		print("[IntroCeltOS] First Run -> BoardNarration (plateau-only) — completed=%s" % str(tutorial_completed))
-		PixelTransition.transition_to("res://scenes/BoardNarration.tscn")
+		# v7.7.2 — route to MenuTest (gateway) instead of BoardNarration directly.
+		# MenuTest hosts the "TESTER UN RUN" button that then routes to BoardNarration.
+		print("[IntroCeltOS] First Run -> MenuTest gateway — completed=%s" % str(tutorial_completed))
+		PixelTransition.transition_to("res://scenes/MenuTest.tscn")
 		return
 
-	PixelTransition.transition_to("res://scenes/MerlinCabinHub.tscn")
+	PixelTransition.transition_to("res://scenes/MenuTest.tscn")
 
 
 func _read_tutorial_completed_flag() -> bool:

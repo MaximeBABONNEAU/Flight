@@ -147,23 +147,59 @@ func _ready() -> void:
 ## Apply a soft, biome-agnostic lighting setup : single warm overhead spot
 ## on the plateau, no biome tint. Used at boot before any biome is chosen.
 func _apply_neutral_lighting() -> void:
+	# v7.7.2 — dark room ambiance (per user directive 2026-05-15) :
+	#   "boardnarration qui est vide, juste un plateau vide dans une piece
+	#    éclairée et sombre (lampe vers le plateau et la bouche de merlin au fond)"
+	# KeyLight stronger (acts as the lamp), ambient near-black, fog enabled to
+	# render the light cone, Label3D silhouette in the back as Merlin's mouth.
 	if _key_light:
-		_key_light.light_color = Color(0.98, 0.92, 0.82)  # neutral warm
-		_key_light.light_energy = 1.5
+		_key_light.light_color = Color(1.0, 0.86, 0.55)  # warm tungsten lamp
+		_key_light.light_energy = 2.4
 		_key_light.position = Vector3(0.5, 4.5, 1.5)
 		_key_light.look_at_from_position(_key_light.position, Vector3.ZERO, Vector3.UP)
 	if _fill_light:
-		_fill_light.light_color = Color(0.8, 0.7, 0.6)
-		_fill_light.light_energy = 0.4
+		_fill_light.light_energy = 0.0  # turned off — only the lamp illuminates
 	if _spot_light:
-		_spot_light.light_energy = 0.0  # off until biome reveal
+		_spot_light.light_energy = 0.0
 	if _world_env and _world_env.environment:
 		var env: Environment = _world_env.environment
-		env.ambient_light_color = Color(0.10, 0.10, 0.12)
-		env.ambient_light_energy = 0.5
-		# Disable VolumetricFog at boot — feels "alive only when summoned".
-		env.volumetric_fog_enabled = false
-		env.fog_enabled = false
+		env.background_mode = Environment.BG_COLOR
+		env.background_color = Color(0.012, 0.012, 0.020)  # near-black
+		env.ambient_light_color = Color(0.06, 0.05, 0.07)
+		env.ambient_light_energy = 0.18  # very dark
+		# Volumetric fog renders the lamp cone — key visual cue for "lampe vers plateau".
+		env.fog_enabled = true
+		env.fog_light_color = Color(0.20, 0.13, 0.06)
+		env.fog_density = 0.035
+		env.volumetric_fog_enabled = true
+		env.volumetric_fog_density = 0.02
+		env.volumetric_fog_emission = Color(0.10, 0.07, 0.03)
+	_build_merlin_mouth_silhouette()
+
+
+## v7.7.2 — Spawn a dim Label3D at the back wall acting as Merlin's spectral mouth.
+## Ogham glyphs (whisper-like), low opacity amber, no_depth_test so it floats over fog.
+## Per user : "la bouche de merlin au fond". Idempotent (skips if already present).
+func _build_merlin_mouth_silhouette() -> void:
+	if has_node("MerlinMouthSilhouette"):
+		return
+	var mouth := Label3D.new()
+	mouth.name = "MerlinMouthSilhouette"
+	mouth.text = "ᚇ  ᚐ  ᚌ  ᚏ"  # whisper-like ogham glyphs
+	mouth.modulate = Color(0.55, 0.35, 0.15, 0.45)  # dim amber, low opacity
+	mouth.outline_modulate = Color(0.08, 0.04, 0.02, 0.3)
+	mouth.outline_size = 6
+	mouth.font_size = 84
+	mouth.pixel_size = 0.0035
+	mouth.no_depth_test = true
+	mouth.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	mouth.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mouth.position = Vector3(0, 2.3, -3.8)  # back wall, above eye line
+	add_child(mouth)
+	# Subtle pulse — Merlin "breathing" — driven by a slow tween loop.
+	var t := create_tween().set_loops()
+	t.tween_property(mouth, "modulate:a", 0.22, 2.4).set_trans(Tween.TRANS_SINE)
+	t.tween_property(mouth, "modulate:a", 0.48, 2.4).set_trans(Tween.TRANS_SINE)
 
 
 # ─── Biome selector overlay ─────────────────────────────────────────────────
@@ -334,14 +370,35 @@ func _on_biome_picked(biome_id: String) -> void:
 	var skeleton_loaded: bool = _run_data.has("scenario_skeleton")
 	var capture_mode: bool = OS.get_environment("MERLIN_CAPTURE_DIR") != ""
 	if not skeleton_loaded and not capture_mode:
-		# v7.7 Phase 2.1.8 (code-review MEDIUM fix) — proper dispatch instead of
-		# direct state mutation (preserves Redux semantics + state_changed signal +
-		# transition log). SET_BIOME is the lightweight biome setter, distinct from
-		# START_RUN which would reset the run state.
+		# v7.7 Phase 2.1.8 — proper dispatch (preserves Redux semantics + state_changed
+		# signal + transition log). SET_BIOME is lightweight, distinct from START_RUN.
 		if _store and _store.has_method("dispatch"):
 			_store.dispatch({"type": "SET_BIOME", "biome": biome_id})
-		get_tree().change_scene_to_file("res://scenes/ScenarioLoading.tscn")
+		# v7.7.2 — embed ScenarioLoading as a sub-scene (no change_scene_to_file).
+		# The whole game session now stays in one BoardNarration instance per user
+		# directive "tout dans la même scène". We listen for skeleton_dispatched
+		# signal to know when to clean up the sub-scene and continue the run.
+		var scenario_pack: PackedScene = load("res://scenes/ScenarioLoading.tscn")
+		if scenario_pack == null:
+			push_warning("[BoardNarration] ScenarioLoading.tscn missing — fallback to scene change")
+			get_tree().change_scene_to_file("res://scenes/ScenarioLoading.tscn")
+			return
+		var scenario_inst: Node = scenario_pack.instantiate()
+		if scenario_inst.has_signal("skeleton_dispatched"):
+			scenario_inst.skeleton_dispatched.connect(_on_scenario_done.bind(scenario_inst))
+		add_child(scenario_inst)
 		return
+	_reveal_biome_sequence()
+
+
+## v7.7.2 — Called when the embedded ScenarioLoading sub-scene completes (skeleton
+## dispatched to Store). Cleanup + re-hydrate + resume the run flow.
+func _on_scenario_done(scenario_inst: Node) -> void:
+	if is_instance_valid(scenario_inst):
+		scenario_inst.queue_free()
+	# Re-read Store state so _run_data picks up the freshly dispatched skeleton.
+	_load_run_data()
+	# Continue the run flow now that the skeleton is loaded.
 	_reveal_biome_sequence()
 
 
