@@ -2,7 +2,66 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-15 (v7.7.2 plateau-only unified flow).
+> **Last refresh**: 2026-05-16 (v7.7.10 pipeline complete : KayKit + HUD + animations).
+
+---
+
+## v7.7.7 → v7.7.10 — Pipeline serial cleanup [2026-05-16]
+
+User instruction : *« A, puis tu vérifie et check A et ensuite B ... etc, fais en /loop le traitement »*
+Sequential A→B→C→D→E with verification gates.
+
+### A — KayKit canonical asset pipeline (v7.7.8) — `5f0ca582` ✓
+- Found KayKit on GitHub : `KayKit-Game-Assets` org (NOT KayLousberg/*).
+- Cloned Adventurers pack (142 MB, gitignored).
+- Copied `Mage.glb` (3.5 MB committed) to `Assets/blender/kaykit_mage.glb`.
+- Fixed bible §20.6 violation : `sigle_token.gd` GLB imports now get
+  `CelShadingManager.apply_recursive` (was missing — figurines shipped without outline).
+- New `_spawn_glb_guardian(path, pos, scale, rot)` reusable helper in board_narration.
+- New `_spawn_kaykit_guardian()` default Mage spawn — fires regardless of plateau source.
+- Code-review : 0 CRITICAL/HIGH, 2 MEDIUM fixed.
+
+### B — Disco 4-stat HUD + level-up toast (v7.7.9) — `e7dbd772` ✓
+- 4 stacked Labels top-right under "Carte X/Y" : Logic/Empathie/Volonté/Instinct.
+- Format : `◆ Logic L3 80%` (glyph + name + level + pass-chance %).
+- Color-coded per stat (cyan/rose/gold/violet).
+- Live updates via `MerlinStats.stat_changed` signal + scale-pulse FX.
+- Level-up toast center-screen 1.5s with fade-in/drift-up/fade-out.
+- `_exit_tree` disconnects autoload signals (HIGH-1 leak fix).
+- Tweens use `bind_node` to auto-stop on free (HIGH-2 fix).
+- Code-review : 0 CRITICAL, 2 HIGH fixed.
+
+### C — Animation P0 trio (v7.7.10) — `efa04948` ✓
+- **Parabolic card fly** : `live_card_3d.fly_to_marker` — single linear → 2-phase arc.
+- **Boss sting** : red flash + camera Z-punch + SFX, relative recovery.
+- **Death anim** : red vignette + camera pull-back + tilt-down + SFX sting.
+- Intro transition : already present in `_phase_intro`.
+- Code-review : 0 CRITICAL/HIGH, 2 MEDIUM fixed.
+
+### D — Test build verification ✓
+- Smoke BoardNarration : exit=0 script_errors=0 passed=True (×4 builds).
+- Smoke IntroCeltOS / MenuTest : both passed.
+- Captures : `tools/autodev/captures/v7_7_{8_kaykit,9_hud_disco,10_full_test,10_intro,10_menu}/`.
+- Confirmed visible : KayKit Mage with outline noir, plateau enrichi, biome cards.
+
+### E — Push + docs (this commit)
+- task_plan.md : this section.
+- Push origin main : 5 commits (fba4eade → efa04948).
+
+### Status v7.7.10 summary
+
+| Phase | Commit | Status | Verified |
+|---|---|---|---|
+| v7.7.7 plateau enrichi | `fba4eade` | ✓ shipped | Visual + smoke |
+| v7.7.8 KayKit pipeline | `5f0ca582` | ✓ shipped | Visual + smoke |
+| v7.7.9 Disco HUD | `e7dbd772` | ✓ shipped | Smoke (HUD post-click) |
+| v7.7.10 animations | `efa04948` | ✓ shipped | Smoke (events runtime) |
+
+### Deferred (next session)
+- KayKit Skeletons + Medieval Hexagon clones (Ankou + biome tiles)
+- 96 P1-P3 items from 106-item animation backlog
+- Phase 2 bible §29 : Grimoire UI screen
+- Phase 3 : Oghams 18 → 9 Rune-Circuits refacto
 
 ---
 
