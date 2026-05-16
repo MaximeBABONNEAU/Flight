@@ -2,7 +2,78 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-16 (v7.7.21b iter 2 polish + iter 3 rarity/Pole/cardtype system).
+> **Last refresh**: 2026-05-17 (v7.7.22a LLM card distribution + balance validator).
+
+---
+
+## v7.7.22a — LLM scenario card distribution + balance validator [2026-05-17]
+
+User mandate (verbatim) : *« Donc le LLM doit découper les scénarios en ces cartes, en 1-3 versions par run chacune (voir quelques unes ne peuvent pas apparaitre ?) Attention à l'équilibrage ! »*
+
+User locked decisions (AskUserQuestion) :
+- **Frequency caps** : Bornes proposées (NARRATIVE 50-70% share, EVENT 1-4, SHOP 1-2, MERLIN_DIRECT 0-3, PROMISE 0-2, RUNE_UNLOCK 0-1)
+- **Rarity distribution** : 68/20/8/4 aligned with bible §28.1
+- **Pole distribution** : Biaisée par biome (bible §7.1 — Forêt=Liminal+, Marais=Chaos+, Villages=Ordre+, etc.)
+- **Enforcement** : 2-layer (LLM prompt nudge + post-LLM validator)
+
+### Data model (NEW consts in `addons/merlin_ai/scenario_planner.gd`)
+
+- `CARD_TYPE_CAPS` : per-cardtype min/max (counts or shares)
+- `RARITY_TARGETS` : 0.68 / 0.20 / 0.08 / 0.04 shares
+- `BIOME_POLE_BIAS` : 8 biomes × {dominant, secondary[]} per bible §7.1
+- `NO_REPEAT_CARDTYPES` : SHOP / MERLIN_DIRECT / RUNE_UNLOCK can't be 2-in-a-row
+- `LEGENDARY_START_SHARE` : 0.70 (Légendaire only in last 30%)
+- `FACTION_TO_POLE_PLANNER` : legacy 5-faction JSON → 3-Pole UI mapping
+- `ACT_TYPE_TO_CARDTYPE` : BEAT_ACT_SEQUENCE → DigitalPickerCard.CardType bridge
+
+### Layer 1 — LLM prompt extension
+`_skeleton_system_prompt` extended with a final "ÉQUILIBRAGE" paragraph stating the biome's dominant Pole + 3 distribution rules. Nudges the LLM toward balanced output BEFORE validation runs.
+
+### Layer 2 — `_balance_skeleton(skeleton, biome_id)` post-validator
+
+Six-step pipeline (static method, runs on EVERY skeleton — LLM or fallback) :
+1. **Defaults** : fill rarity/pole/card_type per beat if missing. Case-normalizes user-provided values (handles `"legendaire"` / `"shop"` / etc.).
+2. **Hard caps** : demote excess cardtypes to NARRATIVE COMMUNE (climax beat preserved — never demoted per reviewer HIGH fix).
+3. **Adjacency** : break NO_REPEAT_CARDTYPES streaks by demoting curr to NARRATIVE.
+4. **Légendaire placement** : demote rarity to EPIQUE if before last 30% of skeleton.
+5. **Soft minimums** : promote middle NARRATIVE COMMUNE beats to fill missing required types (EVENT, SHOP).
+6. **Summary log** : `push_warning` in debug builds only (`OS.is_debug_build()` guard).
+
+### Beats now include 3 optional metadata fields
+
+Every beat dict (LLM-generated OR fallback) now exits `generate_skeleton` with :
+```gdscript
+{
+    n: int, summary: String, faction_tilt: String, emotion: String,
+    rarity: String,    # COMMUNE | RARE | EPIQUE | LEGENDAIRE
+    pole: String,      # Ordre | Chaos | Liminal | Neutre
+    card_type: String, # NARRATIVE | EVENT | SHOP | MERLIN_DIRECT | PROMISE | RUNE_UNLOCK
+}
+```
+
+Consumers can pass these straight into `DigitalPickerCard.apply_card_metadata(rarity, pole, card_type)` (v7.7.21b API). The system is end-to-end.
+
+### Reviewer fixes applied (3 issues)
+
+- **HIGH-1** : `_balance_skeleton` step 2 cap-demotion now skips `j == total - 1` so the climax beat is never demoted to NARRATIVE.
+- **MEDIUM-1** : Summary log `print()` → `push_warning()` + `OS.is_debug_build()` guard (matches file convention, no prod log spam).
+- **MEDIUM-2** : Step 1 normalizes user-provided rarity/cardtype to UPPER and Pole to TitleCase before comparison (handles French LLM emitting `"legendaire"` / `"ordre"`).
+
+### Verification
+- Parse-check `validate_step0` : 10 errors (all pre-existing phantom_camera SVG, none from new code)
+- Smoke `res://scenes/ScenarioLoading.tscn` 6s : exit=0 script_errors=0 passed=True
+- Re-smoke post-fixes : exit=0 script_errors=0 passed=True
+- Code-review : 2 HIGH (1 actual bug climax-skip fixed + 1 style note kept w/ comment), 2 MEDIUM (both fixed)
+
+### Out of scope (future iterations)
+
+- **v7.7.22b** : GBNF grammar update (`scenario_skeleton.gbnf`) to formalize the 3 new fields. Currently the LLM can include them freely; validator fills defaults if absent.
+- **v7.7.22c** : DigitalPickerCard scenario picker wires `apply_card_metadata(skeleton.beats[i].rarity, .pole, .card_type)` so the 3 scenario picks show their rarity/Pole at the user. Iter 4 from the v7.7.21 roadmap.
+- **v7.7.22d** : LiveCard3D adoption — propagate metadata from beat → in-run card UI when run hits 25-card structure (bible §13 target).
+- **v7.7.23** : Real-time balance metrics logged to `tools/autodev/captures/balance_report.json` for playtest tuning.
+
+### Files modified
+- `addons/merlin_ai/scenario_planner.gd` : +130 LOC (7 const Dicts + 4 static helpers + `_balance_skeleton` + extended prompt)
 
 ---
 

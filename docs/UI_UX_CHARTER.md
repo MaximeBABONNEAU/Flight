@@ -300,6 +300,81 @@ Sentinel values for "no encoding" :
 `POLE_DATA`, `FACTION_TO_POLE`) — no inline literals. Future variant changes
 are single-line edits.
 
+### 4.8 LLM card distribution (v7.7.22a — balance enforcement)
+
+The LLM-generated scenario skeleton now produces beats typed with the same
+rarity / Pole / card_type system used by DigitalPickerCard §4.7b. The result :
+each beat is metadata-ready for `apply_card_metadata(rarity, pole, card_type)`.
+
+**Distribution targets (bible §28.1 aligned)** :
+
+| Dimension | Target |
+|---|---|
+| Rarity COMMUNE     | ~68 % of skeleton beats |
+| Rarity RARE        | ~20 % |
+| Rarity ÉPIQUE      | ~ 8 % |
+| Rarity LÉGENDAIRE  | ~ 4 % (climax beat only — last beat) |
+
+**Per-cardtype frequency caps** (user mandate « 1-3 versions par run ») :
+
+| CardType | Min | Max |
+|---|:---:|:---:|
+| NARRATIVE     | 50% share | 70% share |
+| EVENT         | 1 | 4 |
+| SHOP          | 1 | 2 |
+| MERLIN_DIRECT | 0 | 3 |
+| PROMISE       | 0 | 2 |
+| RUNE_UNLOCK   | 0 | 1 (« quelques unes ne peuvent pas apparaitre ») |
+
+**Pole bias per biome** (bible §7.1) :
+
+| Biome | Dominant Pole |
+|---|---|
+| Forêt Brocéliande, Côtes Sauvages, Cercles de Pierres | Liminal |
+| Landes Bruyère, Villages Celtes, Collines aux Dolmens | Ordre |
+| Marais Korrigans, Iles Mystiques | Chaos |
+
+Each biome's dominant Pole gets ~50% of beats, the other two ~25% each
+(remainder is Neutre framing/transition beats).
+
+**Anti-fatigue adjacency rules** :
+- No 2 SHOP / MERLIN_DIRECT / RUNE_UNLOCK beats consecutively
+- LÉGENDAIRE rarity only allowed in last 30% of skeleton (climactic)
+
+**Enforcement = 2 layers** :
+- **L1 — LLM prompt** : `_skeleton_system_prompt` nudges LLM with biome dominant Pole + 3 distribution rules
+- **L2 — Validator** : `_balance_skeleton(skeleton, biome_id)` runs on every skeleton (LLM or fallback) and demotes/promotes to enforce caps
+
+**API surface** :
+
+```gdscript
+# scripts/scenario_loading.gd already calls this implicitly.
+var planner := ScenarioPlanner.new(merlin_ai, rag)
+var skeleton: Dictionary = await planner.generate_skeleton(biome_id, title)
+# skeleton.beats[i] now has fields : rarity, pole, card_type (always populated).
+
+# Consumer side : pass straight to DigitalPickerCard.
+card.apply_card_metadata(
+    DigitalPickerCard.Rarity[beat.rarity],
+    beat.pole,  # String maps via FACTION_TO_POLE
+    DigitalPickerCard.CardType[beat.card_type],
+)
+```
+
+The bridge between LLM output (Strings) and DigitalPickerCard API (enum ints)
+is automatic — apply_card_metadata accepts both String and int for the Pole arg.
+
+**Charter compliance grep (extends §4.7b audit)** :
+
+```bash
+# 11. Every skeleton must route through _balance_skeleton (no raw LLM passthrough).
+grep -rn "generate_skeleton" scripts/ | grep -v "balance_skeleton"
+# Expect : only internal calls within ScenarioPlanner.
+
+# 12. No hardcoded rarity counts — should reference RARITY_TARGETS.
+grep -rn "rarity.*=.*[0-9]" scripts/ | grep -v RARITY_BORDER\|RARITY_TARGETS
+```
+
 ---
 
 ## 5. Cross-scene consistency table

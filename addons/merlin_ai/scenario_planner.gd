@@ -123,6 +123,79 @@ const OGHAM_GLYPHS: Array = ["beith", "luis", "quert", "fearn", "saille", "nuin"
 	"huath", "duir", "tinne", "coll", "muin", "gort", "ngetal", "straif", "ruis",
 	"ailm", "ohn", "ur"]
 
+
+# ═════════ v7.7.22 — Card distribution model (rarity / Pole / cardtype) ═══════
+# User mandate : « le LLM doit découper les scénarios en ces cartes, en 1-3
+# versions par run chacune (voir quelques unes ne peuvent pas apparaitre ?)
+# Attention à l'équilibrage ! »
+# Locked decisions :
+#   - Caps proposés (NARRATIVE 50-70% share, EVENT 1-4, SHOP 1-2,
+#     MERLIN_DIRECT 0-3, PROMISE 0-2, RUNE_UNLOCK 0-1)
+#   - Ratio rarity 68/20/8/4 (bible §28.1 aligned)
+#   - Pole biaisé par biome (bible §7.1)
+#   - Enforcement 2-layer : prompt LLM nudge + post-LLM validator
+
+## Per-cardtype frequency CAPS across a full skeleton.
+## "min/max_share" = % of skeleton size ; "min/max_count" = absolute count.
+## RUNE_UNLOCK has min=0 so the type can be absent from some runs (user mandate).
+const CARD_TYPE_CAPS: Dictionary = {
+	"NARRATIVE":     {"min_share": 0.50, "max_share": 0.70},
+	"EVENT":         {"min_count": 1,    "max_count": 4},
+	"SHOP":          {"min_count": 1,    "max_count": 2},
+	"MERLIN_DIRECT": {"min_count": 0,    "max_count": 3},
+	"PROMISE":       {"min_count": 0,    "max_count": 2},
+	"RUNE_UNLOCK":   {"min_count": 0,    "max_count": 1},
+}
+
+## Target rarity distribution per skeleton (bible §28.1 effective per-run shares).
+## SHARE values, sum ~= 1.0. Caller rescales to skeleton size.
+const RARITY_TARGETS: Dictionary = {
+	"COMMUNE":    0.68,
+	"RARE":       0.20,
+	"EPIQUE":     0.08,
+	"LEGENDAIRE": 0.04,
+}
+
+## Per-biome Pole bias (bible §7.1) — dominant Pole gets 50%, the two others
+## ~25% each. "Neutre" beats are the bridging remainder beyond the 3-Pole budget
+## (~40% of total beats expected to be neutre — these are framing/transition beats).
+const BIOME_POLE_BIAS: Dictionary = {
+	"foret_broceliande": {"dominant": "Liminal", "secondary": ["Ordre", "Chaos"]},
+	"landes_bruyere":    {"dominant": "Ordre",   "secondary": ["Chaos", "Liminal"]},
+	"cotes_sauvages":    {"dominant": "Liminal", "secondary": ["Chaos", "Ordre"]},
+	"villages_celtes":   {"dominant": "Ordre",   "secondary": ["Liminal", "Chaos"]},
+	"cercles_pierres":   {"dominant": "Liminal", "secondary": ["Ordre", "Chaos"]},
+	"marais_korrigans":  {"dominant": "Chaos",   "secondary": ["Liminal", "Ordre"]},
+	"collines_dolmens":  {"dominant": "Ordre",   "secondary": ["Liminal", "Chaos"]},
+	"iles_mystiques":    {"dominant": "Chaos",   "secondary": ["Liminal", "Ordre"]},
+}
+
+## Adjacency rules — no 2 of these cardtypes in a row (anti-fatigue).
+const NO_REPEAT_CARDTYPES: Array = ["SHOP", "MERLIN_DIRECT", "RUNE_UNLOCK"]
+
+## Légendaire only allowed in last 30% of the skeleton (climactic placement).
+const LEGENDARY_START_SHARE: float = 0.70
+
+## Legacy 5-faction → 3-Pole mapping (bible v3.0 §3.2). Used by _balance_skeleton
+## to derive a Pole assignment from the LLM-provided faction_tilt field.
+const FACTION_TO_POLE_PLANNER: Dictionary = {
+	"druides":   "Ordre",
+	"anciens":   "Ordre",
+	"korrigans": "Chaos",
+	"ankou":     "Chaos",
+	"niamh":     "Liminal",
+	"neutre":    "Neutre",
+}
+
+## CardType per BEAT_ACT_SEQUENCE act_type. The skeleton's act_type drives the
+## DigitalPickerCard CardType enum. Boss = Légendaire MERLIN_DIRECT (climax).
+const ACT_TYPE_TO_CARDTYPE: Dictionary = {
+	"standard": "NARRATIVE",
+	"shop":     "SHOP",
+	"event":    "EVENT",
+	"boss":     "MERLIN_DIRECT",
+}
+
 # v7.7 (code-review MEDIUM fix #3) : 5-beat → act_type mapping as a single
 # source-of-truth const, not buried in a match statement. Decision 2026-05-15
 # part 21 : [standard, shop, standard, event, boss]. If the bible §1 evolves
@@ -266,6 +339,10 @@ func generate_skeleton(biome_id: String, chosen_title: String) -> Dictionary:
 
 func _skeleton_system_prompt(biome_id: String, chosen_title: String) -> String:
 	# v7.7 Phase 2.7 — chain-of-thought : LLM choisit 5/7/10 actes selon l'ambition.
+	# v7.7.22 — Layer 1 enforcement : distribution targets nudge the LLM toward
+	# balanced rarity / Pole / cardtype before _balance_skeleton validates.
+	var biome_bias: Dictionary = BIOME_POLE_BIAS.get(biome_id, {"dominant": "Neutre", "secondary": []})
+	var dominant_pole: String = str(biome_bias.get("dominant", "Neutre"))
 	return ("Tu es le Gamemaster M.E.R.L.I.N..\n" +
 		"Génère un SKELETON narratif au format JSON strict (GBNF imposé) pour le titre :\n" +
 		"  \"%s\" (biome : %s)\n\n" +
@@ -278,8 +355,12 @@ func _skeleton_system_prompt(biome_id: String, chosen_title: String) -> String:
 		"Arc émotionnel : beat 1=curiosite/intro, beats milieu=tension/peur/twist, beat N=résolution/sagesse.\n" +
 		"faction_tilt ∈ {druides, anciens, korrigans, niamh, ankou, neutre}.\n" +
 		"emotion ∈ {curiosite, tension, peur, espoir, sagesse, fascination, colere, melancolie, emerveillement}.\n" +
-		"Summaries : 1 phrase 10-20 mots, narratif celtique évocateur."
-	) % [chosen_title, biome_id]
+		"Summaries : 1 phrase 10-20 mots, narratif celtique évocateur.\n\n" +
+		"ÉQUILIBRAGE (v7.7.22) — biome '%s' dominant Pole = %s :\n" +
+		"  - Privilégie faction_tilt aligné avec le Pole dominant (~50%% des beats).\n" +
+		"  - Varie les emotions : pas 2 emotions identiques consécutives.\n" +
+		"  - Le dernier beat doit être climactique (faction_tilt fort, emotion=sagesse/peur/emerveillement)."
+	) % [chosen_title, biome_id, biome_id, dominant_pole]
 
 
 ## v7.7 Phase 2.7c — Parse skeleton + clamp beats to [5..10] :
@@ -334,7 +415,9 @@ func _parse_skeleton(raw_text: String, biome_id: String, chosen_title: String) -
 	dict["beats"] = beats
 	# Override title to match user pick (in case LLM rewrote it).
 	dict["title"] = chosen_title
-	return dict
+	# v7.7.22 — Layer 2 enforcement : balance the rarity/Pole/cardtype distribution
+	# regardless of whether the LLM populated those fields. Fills defaults + caps.
+	return _balance_skeleton(dict, biome_id)
 
 
 func _fallback_skeleton(biome_id: String, chosen_title: String) -> Dictionary:
@@ -345,7 +428,188 @@ func _fallback_skeleton(biome_id: String, chosen_title: String) -> Dictionary:
 	var base: Dictionary = FALLBACK_SKELETONS.get(biome_id, FALLBACK_SKELETONS["foret_broceliande"])
 	var out: Dictionary = base.duplicate(true)
 	out["title"] = chosen_title  # respect user choice
+	# v7.7.22 — apply the balance pass to hardcoded fallbacks too so every code
+	# path produces beats with rarity/Pole/cardtype metadata. Consumers can rely
+	# on these fields being present even when the LLM is unavailable.
+	return _balance_skeleton(out, biome_id)
+
+
+# ═════════ v7.7.22 — Balance validator (Layer 2 enforcement) ════════════════════
+#
+# Post-LLM (and post-fallback) validator that ensures each beat has rarity / pole /
+# card_type fields, and enforces the CARD_TYPE_CAPS / RARITY_TARGETS / BIOME_POLE_BIAS
+# constraints. The LLM is nudged via the system prompt (Layer 1) ; this is the safety
+# net (Layer 2). Strategy : assign defaults where missing → count → demote excess →
+# promote shortfalls. Returns a NEW Dict (does not mutate the input).
+
+static func _balance_skeleton(skeleton: Dictionary, biome_id: String) -> Dictionary:
+	if not (skeleton is Dictionary):
+		return skeleton
+	var beats_any = skeleton.get("beats", [])
+	if not (beats_any is Array):
+		return skeleton
+	var beats: Array = (beats_any as Array).duplicate(true)
+	var total: int = beats.size()
+	if total <= 0:
+		return skeleton
+
+	# 1. Assign defaults to missing fields (rarity / pole / card_type).
+	# v7.7.22 reviewer MEDIUM fix : NORMALIZE case for any LLM-provided value.
+	# The LLM may emit "legendaire" / "shop" / "ordre" in French/lowercase ; we
+	# canonicalize to UPPER for enums (rarity/cardtype) and TitleCase for Pole.
+	for i in range(total):
+		var b: Dictionary = beats[i] as Dictionary
+		var n: int = int(b.get("n", i + 1))
+		# Card type — UPPER enum string ("NARRATIVE" / "EVENT" / "SHOP" / ...).
+		var raw_ct: String = str(b.get("card_type", "")).to_upper().strip_edges()
+		b["card_type"] = raw_ct if raw_ct != "" else _default_cardtype_for_beat(n, total)
+		# Pole — TitleCase ("Ordre" / "Chaos" / "Liminal" / "Neutre").
+		var raw_pole: String = str(b.get("pole", "")).strip_edges()
+		if raw_pole != "":
+			# Capitalize first letter to match POLE constants.
+			raw_pole = raw_pole.substr(0, 1).to_upper() + raw_pole.substr(1).to_lower()
+		b["pole"] = raw_pole if raw_pole != "" else _default_pole_for_beat(b, biome_id)
+		# Rarity — UPPER enum string ("COMMUNE" / "RARE" / "EPIQUE" / "LEGENDAIRE").
+		var raw_rarity: String = str(b.get("rarity", "")).to_upper().strip_edges()
+		b["rarity"] = raw_rarity if raw_rarity != "" else _default_rarity_for_beat(n, total)
+		beats[i] = b
+
+	# 2. Enforce hard CAPS per cardtype (demote excess to NARRATIVE Commune).
+	var counts: Dictionary = _count_card_types(beats)
+	for ct in CARD_TYPE_CAPS.keys():
+		var rules: Dictionary = CARD_TYPE_CAPS[ct]
+		# Skip share-based rules in this loop (handled in step 4).
+		if not rules.has("max_count"):
+			continue
+		var max_cnt: int = int(rules.get("max_count", 99))
+		var have: int = int(counts.get(ct, 0))
+		if have > max_cnt:
+			# Demote the LAST few beats of this type to NARRATIVE Commune.
+			# v7.7.22 reviewer HIGH fix : NEVER demote the climax (index total-1) —
+			# `_default_cardtype_for_beat` forces it to MERLIN_DIRECT/boss, and
+			# step 4 only handles rarity, not card_type. Skipping it here keeps the
+			# climax intact even when LLM emits >max_count beats of the same type.
+			var excess: int = have - max_cnt
+			for j in range(beats.size() - 1, -1, -1):
+				if excess <= 0:
+					break
+				if j == total - 1:
+					continue   # preserve climax
+				var bj: Dictionary = beats[j]
+				if str(bj.get("card_type", "")) == ct:
+					bj["card_type"] = "NARRATIVE"
+					bj["rarity"] = "COMMUNE"
+					beats[j] = bj
+					excess -= 1
+			counts = _count_card_types(beats)
+
+	# 3. Enforce ADJACENCY (no 2 NO_REPEAT_CARDTYPES in a row).
+	for i in range(1, beats.size()):
+		var prev_ct: String = str((beats[i - 1] as Dictionary).get("card_type", ""))
+		var curr_ct: String = str((beats[i] as Dictionary).get("card_type", ""))
+		if prev_ct == curr_ct and NO_REPEAT_CARDTYPES.has(curr_ct):
+			# Demote the current to NARRATIVE Commune to break the streak.
+			var bi: Dictionary = beats[i]
+			bi["card_type"] = "NARRATIVE"
+			bi["rarity"] = "COMMUNE"
+			beats[i] = bi
+
+	# 4. Enforce LEGENDARY placement (only in last 30% of skeleton).
+	var legendary_threshold: int = int(ceil(float(total) * LEGENDARY_START_SHARE))
+	for i in range(total):
+		var bi: Dictionary = beats[i]
+		if str(bi.get("rarity", "")) == "LEGENDAIRE" and (i + 1) < legendary_threshold:
+			bi["rarity"] = "EPIQUE"   # demote to next-tier
+			beats[i] = bi
+
+	# 5. Soft MINIMUMS — promote NARRATIVE COMMUNE beats if a required type is missing.
+	counts = _count_card_types(beats)
+	for ct in CARD_TYPE_CAPS.keys():
+		var rules2: Dictionary = CARD_TYPE_CAPS[ct]
+		if not rules2.has("min_count"):
+			continue
+		var min_cnt: int = int(rules2.get("min_count", 0))
+		var have2: int = int(counts.get(ct, 0))
+		if have2 < min_cnt and ct != "NARRATIVE":
+			# Promote middle-of-skeleton NARRATIVE beats to this cardtype.
+			var need: int = min_cnt - have2
+			for j in range(beats.size()):
+				if need <= 0:
+					break
+				var bj2: Dictionary = beats[j]
+				# Don't touch first (intro) or last (climax) beat.
+				if j == 0 or j == total - 1:
+					continue
+				if str(bj2.get("card_type", "")) == "NARRATIVE" and str(bj2.get("rarity", "")) == "COMMUNE":
+					bj2["card_type"] = ct
+					# EVENT/SHOP get RARE, others stay COMMUNE.
+					if ct == "EVENT" or ct == "SHOP":
+						bj2["rarity"] = "RARE"
+					beats[j] = bj2
+					need -= 1
+
+	# 6. Write back + log a one-line summary for debug.
+	# v7.7.22 reviewer MEDIUM fix : push_warning (matches file convention) +
+	# debug-build guard so prod exports don't spam the log.
+	counts = _count_card_types(beats)
+	if OS.is_debug_build():
+		var summary_parts: Array = []
+		for ct in ["NARRATIVE", "EVENT", "SHOP", "MERLIN_DIRECT", "PROMISE", "RUNE_UNLOCK"]:
+			if int(counts.get(ct, 0)) > 0:
+				summary_parts.append("%s=%d" % [ct, int(counts.get(ct, 0))])
+		push_warning("[ScenarioPlanner] v7.7.22 balance for biome '%s' (n=%d): %s" % [
+			biome_id, total, ", ".join(summary_parts)
+		])
+
+	var out: Dictionary = skeleton.duplicate(true)
+	out["beats"] = beats
 	return out
+
+
+## Returns a Dict<card_type_name: String, count: int> for the beats array.
+static func _count_card_types(beats: Array) -> Dictionary:
+	var counts: Dictionary = {}
+	for b in beats:
+		if not (b is Dictionary):
+			continue
+		var ct: String = str((b as Dictionary).get("card_type", ""))
+		if ct == "":
+			continue
+		counts[ct] = int(counts.get(ct, 0)) + 1
+	return counts
+
+
+## Default CardType for a beat at position (n, total) using BEAT_ACT_SEQUENCE +
+## last-beat-is-boss invariant. Returns DigitalPickerCard.CardType string keys.
+static func _default_cardtype_for_beat(beat_n: int, total: int) -> String:
+	var act: String = _beat_to_act_type(beat_n, total)
+	return str(ACT_TYPE_TO_CARDTYPE.get(act, "NARRATIVE"))
+
+
+## Default Pole for a beat — uses beat's `faction_tilt` if present, else biome bias.
+static func _default_pole_for_beat(beat: Dictionary, biome_id: String) -> String:
+	var faction: String = str(beat.get("faction_tilt", ""))
+	if faction != "" and FACTION_TO_POLE_PLANNER.has(faction):
+		return str(FACTION_TO_POLE_PLANNER[faction])
+	# No faction info — fall back to biome dominant Pole.
+	var bias: Dictionary = BIOME_POLE_BIAS.get(biome_id, {"dominant": "Neutre"})
+	return str(bias.get("dominant", "Neutre"))
+
+
+## Default Rarity for a beat at position (n, total) following bible §28.1 ratios.
+## Last beat = LEGENDAIRE (climax) ; penultimate = EPIQUE ; first beat = COMMUNE
+## (intro should be calm) ; middle = mostly COMMUNE with occasional RARE.
+static func _default_rarity_for_beat(beat_n: int, total: int) -> String:
+	if total <= 0:
+		return "COMMUNE"
+	if beat_n == total:
+		return "LEGENDAIRE"   # climax always Légendaire
+	if beat_n == total - 1:
+		return "EPIQUE"        # penultimate twist
+	if beat_n == 1:
+		return "COMMUNE"       # intro stays calm
+	# Middle beats : ~70% COMMUNE, ~30% RARE (deterministic via beat_n parity).
+	return "RARE" if (beat_n % 3) == 0 else "COMMUNE"
 
 
 # ═════════ Phase 1.3 : Per-beat card generation (delegates to BiBrainPipeline) ═
