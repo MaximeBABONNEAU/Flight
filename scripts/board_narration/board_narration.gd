@@ -129,6 +129,11 @@ var _screen_dither_prev: Dictionary = {}
 
 func _ready() -> void:
 	_disable_global_overlays()
+	# v7.7.5a (item #10) — defensive: force-complete any pending PixelTransition so
+	# we don't render under a black fade. Mirrors the menu_test.gd v7.7.2.2 pattern.
+	var pt: Node = get_node_or_null("/root/PixelTransition")
+	if pt and pt.has_method("_force_complete"):
+		pt._force_complete()
 	_build_scene_tree()
 	await _await_store_ready()
 	_resolve_dependencies()
