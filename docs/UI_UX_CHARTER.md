@@ -242,6 +242,64 @@ card.call("animate_in", 0.0)
 - `scripts/scenario_loading.gd` — 3 cards in HBox (replaces 3D PlaneMesh parchments)
 - `scripts/board_narration/board_narration.gd` — 8 cards in 4×2 grid (replaces 8 Button widgets)
 
+### 4.7b Card metadata encoding (v7.7.21b — rarity / Pole / type)
+
+The card's BORDER encodes 3 orthogonal dimensions :
+
+**1. RARITY (4 tiers per bible canon)** — sets border color + thickness :
+
+| Tier | Border Color | Width | Notes |
+|---|---|---|---|
+| Commune     | `#8c7a4b` dim gold       | 3px | Default narrative cards |
+| Rare        | `#eba84d` UI_GOLD        | 4px | Events, repos, special encounters |
+| Épique      | `#9f62ff` royal violet   | 5px | Merlin direct, climax moments |
+| Légendaire  | `#ffb033` bright gold    | 6px | Rune-Circuit unlocks, lore reveals |
+
+Légendaire idle-pulses : border alpha breathing 1.0↔0.65 @ 2.4s cadence.
+
+**2. POLE BADGE (3 Poles per bible §3.2 v3.0)** — 32×32 top-right widget :
+
+| Pole | Color | Glyph | Legacy factions mapped |
+|---|---|---|---|
+| Ordre   | `#d4a868` Or/Ambre    | `ᚇ` (Duir oak)   | druides + anciens |
+| Chaos   | `#9b59ff` Violet/Feu  | `✦` (star)        | korrigans + ankou |
+| Liminal | `#5a8aa8` Cyan/Brume  | `ᚄ` (Saille willow) | niamh |
+
+Backward compatibility : pass `"druides"` / `"anciens"` / etc. as `faction_or_pole`
+and the component auto-maps via `FACTION_TO_POLE`. Or pass `"ordre"` / `"chaos"`
+/ `"liminal"` directly. NEUTRE = no badge shown.
+
+**3. CARD TYPE (6 variants)** — modifies border style on top of rarity color :
+
+| Type | Style modifier |
+|---|---|
+| NARRATIVE       | solid (default) — no animation |
+| EVENT           | breathing alpha @ 1.6s |
+| SHOP            | border tinted toward amber (`+0.35` lerp) |
+| PROMISE         | (reserved — future double-line variant) |
+| MERLIN_DIRECT   | crimson glow pulse @ 1.0s |
+| RUNE_UNLOCK     | iridescent hue cycle (gold→violet→cyan @ 3.6s) |
+
+**Public API** :
+
+```gdscript
+# After setup(), optionally apply rarity/Pole/cardtype encoding.
+card.apply_card_metadata(
+    DigitalPickerCard.Rarity.EPIQUE,            # int enum
+    "korrigans",                                  # String — auto-maps to Chaos Pole
+    DigitalPickerCard.CardType.MERLIN_DIRECT,    # int enum
+)
+```
+
+Sentinel values for "no encoding" :
+- `rarity = -1` → keep `accent_color` from setup()
+- `faction_or_pole = ""` or `Pole.NEUTRE` → no badge
+- `card_type = CardType.NARRATIVE` (default) → solid border
+
+**Compliance** : All visual values flow from constants (`RARITY_BORDER_COLORS`,
+`POLE_DATA`, `FACTION_TO_POLE`) — no inline literals. Future variant changes
+are single-line edits.
+
 ---
 
 ## 5. Cross-scene consistency table

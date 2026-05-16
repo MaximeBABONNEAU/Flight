@@ -2,7 +2,78 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-16 (v7.7.21 unified DigitalPickerCard for biome + scenario pickers).
+> **Last refresh**: 2026-05-16 (v7.7.21b iter 2 polish + iter 3 rarity/Pole/cardtype system).
+
+---
+
+## v7.7.21b — DigitalPickerCard iter 2 polish + iter 3 rarity/Pole/cardtype system [2026-05-16]
+
+User mandate (verbatim) : *« 2 : ok refine 3 : oui il faut un systeme qui déjà en fonction du contour détermine la rareté de la carte + badge faction si carte de faction, et en fonction si shop event etc le contour est différent »*
+
+User locked decisions (AskUserQuestion) :
+- **Rarity tiers** : 4 (Commune / Rare / Épique / Légendaire)
+- **Faction badge** : 3 Poles per bible v3.0 §3.2 (Ordre / Chaos / Liminal)
+- **Card types** : Set narratif complet — 6 types (narrative / event / shop / promise / merlin_direct / rune_unlock)
+- **Badge position** : Coin supérieur droit (28×28 PanelContainer top-right)
+
+### Iter 2 — Typography + spacing refinement
+- Title 26 → 28px (more dominant heading)
+- Body 16 → 17px (better readability, above 16px minimum)
+- Hint 12 → 13px
+- Glyph 40 → 44px (more iconic top-left)
+- VBox separation 10 → 12 ; content margin 20 → 22 (breathing room)
+- Hover scale 1.03 → 1.04 ; durations 0.15 → 0.18s (slightly more responsive)
+- animate_in 0.45 → 0.50s alpha / 0.55 → 0.60s scale (smoother cascade)
+- mark_chosen pulse 0.18→0.20 + 0.30→0.32 (subtler punch)
+
+### Iter 3 — Rarity / Pole / Card type encoding system
+**3 new enums** :
+```gdscript
+enum Rarity { COMMUNE, RARE, EPIQUE, LEGENDAIRE }
+enum Pole { NEUTRE, ORDRE, CHAOS, LIMINAL }
+enum CardType { NARRATIVE, EVENT, SHOP, PROMISE, MERLIN_DIRECT, RUNE_UNLOCK }
+```
+
+**4 new constants** :
+- `RARITY_BORDER_COLORS` — dim_gold / UI_GOLD / royal_violet / bright_gold
+- `RARITY_BORDER_WIDTHS` — 3 / 4 / 5 / 6 px
+- `POLE_DATA` — color + glyph + name per 3 Poles (bible §22 canonical : Ordre Or, Chaos Violet, Liminal Cyan)
+- `FACTION_TO_POLE` — legacy 5-faction JSON data (druides/anciens/korrigans/ankou/niamh) → 3 Pole mapping
+
+**NEW public API** : `apply_card_metadata(rarity, faction_or_pole, card_type)` — optional post-setup() call. Accepts String ("druides", "ordre", "chaos") or Pole enum int for `faction_or_pole`. Idempotent.
+
+**NEW Pole badge widget** — 32×32 PanelContainer top-right (offset_left=-44, top=12) with Pole glyph centered, accent-tinted 2px border, charter-compliant dark bg.
+
+**NEW idle pulse animations** (Tween.set_loops()) per card_type :
+- Rarity.LEGENDAIRE : border alpha breathing 1.0↔0.65 @ 2.4s cadence
+- CardType.EVENT : same breathing @ 1.6s cadence
+- CardType.MERLIN_DIRECT : crimson glow lerp @ 1.0s cadence
+- CardType.RUNE_UNLOCK : iridescent hue cycle gold→violet→cyan @ 3.6s
+
+**Border color cascade** : rarity → card_type tint → locked dim. Bg stays UI_BG_DARK (intraitable).
+
+### 2 reviewer MEDIUM fixes applied
+- `_build_or_clear_pole_badge` : `queue_free()` → `free()` to avoid one-frame two-badge flicker
+- `_set_border_color` : also updates `_stylebox_hover.border_color` (prevents pulse desync on hover)
+
+### Files modified
+- `scripts/ui/digital_picker_card.gd` : 288 → ~480 LOC (rarity + Pole + cardtype + idle pulse system)
+
+### Verification
+- Parse-check `validate_step0` : 10 errors (all pre-existing phantom_camera SVG, none from new code)
+- Smoke BoardNarration 6s : exit=0 script_errors=0 passed=True
+- Smoke ScenarioLoading 6s : exit=0 script_errors=0 passed=True
+- Code review : 0 HIGH, 2 MEDIUM (both FIXED — flicker + hover desync)
+
+### Wiring (iter 4 queued — not in 21b)
+- Biome picker : biomes don't have rarity/Pole inherently (each biome IS its own category). Keep current per-biome accent unchanged.
+- Scenario picker : the 3 scenarios from LLM could map idx 0/1/2 → Commune/Rare/Épique tier. Deferred to iter 4 when LLM `body` integration also lands.
+- LiveCard3D : NOT in scope for v7.7.21b. The system is exposed for future use when the in-run card UI adopts DigitalPickerCard.
+
+### Out of scope (next iterations)
+- **Iter 4** : LLM body field for scenarios + wire scenario rarity tiers
+- **Iter 5** : LiveCard3D adoption (or sister 2D card widget for in-run choices)
+- **Iter 6** : Shader-based iridescent border for RUNE_UNLOCK (currently color cycle Tween — works without GLSL)
 
 ---
 
