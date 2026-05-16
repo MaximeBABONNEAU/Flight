@@ -1212,6 +1212,339 @@ Les palettes sont exposées dans `scripts/board_narration/biome_palettes.gd` (à
 *v3.3 (2026-05-14) — §21 UX Standards : Minimal/Évident/Tactile+Desktop + cascade obligatoire game design*
 *v3.4 (2026-05-15) — §20 pivot Low-Poly Flat + §22 palettes adaptives 8 biomes + §23 mood mystique chaleureux*
 *v3.5 (2026-05-16) — HoF2-style no-drain + pipeline 11 etapes + plateau-only v7.7.2 + §24 Politique Systematique MERLIN*
+*v3.6 (2026-05-16) — Disco-style maitrise : 4 stats + skill checks + Grimoire meta + équilibrage formula (§25-§29)*
+
+---
+
+## 25. Système 4 Stats — Maitrise Disco-style (NON-NÉGOCIABLE)
+
+> **Source** : 16 réponses AskUserQuestion 2026-05-16 R5-R8. Inspiration : **Disco Elysium** (skill checks RPG), **Hand of Fate 2** (failure consequences), **Pentiment** (hidden background gates).
+
+### 25.1 Les 4 stats
+
+| Stat | Domaine | Faction affine | Exemples cards |
+|---|---|---|---|
+| **Logic** | Raison, déduction, observation | Druides | "Examiner les runes gravées" / "Décrypter le rêve" |
+| **Empathie** | Coeur, intuition relationnelle | Niamh | "Apaiser le korrigan" / "Lire l'âme du voyageur" |
+| **Volonté** | Discipline, résistance, courage | Anciens | "Résister à l'illusion" / "Trancher l'attache" |
+| **Instinct** | Survie animale, intuition brute | Korrigans | "Sentir la trace" / "Fuir l'ombre" |
+
+**Ankou** (5e faction) : pas de stat dédiée — agit comme **trait modifier global** (penalty/bonus selon mood).
+
+### 25.2 Stats baseline + croissance
+
+- **First-run** : tous les 4 stats = **1/10** (low baseline organique).
+- **XP par choix cohérent** (Disco-style) : chaque choix d'option = +1 XP à la stat associée.
+- **Lv up** : tous les 10 XP. Maxi 10.
+- **Persistence** : stats XP **persistent cross-run** (death penalty : faction rep reset + life reset, stats KEEP).
+- **Estimation** : ~25 runs pour atteindre Lv 5 sur une stat focused (~250 XP).
+
+### 25.3 Visibilité
+
+**HUD top-right permanent** : 4 icônes + chiffres (Logic 3 / Emp 1 / Vol 2 / Ins 4). Le joueur sait son build, construit consciemment. Bible §19.4 align.
+
+---
+
+## 26. Système de Checks — White & Red (Disco-style)
+
+### 26.1 Formula
+
+```
+pass_chance = stat_value × 10% + base 50%
+```
+
+| Stat level | Pass chance |
+|---|---|
+| 1 (baseline) | 60% |
+| 3 | 80% |
+| 5 | 100% (auto-pass standard) |
+| 7 | 120% (auto-pass + bonus) |
+| 10 | 150% (criticité++) |
+
+**Modifiers** : cards peuvent ajouter `+modifier` temporaire (e.g. "Logic +20% pour cette carte").
+
+### 26.2 Check types
+
+| Type | Comportement | % cards |
+|---|---|---|
+| **Standard (white)** | Retry-able après level up stat. Échec = branche narrative + 3-5 PV damage. | ~75% |
+| **Contextuel** | Stat unique, pas de retry mais pas one-shot. Échec = -8 PV + bad outcome. | ~15% |
+| **Red (one-shot)** | Non-retryable JAMAIS. Échec = -15 PV ou branche permanente. | ~8% |
+| **Critique (red fatal)** | Échec = run terminate ou faction lock-out. | ~2% |
+
+### 26.3 Failure handling
+
+- Échec standard → carte génère **branche narrative alternative** + 3-5 PV damage.
+- Échec red → -15 PV + Merlin commentary acerbe.
+- Échec critique → run terminate (rare, ~2% cards).
+
+Compatible bible §5.1 HoF2-style (équilibre via card effects, pas drain auto).
+
+---
+
+## 27. Grimoire — Meta-Progression visible
+
+### 27.1 Structure : 5 sections + 1 lore (110 pages total)
+
+| Section | Pages | Trigger d'unlock | Contenu |
+|---|:---:|---|---|
+| **Druides** | 20 | Faction rep ≥ 50 | Rune-Circuits Druidiques + cards logiques + lore |
+| **Anciens** | 20 | Faction rep ≥ 50 | Volonté unlocks + cards résistance |
+| **Korrigans** | 20 | Faction rep ≥ 50 | Instinct unlocks + cards trickster |
+| **Niamh** | 20 | Faction rep ≥ 50 | Empathie unlocks + cards émotionnelles |
+| **Ankou** | 20 | Total runs ≥ 10 | Death-related cards + endgame faction route |
+| **Lore Brocéliande** | 10 | Triggers narratifs spéciaux | Histoire monde + legendes |
+
+### 27.2 Anam economy (linear)
+
+- **Premier unlock** : 10 Anam
+- **Subsequent unlocks** : +10 Anam chaque (20, 30, 40, ...)
+- **Anam gain par run** : ~10-25 (base 10 + bonus victoire +15)
+- **Total Anam pour 100% Grimoire** : ~5500 Anam (~220 runs)
+
+### 27.3 Cross-run persistence (canon v3.6)
+
+| State | Persistance |
+|---|---|
+| Anam | ✅ Persistent |
+| Grimoire unlocks | ✅ Persistent |
+| Faction rep | ✅ Persistent (reset à 0 sauf si ≥ 80 → faction route locked-in) |
+| Stats XP | ✅ Persistent (stats keep cross-run) |
+| Life | ❌ Reset à 100 each run |
+| Equipped Rune-Circuits | ✅ Persistent |
+| Active modifiers per-run | ❌ Reset |
+
+---
+
+## 28. Équilibrage Proposals v3.6
+
+### 28.1 Card pool target distribution
+
+Sur 810 cards FastRoute pool actuel :
+
+| Type | % | Count cible |
+|---|:---:|:---:|
+| Standard (white check) | 75% | 608 |
+| Contextuel | 15% | 121 |
+| Red one-shot | 8% | 65 |
+| Critique fatal | 2% | 16 |
+
+### 28.2 Run équilibrage (target 25 cartes)
+
+- Avg check pass rate first-run (stats=1) : 60% → ~15 success / 25 cartes
+- Life damage potentiel sans heal : ~10 × 4 PV = 40 PV (mort improbable first-run)
+- Anam gain estimé : 10 base + 8 boss + 4 critiques = ~22 Anam
+- Lv up estimé first-run : 25 choix × 1 XP = ~25 XP répartis = +2-3 stats moyens
+
+### 28.3 Skill expression validation (5 archétypes)
+
+| Build | Stats focus | Run signature |
+|---|---|---|
+| **Druide pur** | Logic 5+, Vol 3+ | Solve puzzles, peace via réflexion |
+| **Berserker** | Vol 5+, Ins 3+ | Force confronte, low Empathie |
+| **Diplomate** | Emp 5+, Logic 3+ | Tisse alliances factions |
+| **Survivant** | Ins 5+, Vol 3+ | Évite combats, lit signs |
+| **Polyvalent** | 3/3/3/3 | Adaptable mais médiocre partout |
+
+5 archétypes viables = système expression confirmée.
+
+---
+
+## 29. Implementation Phasing v3.6 → v8.0.0
+
+### Phase 1 (v7.7.4) — 4 stats + check formula (~6h)
+- Add `MerlinStatsSystem` autoload + persistence in profile.json
+- HUD top-right 4 icons + values
+- Check formula in `merlin_effect_engine.gd` : `stat × 10% + 50%`
+- White/red check types in card schema
+- XP per choice in `RESOLVE_CHOICE` reducer
+
+### Phase 2 (v7.7.5) — Grimoire UI + meta-progression (~8h)
+- New scene `GrimoireScreen.tscn` (callable from Hub)
+- 5 sections + 1 lore navigation
+- Anam linear cost UI
+- Faction-rep gate visual
+- 30 page unlock content (seed initial)
+
+### Phase 3 (v7.7.6) — 9 Rune-Circuits refacto (~6h)
+- Refactor `OGHAM_FULL_SPECS` 18 → 9 entries per bible §3
+- Update card schema `ogham_used` field
+- Migrate FastRoute 810 cards old→new ogham_id mapping
+
+### Phase 4 (v7.8.0) — Full release
+- All 110 Grimoire pages populated
+- Tutorial v2 (free choice, 4 stats demo cards)
+- Faction route endings (5 routes)
+- Polish + balance pass
+*v3.6 (2026-05-16) — Disco-style maitrise : 4 stats + skill checks + Grimoire meta + équilibrage formula (§25-§27)*
+
+---
+
+## 25. Système 4 Stats — Maitrise Disco-style (NON-NÉGOCIABLE)
+
+> **Source** : 16 réponses AskUserQuestion 2026-05-16 R5-R8. Inspiration : **Disco Elysium** (skill checks RPG), **Hand of Fate 2** (failure consequences), **Pentiment** (hidden background gates).
+
+### 25.1 Les 4 stats
+
+| Stat | Domaine | Faction affine | Exemples cards |
+|---|---|---|---|
+| **Logic** | Raison, déduction, observation | Druides | "Examiner les runes gravées" / "Décrypter le rêve" |
+| **Empathie** | Coeur, intuition relationnelle | Niamh | "Apaiser le korrigan" / "Lire l'âme du voyageur" |
+| **Volonté** | Discipline, résistance, courage | Anciens | "Résister à l'illusion" / "Trancher l'attache" |
+| **Instinct** | Survie animale, intuition brute | Korrigans | "Sentir la trace" / "Fuir l'ombre" |
+
+**Ankou** (5e faction) : pas de stat dédiée — agit comme **trait modifier global** (penalty/bonus selon mood).
+
+### 25.2 Stats baseline + croissance
+
+- **First-run** : tous les 4 stats = **1/10** (low baseline organique).
+- **XP par choix cohérent** (Disco-style) : chaque choix d'option = +1 XP à la stat associée.
+- **Lv up** : tous les 10 XP. Maxi 10.
+- **Persistence** : stats XP **persistent cross-run** (death penalty : faction rep reset + life reset, stats KEEP).
+- **Estimation** : ~25 runs pour atteindre Lv 5 sur une stat focused (~250 XP).
+
+### 25.3 Visibilité
+
+**HUD top-right permanent** : 4 icônes + chiffres (Logic 3 / Emp 1 / Vol 2 / Ins 4). Le joueur sait son build, construit consciemment. Bible §19.4 align.
+
+---
+
+## 26. Système de Checks — White & Red (Disco-style)
+
+> **Source** : 16 réponses AskUserQuestion R5-R8.
+
+### 26.1 Formula
+
+```
+pass_chance = stat_value × 10% + base 50%
+```
+
+| Stat level | Pass chance |
+|---|---|
+| 1 (baseline) | 60% |
+| 3 | 80% |
+| 5 | 100% (auto-pass standard) |
+| 7 | 120% (auto-pass + bonus) |
+| 10 | 150% (criticité++) |
+
+**Modifiers** : cards peuvent ajouter `+modifier` temporaire (e.g. "Logic +20% pour cette carte").
+
+### 26.2 Check types
+
+| Type | Comportement | % cards |
+|---|---|---|
+| **Standard (white)** | Retry-able après level up stat. Échec = branche narrative + 3-5 PV damage. | ~75% |
+| **Contextuel** | Stat unique, pas de retry mais pas one-shot. Échec = -8 PV + bad outcome. | ~15% |
+| **Red (one-shot)** | Non-retryable JAMAIS. Échec critique = -15 PV ou branche permanente. | ~8% |
+| **Critique (red fatal)** | Échec = run terminate ou faction lock-out. | ~2% |
+
+### 26.3 Failure handling
+
+- Échec standard → carte génère **branche narrative alternative** + 3-5 PV damage.
+- Échec red → -15 PV + Merlin commentary acerbe.
+- Échec critique → run terminate (rare, ~2% cards).
+
+Compatible bible §5.1 HoF2-style (équilibre via card effects, pas drain auto).
+
+---
+
+## 27. Grimoire — Meta-Progression visible
+
+> **Source** : 16 réponses AskUserQuestion R5-R8. Remplace l'arbre de talents v2.4.
+
+### 27.1 Structure : 5 sections + 1 lore (110 pages total)
+
+| Section | Pages | Trigger d'unlock | Contenu |
+|---|:---:|---|---|
+| **Druides** | 20 | Faction rep ≥ 50 | Rune-Circuits Druidiques + cards logiques + lore |
+| **Anciens** | 20 | Faction rep ≥ 50 | Volonté unlocks + cards résistance |
+| **Korrigans** | 20 | Faction rep ≥ 50 | Instinct unlocks + cards trickster |
+| **Niamh** | 20 | Faction rep ≥ 50 | Empathie unlocks + cards émotionnelles |
+| **Ankou** | 20 | Total runs ≥ 10 | Death-related cards + endgame faction route |
+| **Lore Brocéliande** | 10 | Triggers narratifs spéciaux | Histoire monde + legendes |
+
+### 27.2 Anam economy (linear)
+
+- **Premier unlock** : 10 Anam
+- **Subsequent unlocks** : +10 Anam chaque (20, 30, 40, ...)
+- **Anam gain par run** : ~10-25 (base 10 + bonus victoire +15)
+- **Estimation** : 5-10 unlocks par run cycle complet
+- **Total Anam pour 100% Grimoire** : ~5500 Anam (~220 runs)
+
+### 27.3 Cross-run persistence
+
+| State | Persistance |
+|---|---|
+| Anam | ✅ Persistent |
+| Grimoire unlocks | ✅ Persistent |
+| Faction rep | ✅ Persistent (reset à 0 sauf si ≥ 80 → faction route locked-in) |
+| Stats XP | ✅ Persistent (stats keep cross-run) |
+| Life | ❌ Reset à 100 each run |
+| Equipped Rune-Circuits | ✅ Persistent |
+| Active modifiers per-run | ❌ Reset |
+
+---
+
+## 28. Équilibrage Proposals v3.6
+
+### 28.1 Card pool target distribution
+
+Sur 810 cards FastRoute pool (état actuel) :
+
+| Type | % | Count cible |
+|---|:---:|:---:|
+| Standard (white check) | 75% | 608 |
+| Contextuel | 15% | 121 |
+| Red one-shot | 8% | 65 |
+| Critique fatal | 2% | 16 |
+
+### 28.2 Run équilibrage (target 25 cartes)
+
+- Avg check pass rate first-run (stats=1) : 60% → ~10 success / 25 cartes
+- Avg success score : ~70% → effects modérés
+- Life damage potentiel max sans heal : 25 × 5 PV = 125 PV → mort possible mais pas garantie (HoF2 tension via choix)
+- Anam gain estimé : 10 base + 8 boss + 4 critiques = ~22 Anam
+
+### 28.3 Skill expression validation
+
+| Build archétype | Stats focus | Run signature |
+|---|---|---|
+| **Druide pur** | Logic 5+, Vol 3+ | Solve puzzles, peace via réflexion |
+| **Berserker** | Vol 5+, Ins 3+ | Force confronte, low Empathie |
+| **Diplomate** | Emp 5+, Logic 3+ | Tisse alliances factions |
+| **Survivant** | Ins 5+, Vol 3+ | Évite combats, lit signs |
+| **Polyvalent** | 3/3/3/3 | Adaptable mais médiocre |
+
+5 archétypes viables = système expression confirmée.
+
+---
+
+## 29. Implementation Phasing v3.6 → v8.0.0
+
+### Phase 1 (v7.7.4) — 4 stats + check formula (~6h)
+- Add `MerlinStatsSystem` autoload + persistence in profile.json
+- HUD top-right 4 icons + values
+- Check formula in `merlin_effect_engine.gd` : `stat × 10% + 50%`
+- White/red check types in card schema
+- XP per choice in `RESOLVE_CHOICE` reducer
+
+### Phase 2 (v7.7.5) — Grimoire UI + meta-progression (~8h)
+- New scene `GrimoireScreen.tscn` (callable from Hub)
+- 5 sections + 1 lore navigation
+- Anam linear cost UI
+- Faction-rep gate visual
+- 30 page unlock content (seed initial)
+
+### Phase 3 (v7.7.6) — 9 Rune-Circuits refacto (~6h)
+- Refactor `OGHAM_FULL_SPECS` 18 → 9 entries per bible §3
+- Update card schema `ogham_used` field
+- Migrate FastRoute 810 cards old→new ogham_id mapping
+
+### Phase 4 (v7.8.0) — Full release
+- All 110 Grimoire pages populated
+- Tutorial v2 (free choice, 4 stats demo cards)
+- Faction route endings (5 routes)
+- Polish + balance pass
 
 ---
 
