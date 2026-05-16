@@ -2,7 +2,39 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-16 (v7.7.11 Persona UI + addons survey + bible cleanup).
+> **Last refresh**: 2026-05-16 (v7.7.14 IntroCeltOS tech → mystique refonte).
+
+---
+
+## v7.7.14 — IntroCeltOS tech → mystique refonte [2026-05-16]
+
+User instruction : *« Retravaille la scene d'intro pour qu'elle soit un mélange de boot technique rapide qui se transforme en mystique et qui respecte la DA du jeu, avec de la migration 2D vers 3D »*
+
+### Dispatch Plan
+- Wave 1 (research) : direct file analysis (read `_start_phase_*` + `_show_celtos_3d_logo`).
+- Wave 2 (impl) : 3-pool boot arc + glitch morph + improved 3D phase.
+- Wave 3 (validation) : smoke IntroCeltOS + capture.
+
+### Narrative arc (~6s total, was ~10s)
+- **Phase 2A — Tech Latin boot (~1.0s)** : 6 lines Latin tech check (BOOT CeltOS, LOAD DRUID_CORE, INIT RUNE_CIRCUITS 9/9, etc.) — fast pace 0.10s/line
+- **Phase 2B — Morph glitch (~0.8s)** : 3 lines Latin+Ogham mix, glitch flash overlay
+- **Phase 2C — Pure mystique (~1.0s)** : 3 lines pure Ogham (le voile tech tombe)
+- **Phase 3 — 2D→3D rise (~2.5s)** : 2D Ogham scales/tilts, crossfade to 3D SubViewport with CeltOS logo + 2 standing stones cel-shaded outline noir
+
+### Implementation
+- [x] Add `BOOT_LOG_POOL_LATIN` (10) + `BOOT_LOG_POOL_MORPH` (3) — kept Ogham pool (12)
+- [ ] Update `_pick_random_logs()` to compose Latin → Morph → Ogham sequence
+- [ ] Add glitch flash overlay between Latin and Morph
+- [ ] Improve `_show_celtos_3d_logo()` : 2 standing stones flanking + CelShadingManager outline
+- [ ] Smoke + capture + commit + push
+
+### Compliance
+- ACTION 1 design_sprint : ui-ux-pro-max + verification active in session
+- ACTION 2/3 dispatcher : read, plan inline (no formal agent dispatch — UI tactical work, current session has all context)
+- ACTION 4 task_plan : this section ✓
+- ACTION 5 learn-eval : at end of work
+
+---
 
 ---
 

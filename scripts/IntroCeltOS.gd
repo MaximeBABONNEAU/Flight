@@ -23,9 +23,31 @@ const LOGO_GRID := [
 const BOOT_HEADER := "᚛  ᚉᚓᚂᚈᚑᚄ ᚃ.ᚐᚁ  ᚜    [ ᚏᚓᚇᚍ ]"
 const BOOT_FINAL := "᚛  ᚉᚓᚂᚈᚑᚄ  ·  ᚄᚊᚄᚈᚓᚋ ᚏᚓᚇᚍ  ᚜"
 
-# Celtic code: Ogham letters (U+1680..) + runes (Elder Futhark U+16A0..) + glyphs.
-# Each line is a "system load" message in pure druidic script — undecipherable
-# but visually evocative (the player feels it, not reads it).
+# v7.7.14 — Boot arc : tech Latin (fast) → glitch morph → mystique Ogham
+# User intent : « mélange de boot technique rapide qui se transforme en mystique »
+#
+# Pool 1 : Latin tech check (fast, terminal, "computer booting")
+const BOOT_LOG_POOL_LATIN := [
+	"BOOT CeltOS v0.7  · · ·  [OK]",
+	"LOAD DRUID_CORE  · · ·  [OK]",
+	"INIT RUNE_CIRCUITS  · · ·  [9/9]",
+	"VERIFY BIOME_MAPS  · · ·  [8/8]",
+	"MOUNT BROCELIANDE.fs  · · ·  [OK]",
+	"CONNECT MERLIN_LLM  · · ·  [OK]",
+	"AUTH DRUID_TOKEN  · · ·  [VALID]",
+	"SCAN FACTIONS  · · ·  [5/5]",
+	"SYNC ANAM_STATE  · · ·  [OK]",
+	"INIT FATE_SEED  · · ·  [ENTROPY OK]",
+]
+
+# Pool 2 : Morph (Latin glitching into Ogham — transition into mystique)
+const BOOT_LOG_POOL_MORPH := [
+	"AWAKEN ᚉᚑᚍSCIᚑᚒᚄᚌᚓᚄᚄ  · · ·  [...]",
+	"ᚊ ᚒ ᚐ ᚂᚐ ᚇ  CREATED  · · ·  [DONE]",
+	"WHAT DREAMS ᚇᚏᚓᚐᚋ COME  ·  [—]",
+]
+
+# Pool 3 : Pure mystical Ogham (le voile tech tombe — pure druidic script).
 const BOOT_LOG_POOL := [
 	"᚛ ᚂ ᚐ ᚇ ᚌ ᚏ ᚎ ᚜  · · ·  [ ᚏᚓᚇᚍ ]",
 	"ᚉ ᚐ ᚂ ᚊ ᚒ ᚄ ᚐ ᚍ ᚊ ᚏ ᚓ  · · ·  [ ᚉ ]",
@@ -128,12 +150,28 @@ func _show_autoload(autoload_name: String) -> void:
 		node.visible = true
 
 
+## v7.7.14 — Boot arc : 6 Latin + 3 Morph + 3 Ogham (total LOG_COUNT=12).
+## Composes the tech → glitch → mystique narrative per user intent.
 func _pick_random_logs() -> void:
-	var pool := BOOT_LOG_POOL.duplicate()
-	pool.shuffle()
 	_selected_logs.clear()
-	for i in range(mini(LOG_COUNT, pool.size())):
-		_selected_logs.append(pool[i])
+	# Phase A : 6 Latin tech check lines (fast, terminal)
+	var latin_pool := BOOT_LOG_POOL_LATIN.duplicate()
+	latin_pool.shuffle()
+	for i in range(min(6, latin_pool.size())):
+		_selected_logs.append(latin_pool[i])
+	# Phase B : 3 Morph lines (Latin glitching into Ogham)
+	var morph_pool := BOOT_LOG_POOL_MORPH.duplicate()
+	morph_pool.shuffle()
+	for i in range(min(3, morph_pool.size())):
+		_selected_logs.append(morph_pool[i])
+	# Phase C : 3 pure Ogham lines (le voile tombe)
+	var ogham_pool := BOOT_LOG_POOL.duplicate()
+	ogham_pool.shuffle()
+	for i in range(min(3, ogham_pool.size())):
+		_selected_logs.append(ogham_pool[i])
+	# Defensive : pad with Ogham fallback if pools were too small
+	while _selected_logs.size() < LOG_COUNT and not ogham_pool.is_empty():
+		_selected_logs.append(ogham_pool[_selected_logs.size() % ogham_pool.size()])
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -335,9 +373,15 @@ func _start_phase_2() -> void:
 	tween.tween_interval(0.25)
 
 	# Type each log line progressively using tween (no loose timers)
+	# v7.7.14 — Inject glitch flash at i=6 (Latin → Morph) and i=9 (Morph → Ogham)
+	# to make the "tech veil falls into mystique" arc visceral.
 	for i in range(_log_labels.size()):
 		var label: Label = _log_labels[i]
 		var line_text: String = _selected_logs[i]
+		# v7.7.14 — Glitch flash at narrative boundaries
+		if i == 6 or i == 9:
+			tween.tween_callback(_play_phase_glitch_flash)
+			tween.tween_interval(0.18)
 		# Show command part
 		tween.tween_callback(func() -> void:
 			if not is_instance_valid(label):
@@ -369,6 +413,34 @@ func _start_phase_2() -> void:
 
 	tween.tween_interval(0.3)
 	tween.tween_callback(_start_phase_3)
+
+
+## v7.7.14 — Glitch flash overlay : cyan + red ColorRect bands flash briefly
+## at boot arc boundaries (Latin→Morph and Morph→Ogham). Mimics CRT signal
+## interference for the "tech veil falls into mystique" moment.
+## Code-review HIGH-1 fix : use offset_left/right for jitter (position.x is
+## a no-op when anchors stretch the rect full-width).
+func _play_phase_glitch_flash() -> void:
+	for band_color in [Color(0.0, 1.0, 1.0, 0.30), Color(1.0, 0.10, 0.20, 0.30)]:
+		var band := ColorRect.new()
+		band.color = band_color
+		band.anchor_left = 0.0
+		band.anchor_right = 1.0
+		band.anchor_top = 0.0
+		band.anchor_bottom = 1.0
+		# Horizontal jitter via offsets (preserves stretch + adds visible shift)
+		var jitter: float = randf_range(-12.0, 12.0)
+		band.offset_left = jitter
+		band.offset_right = jitter
+		band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(band)
+		var bt := create_tween().bind_node(band)
+		bt.tween_interval(0.06)
+		bt.tween_property(band, "modulate:a", 0.0, 0.12).set_trans(Tween.TRANS_LINEAR)
+		bt.tween_callback(func() -> void:
+			if is_instance_valid(band):
+				band.queue_free()
+		)
 
 
 # ============================================================
@@ -481,10 +553,42 @@ func _show_celtos_3d_logo() -> void:
 	lbl.position = Vector3.ZERO
 	sv.add_child(lbl)
 
+	# v7.7.14 — 2 standing stones flanking the logo for Celtic mystique
+	# (DA respect : low-poly with strong emission gold rim for outline-like feel).
+	# Code-review HIGH-2 fix : moved z to 0.0 (origin plane) for guaranteed frustum
+	# inclusion at fov=35, camera z=4. Reduced x_offset to ±1.55 for safe margin.
+	# Code-review MEDIUM fix : emission energy bumped 0.18 → 0.65 for visibility.
+	var stones_root := Node3D.new()
+	stones_root.name = "StandingStones"
+	stones_root.position = Vector3(0.0, -1.2, 0.0)
+	stones_root.scale = Vector3(0.001, 0.001, 0.001)
+	sv.add_child(stones_root)
+	for stone_idx in range(2):
+		var stone := MeshInstance3D.new()
+		stone.name = "Stone_%d" % stone_idx
+		var stone_mesh := BoxMesh.new()
+		stone_mesh.size = Vector3(0.55, 1.95, 0.40)
+		stone.mesh = stone_mesh
+		var stone_mat := StandardMaterial3D.new()
+		stone_mat.albedo_color = Color(0.32, 0.28, 0.22)
+		stone_mat.metallic = 0.05
+		stone_mat.roughness = 0.92
+		stone_mat.emission_enabled = true
+		stone_mat.emission = Color(0.85, 0.62, 0.22)
+		stone_mat.emission_energy_multiplier = 0.65
+		stone.material_override = stone_mat
+		var x_offset := -1.55 if stone_idx == 0 else 1.55
+		stone.position = Vector3(x_offset, 0.0, 0.0)
+		stone.rotation.z = (0.04 if stone_idx == 0 else -0.04)
+		stones_root.add_child(stone)
+
 	var fx_tween: Tween = create_tween().set_parallel(true)
 	fx_tween.tween_property(container, "modulate:a", 1.0, 0.5).set_trans(Tween.TRANS_SINE)
 	fx_tween.tween_property(lbl, "scale", Vector3(1, 1, 1), 1.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	fx_tween.tween_property(lbl, "rotation:y", TAU, 3.6).set_trans(Tween.TRANS_CUBIC)
+	# v7.7.14 — Standing stones rise in sync with logo (slight delay for stagger)
+	fx_tween.tween_property(stones_root, "scale", Vector3.ONE, 1.4) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(0.3)
 
 	await get_tree().create_timer(4.0).timeout
 
