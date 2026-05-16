@@ -89,31 +89,10 @@ func _build_3d_scene() -> void:
 	add_child(key)
 	key.look_at_from_position(Vector3(-2.0, 3.5, 2.0), Vector3.ZERO, Vector3.UP)
 
-	var title := Label3D.new()
-	title.name = "Title"
-	title.text = "M.E.R.L.I.N."
-	title.font_size = 96
-	title.outline_size = 10
-	title.modulate = Color(0.96, 0.85, 0.45)
-	title.outline_modulate = Color(0.08, 0.04, 0.02, 1.0)
-	title.pixel_size = 0.0042
-	title.no_depth_test = true
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector3(0, 0.55, 0)
-	add_child(title)
-
-	var sub := Label3D.new()
-	sub.name = "Subtitle"
-	sub.text = "— Le Jeu des Oghams —"
-	sub.font_size = 36
-	sub.outline_size = 4
-	sub.modulate = Color(0.72, 0.62, 0.40, 0.92)
-	sub.outline_modulate = Color(0.05, 0.03, 0.01, 1.0)
-	sub.pixel_size = 0.0035
-	sub.no_depth_test = true
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.position = Vector3(0, 0.10, 0)
-	add_child(sub)
+	# v7.7.2.3 — 3D title + subtitle Label3D REMOVED per user feedback "le titre
+	# est doublé". The 2D Label in CanvasLayer (built in _build_ui) is now the
+	# sole visible title. The 3D scene keeps only the warm ambient lighting +
+	# directional key light as the background mood — no in-scene text nodes.
 
 
 # ─── 2D UI overlay (single TESTER button) ────────────────────────────────────
