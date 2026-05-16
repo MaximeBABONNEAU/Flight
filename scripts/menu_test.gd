@@ -215,6 +215,7 @@ func _build_ui() -> void:
 
 	# Footer minimal — pas de subtitle.
 	var hint := Label.new()
+	hint.name = "Hint"
 	hint.text = "Le sage t'attend"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.anchor_left = 0.0
@@ -224,6 +225,175 @@ func _build_ui() -> void:
 	hint.add_theme_font_size_override("font_size", 13)
 	hint.add_theme_color_override("font_color", Color(0.45, 0.38, 0.30, 0.55))
 	_ui.add_child(hint)
+
+	# v7.7.12 — Ambient dust particles (8 floating gold motes drift upward).
+	_build_dust_particles(p_gold)
+
+	# v7.7.12 — Hover/leave FX on button (scale + stripe expansion).
+	btn.mouse_entered.connect(_on_btn_hover.bind(btn_box, stripe))
+	btn.mouse_exited.connect(_on_btn_leave.bind(btn_box, stripe))
+
+	# v7.7.12 — Intro reveal animation + idle loops.
+	_animate_intro_reveal()
+	_start_idle_loops()
+
+
+## v7.7.12 — 8 floating gold dust motes drifting upward.
+## Zero asset cost. Adds ambient motion without overwhelming the layout.
+var _dust_particles: Array[ColorRect] = []
+
+func _build_dust_particles(gold: Color) -> void:
+	var layer := Control.new()
+	layer.name = "DustLayer"
+	layer.anchor_left = 0.0
+	layer.anchor_right = 1.0
+	layer.anchor_top = 0.0
+	layer.anchor_bottom = 1.0
+	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(layer)
+	_ui.move_child(layer, 0)   # behind everything else
+	var vp_size: Vector2 = get_viewport().get_visible_rect().size
+	for i in range(8):
+		var mote := ColorRect.new()
+		mote.name = "Mote_%d" % i
+		mote.color = gold
+		mote.modulate = Color(1, 1, 1, randf_range(0.12, 0.32))
+		mote.custom_minimum_size = Vector2(randf_range(2.0, 5.0), randf_range(2.0, 5.0))
+		mote.size = mote.custom_minimum_size
+		mote.position = Vector2(
+			randf_range(40.0, vp_size.x - 40.0),
+			randf_range(vp_size.y * 0.4, vp_size.y - 40.0)
+		)
+		mote.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.add_child(mote)
+		_dust_particles.append(mote)
+		_animate_dust_mote(mote, vp_size)
+
+
+## Single dust mote : drift upward + horizontal sway + alpha pulse. Recursive loop.
+func _animate_dust_mote(mote: ColorRect, vp_size: Vector2) -> void:
+	if not is_instance_valid(mote):
+		return
+	var duration: float = randf_range(8.0, 14.0)
+	var sway: float = randf_range(-30.0, 30.0)
+	var target_y: float = -20.0
+	var target_x: float = mote.position.x + sway
+	var alpha_peak: float = randf_range(0.25, 0.55)
+	var tw := create_tween().bind_node(mote).set_parallel(true)
+	tw.tween_property(mote, "position:y", target_y, duration) \
+		.set_trans(Tween.TRANS_SINE)
+	tw.tween_property(mote, "position:x", target_x, duration) \
+		.set_trans(Tween.TRANS_SINE)
+	tw.chain().tween_property(mote, "modulate:a", alpha_peak, duration * 0.25)
+	tw.tween_property(mote, "modulate:a", alpha_peak, duration * 0.50)
+	tw.tween_property(mote, "modulate:a", 0.0, duration * 0.25)
+	tw.tween_callback(func() -> void:
+		if not is_instance_valid(mote):
+			return
+		mote.position = Vector2(randf_range(40.0, vp_size.x - 40.0), vp_size.y + 20.0)
+		mote.modulate.a = 0.0
+		_animate_dust_mote(mote, vp_size)
+	)
+
+
+## Intro reveal — slashes draw L→R, title pulses in, button slides up, hint fades.
+## Total ~1.6s. Each element starts hidden in _build_ui and is revealed here.
+func _animate_intro_reveal() -> void:
+	var slash_gold := _ui.get_node_or_null("AccentGold") as ColorRect
+	var slash_crimson := _ui.get_node_or_null("AccentCrimson") as ColorRect
+	var title := _ui.get_node_or_null("Title2D") as Label
+	var btn_box := _ui.get_node_or_null("BtnContainer") as Control
+	var hint := _ui.get_node_or_null("Hint") as Label
+	# Initial hidden state.
+	if slash_gold != null:
+		slash_gold.scale = Vector2(0.02, 1.0)
+		slash_gold.pivot_offset = Vector2.ZERO
+	if slash_crimson != null:
+		slash_crimson.scale = Vector2(0.02, 1.0)
+		slash_crimson.pivot_offset = Vector2.ZERO
+	if title != null:
+		title.modulate.a = 0.0
+		title.scale = Vector2(0.88, 0.88)
+		title.pivot_offset = title.size * 0.5
+	if btn_box != null:
+		btn_box.modulate.a = 0.0
+		btn_box.offset_top = -42.0 + 60.0
+		btn_box.offset_bottom = 42.0 + 60.0
+	if hint != null:
+		hint.modulate.a = 0.0
+	# Sequenced reveal via parallel tween + delays.
+	var t := create_tween().bind_node(self).set_parallel(true)
+	if slash_gold != null:
+		t.tween_property(slash_gold, "scale", Vector2.ONE, 0.55) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT).set_delay(0.05)
+	if slash_crimson != null:
+		t.tween_property(slash_crimson, "scale", Vector2.ONE, 0.55) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT).set_delay(0.18)
+	if title != null:
+		t.tween_property(title, "modulate:a", 1.0, 0.50) \
+			.set_trans(Tween.TRANS_SINE).set_delay(0.40)
+		t.tween_property(title, "scale", Vector2.ONE, 0.55) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(0.40)
+	if btn_box != null:
+		t.tween_property(btn_box, "modulate:a", 1.0, 0.40) \
+			.set_trans(Tween.TRANS_SINE).set_delay(0.90)
+		t.tween_property(btn_box, "offset_top", -42.0, 0.45) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT).set_delay(0.90)
+		t.tween_property(btn_box, "offset_bottom", 42.0, 0.45) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT).set_delay(0.90)
+	if hint != null:
+		t.tween_property(hint, "modulate:a", 1.0, 0.40) \
+			.set_trans(Tween.TRANS_SINE).set_delay(1.20)
+
+
+## Idle loops — title breath, slash shimmer, hint pulse. All looped via set_loops().
+func _start_idle_loops() -> void:
+	var title := _ui.get_node_or_null("Title2D") as Label
+	var slash_gold := _ui.get_node_or_null("AccentGold") as ColorRect
+	var slash_crimson := _ui.get_node_or_null("AccentCrimson") as ColorRect
+	var hint := _ui.get_node_or_null("Hint") as Label
+	if title != null:
+		var t_title := create_tween().bind_node(title).set_loops()
+		t_title.tween_interval(1.8)
+		t_title.tween_property(title, "scale", Vector2(1.015, 1.015), 1.6) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		t_title.tween_property(title, "scale", Vector2.ONE, 1.6) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if slash_gold != null:
+		var t_gold := create_tween().bind_node(slash_gold).set_loops()
+		t_gold.tween_interval(1.0)
+		t_gold.tween_property(slash_gold, "modulate:a", 1.0, 2.0).set_trans(Tween.TRANS_SINE)
+		t_gold.tween_property(slash_gold, "modulate:a", 0.92, 2.0).set_trans(Tween.TRANS_SINE)
+	if slash_crimson != null:
+		var t_crim := create_tween().bind_node(slash_crimson).set_loops()
+		t_crim.tween_interval(1.6)
+		t_crim.tween_property(slash_crimson, "modulate:a", 0.72, 1.75).set_trans(Tween.TRANS_SINE)
+		t_crim.tween_property(slash_crimson, "modulate:a", 0.88, 1.75).set_trans(Tween.TRANS_SINE)
+	if hint != null:
+		var t_hint := create_tween().bind_node(hint).set_loops()
+		t_hint.tween_interval(2.0)
+		t_hint.tween_property(hint, "modulate:a", 0.78, 2.0).set_trans(Tween.TRANS_SINE)
+		t_hint.tween_property(hint, "modulate:a", 0.55, 2.0).set_trans(Tween.TRANS_SINE)
+
+
+## Hover : scale punch on button + stripe expansion (6 → 10 px).
+func _on_btn_hover(btn_box: Control, stripe: ColorRect) -> void:
+	if not is_instance_valid(btn_box) or not is_instance_valid(stripe):
+		return
+	var t := create_tween().bind_node(btn_box).set_parallel(true)
+	t.tween_property(btn_box, "scale", Vector2(1.04, 1.04), 0.15) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(stripe, "offset_right", 10.0, 0.18) \
+		.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+
+
+## Hover-leave : restore scale + stripe.
+func _on_btn_leave(btn_box: Control, stripe: ColorRect) -> void:
+	if not is_instance_valid(btn_box) or not is_instance_valid(stripe):
+		return
+	var t := create_tween().bind_node(btn_box).set_parallel(true)
+	t.tween_property(btn_box, "scale", Vector2.ONE, 0.20).set_trans(Tween.TRANS_SINE)
+	t.tween_property(stripe, "offset_right", 6.0, 0.20).set_trans(Tween.TRANS_SINE)
 
 
 func _on_tester_pressed() -> void:
