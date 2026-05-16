@@ -6,6 +6,31 @@
 
 ---
 
+## v7.7.15 — Menu boot construction + Plateau dark arrival + Merlin sound bar + 8 biomes stylés [2026-05-16]
+
+Plan : `~/.claude/plans/kind-humming-peach.md` (user approved).
+
+### Shipped
+- **v7.7.15a** (`7c666b62`) :
+  - Phase B : project.godot main_scene → MenuTest, max_fps=60, vsync_mode=1 explicit
+  - Phase A : menu_test.gd boot prelude (~0.85s) — scanline expand, 5 BIOS lines pop, glitch flash
+  - Phase E : 8 biome buttons stylés per palette + Ogham glyph icon, dev_unlock_all_biomes=true
+- **v7.7.15b** (`32b757c8`) :
+  - Phase D : NEW merlin_sound_bar.gd — 12 BoxMesh bars + pulse/start/stop_speaking API
+  - Phase D wiring : _typewriter_narration pulses sound bar per char
+  - Phase C : _phase_intro dark room arrival — all lights start at 0, 0.35s darkness, spotlight ramp + 60 particle GPUParticles3D burst
+
+### Captures
+- `tools/autodev/captures/v7_7_15a_boot_prelude/` : MenuTest boot construction
+- `tools/autodev/captures/v7_7_15a_biomes/` : 8 styled biome buttons
+- `tools/autodev/captures/v7_7_15b_dark_sound/` : sound bar visible at back, biomes styled
+
+### User decisions (locked in plan)
+- IntroCeltOS supprimé du boot — main_scene direct vers MenuTest
+- 8 biomes débloqués pour la démo via `dev_unlock_all_biomes := true`
+
+---
+
 ## v7.7.14 — IntroCeltOS tech → mystique refonte [2026-05-16]
 
 User instruction : *« Retravaille la scene d'intro pour qu'elle soit un mélange de boot technique rapide qui se transforme en mystique et qui respecte la DA du jeu, avec de la migration 2D vers 3D »*
