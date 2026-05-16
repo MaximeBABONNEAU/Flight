@@ -29,9 +29,14 @@ var _is_open: bool = false
 
 func _ready() -> void:
 	layer = 101  # Above ScreenEffects (100), always on top
-	# Demo mode hides debug overlays (no Scenes panel visible to player).
+	# v7.7.13 — Hidden by default per user 2026-05-16 :
+	# « Enleve le selecteur de scene qui est présent dans chaque scene »
+	# Show ONLY when explicit dev flag --debug-scenes (or env MERLIN_DEBUG_SCENES).
+	# INVERTED logic : was visible-by-default with --demo opt-out, now hidden-by-default
+	# with --debug-scenes opt-in.
 	var args: PackedStringArray = OS.get_cmdline_user_args()
-	if args.has("--demo") or OS.has_environment("MERLIN_DEMO"):
+	var dev_force_show := args.has("--debug-scenes") or OS.has_environment("MERLIN_DEBUG_SCENES")
+	if not dev_force_show:
 		visible = false
 		set_process(false)
 		set_process_input(false)

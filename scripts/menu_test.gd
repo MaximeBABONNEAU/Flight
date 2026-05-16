@@ -296,84 +296,262 @@ func _animate_dust_mote(mote: ColorRect, vp_size: Vector2) -> void:
 	)
 
 
-## Intro reveal — slashes draw L→R, title pulses in, button slides up, hint fades.
-## Total ~1.6s. Each element starts hidden in _build_ui and is revealed here.
+## v7.7.13 — DIGITAL intro reveal (replaces smooth cinematic version).
+## User feedback : « Il faut que les animations soient digitales »
+##
+## Technique : motion is QUANTIZED to discrete steps (no smooth lerp), text
+## appears via TYPEWRITER (char by char), glitch flash 1-frame chromatic offset,
+## cursor blink after typing. Total ~1.8s. Feels like a computer redrawing
+## the UI, not a Hollywood cinematic.
+const TITLE_FULL := "M.E.R.L.I.N."
+const TITLE_TYPEWRITER_INTERVAL := 0.075   # 75ms per char = staccato terminal feel
+const SLASH_STEP_COUNT := 8                # slash draws in 8 hard jumps
+const SLASH_STEP_DURATION := 0.075         # 75ms per step → 0.6s total
+
+var _typewriter_timer: Timer = null
+var _typewriter_idx: int = 0
+var _cursor_blink_timer: Timer = null
+var _scanline_overlay: ColorRect = null
+
 func _animate_intro_reveal() -> void:
 	var slash_gold := _ui.get_node_or_null("AccentGold") as ColorRect
 	var slash_crimson := _ui.get_node_or_null("AccentCrimson") as ColorRect
 	var title := _ui.get_node_or_null("Title2D") as Label
 	var btn_box := _ui.get_node_or_null("BtnContainer") as Control
 	var hint := _ui.get_node_or_null("Hint") as Label
-	# Initial hidden state.
+	# Initial hidden state. Note : digital = instant snaps, no soft fades.
 	if slash_gold != null:
-		slash_gold.scale = Vector2(0.02, 1.0)
+		slash_gold.scale = Vector2(0.0, 1.0)
 		slash_gold.pivot_offset = Vector2.ZERO
 	if slash_crimson != null:
-		slash_crimson.scale = Vector2(0.02, 1.0)
+		slash_crimson.scale = Vector2(0.0, 1.0)
 		slash_crimson.pivot_offset = Vector2.ZERO
 	if title != null:
-		title.modulate.a = 0.0
-		title.scale = Vector2(0.88, 0.88)
-		title.pivot_offset = title.size * 0.5
+		title.text = ""                        # start blank for typewriter
+		title.modulate.a = 1.0                  # full alpha — text reveal is per-char
+		title.scale = Vector2.ONE
 	if btn_box != null:
 		btn_box.modulate.a = 0.0
-		btn_box.offset_top = -42.0 + 60.0
-		btn_box.offset_bottom = 42.0 + 60.0
+		btn_box.offset_top = -42.0
+		btn_box.offset_bottom = 42.0
 	if hint != null:
 		hint.modulate.a = 0.0
-	# Sequenced reveal via parallel tween + delays.
-	var t := create_tween().bind_node(self).set_parallel(true)
+
+	# Build the always-on scanline overlay (subtle CRT feel).
+	_build_scanline_overlay()
+
+	# Phase 1 : stepped slash draws (gold @ 0.05s, crimson @ 0.20s)
 	if slash_gold != null:
-		t.tween_property(slash_gold, "scale", Vector2.ONE, 0.55) \
-			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT).set_delay(0.05)
+		_animate_stepped_slash(slash_gold, 0.05)
 	if slash_crimson != null:
-		t.tween_property(slash_crimson, "scale", Vector2.ONE, 0.55) \
-			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT).set_delay(0.18)
+		_animate_stepped_slash(slash_crimson, 0.20)
+
+	# Phase 2 : typewriter title (starts @ 0.70s, after slashes settle)
 	if title != null:
-		t.tween_property(title, "modulate:a", 1.0, 0.50) \
-			.set_trans(Tween.TRANS_SINE).set_delay(0.40)
-		t.tween_property(title, "scale", Vector2.ONE, 0.55) \
-			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(0.40)
+		_typewriter_idx = 0
+		_typewriter_timer = Timer.new()
+		_typewriter_timer.wait_time = TITLE_TYPEWRITER_INTERVAL
+		_typewriter_timer.one_shot = false
+		add_child(_typewriter_timer)
+		_typewriter_timer.timeout.connect(_on_typewriter_tick.bind(title))
+		# Delay start
+		get_tree().create_timer(0.70).timeout.connect(func() -> void:
+			if is_instance_valid(_typewriter_timer):
+				_typewriter_timer.start()
+		)
+
+	# Phase 3 : glitch flash @ 0.65s (just before title types — sets up reveal)
+	get_tree().create_timer(0.65).timeout.connect(_play_glitch_flash)
+
+	# Phase 4 : button hard-snap appear @ 1.55s with jitter
 	if btn_box != null:
-		t.tween_property(btn_box, "modulate:a", 1.0, 0.40) \
-			.set_trans(Tween.TRANS_SINE).set_delay(0.90)
-		t.tween_property(btn_box, "offset_top", -42.0, 0.45) \
-			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT).set_delay(0.90)
-		t.tween_property(btn_box, "offset_bottom", 42.0, 0.45) \
-			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT).set_delay(0.90)
+		get_tree().create_timer(1.55).timeout.connect(func() -> void:
+			if not is_instance_valid(btn_box):
+				return
+			# Hard snap alpha 0→1 (no fade), then 2-frame horizontal jitter
+			btn_box.modulate.a = 1.0
+			var jt := create_tween().bind_node(btn_box)
+			jt.tween_property(btn_box, "position:x", btn_box.position.x + 6.0, 0.05) \
+				.set_trans(Tween.TRANS_LINEAR)
+			jt.tween_property(btn_box, "position:x", btn_box.position.x - 4.0, 0.05) \
+				.set_trans(Tween.TRANS_LINEAR)
+			jt.tween_property(btn_box, "position:x", btn_box.position.x, 0.05) \
+				.set_trans(Tween.TRANS_LINEAR)
+		)
+
+	# Phase 5 : hint hard-snap @ 1.75s
 	if hint != null:
-		t.tween_property(hint, "modulate:a", 1.0, 0.40) \
-			.set_trans(Tween.TRANS_SINE).set_delay(1.20)
+		get_tree().create_timer(1.75).timeout.connect(func() -> void:
+			if is_instance_valid(hint):
+				hint.modulate.a = 0.55
+		)
 
 
-## Idle loops — title breath, slash shimmer, hint pulse. All looped via set_loops().
+## Stepped slash draw : quantize scale.x to discrete steps via Timer ticks
+## (not smooth tween). Each step is a HARD jump — visibly digital.
+func _animate_stepped_slash(slash: ColorRect, start_delay: float) -> void:
+	for step in range(SLASH_STEP_COUNT + 1):
+		var target_scale_x: float = float(step) / float(SLASH_STEP_COUNT)
+		var delay: float = start_delay + float(step) * SLASH_STEP_DURATION
+		get_tree().create_timer(delay).timeout.connect(func() -> void:
+			if is_instance_valid(slash):
+				slash.scale.x = target_scale_x
+		)
+
+
+## Typewriter tick : append one character to title. Append cursor "_" while typing,
+## remove at end. Plays mechanical/terminal feel.
+func _on_typewriter_tick(title: Label) -> void:
+	if not is_instance_valid(title) or not is_instance_valid(_typewriter_timer):
+		return
+	if _typewriter_idx >= TITLE_FULL.length():
+		# Done typing — stop timer, start cursor blink
+		_typewriter_timer.stop()
+		_typewriter_timer.queue_free()
+		_typewriter_timer = null
+		_start_cursor_blink(title)
+		return
+	_typewriter_idx += 1
+	# Show characters typed so far + blinking cursor placeholder
+	title.text = TITLE_FULL.substr(0, _typewriter_idx) + "_"
+
+
+## After typewriter completes, cursor "_" blinks for ~2s then disappears.
+func _start_cursor_blink(title: Label) -> void:
+	if not is_instance_valid(title):
+		return
+	_cursor_blink_timer = Timer.new()
+	_cursor_blink_timer.wait_time = 0.30
+	_cursor_blink_timer.one_shot = false
+	add_child(_cursor_blink_timer)
+	var blink_count: int = 0
+	_cursor_blink_timer.timeout.connect(func() -> void:
+		if not is_instance_valid(title) or not is_instance_valid(_cursor_blink_timer):
+			return
+		blink_count += 1
+		var show_cursor := (blink_count % 2 == 0)
+		title.text = TITLE_FULL + ("_" if show_cursor else "")
+		if blink_count >= 6:   # 6 ticks * 0.3s = 1.8s of blinking
+			title.text = TITLE_FULL    # final clean state
+			_cursor_blink_timer.stop()
+			_cursor_blink_timer.queue_free()
+			_cursor_blink_timer = null
+	)
+	_cursor_blink_timer.start()
+
+
+## Glitch flash : 2 short colored rectangles offset L/R for 1-2 frames.
+## Simulates RGB chromatic split. Cyan/Red bands flash briefly.
+func _play_glitch_flash() -> void:
+	if _ui == null:
+		return
+	for band_color in [Color(0.0, 1.0, 1.0, 0.25), Color(1.0, 0.1, 0.2, 0.25)]:
+		var band := ColorRect.new()
+		band.name = "GlitchBand"
+		band.color = band_color
+		band.anchor_left = 0.0; band.anchor_right = 1.0
+		band.anchor_top = 0.20; band.anchor_bottom = 0.38
+		band.position.x = randf_range(-8.0, 8.0)
+		band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ui.add_child(band)
+		var bt := create_tween().bind_node(band)
+		bt.tween_interval(0.05)
+		bt.tween_property(band, "modulate:a", 0.0, 0.10).set_trans(Tween.TRANS_LINEAR)
+		bt.tween_callback(func() -> void:
+			if is_instance_valid(band):
+				band.queue_free()
+		)
+
+
+## Always-on scanline overlay : subtle horizontal stripes via shader-less pattern.
+## Built from 60 thin ColorRects spread across viewport. Total alpha ~5%.
+func _build_scanline_overlay() -> void:
+	if _ui == null:
+		return
+	_scanline_overlay = ColorRect.new()
+	_scanline_overlay.name = "ScanlineOverlay"
+	_scanline_overlay.color = Color(0.0, 0.0, 0.0, 0.0)
+	_scanline_overlay.anchor_left = 0.0
+	_scanline_overlay.anchor_right = 1.0
+	_scanline_overlay.anchor_top = 0.0
+	_scanline_overlay.anchor_bottom = 1.0
+	_scanline_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(_scanline_overlay)
+	var vp_size: Vector2 = get_viewport().get_visible_rect().size
+	var line_count: int = int(vp_size.y / 3.0)   # one line every 3px
+	for i in range(line_count):
+		var line := ColorRect.new()
+		line.color = Color(0.0, 0.0, 0.0, 0.07)
+		line.size = Vector2(vp_size.x, 1.0)
+		line.position = Vector2(0.0, float(i) * 3.0)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_scanline_overlay.add_child(line)
+	# Subtle flicker on the whole overlay
+	var sf := create_tween().bind_node(_scanline_overlay).set_loops()
+	sf.tween_property(_scanline_overlay, "modulate:a", 0.85, 1.4).set_trans(Tween.TRANS_LINEAR)
+	sf.tween_property(_scanline_overlay, "modulate:a", 1.0, 1.4).set_trans(Tween.TRANS_LINEAR)
+
+
+## v7.7.13 — DIGITAL idle loops (replaces smooth sinusoidal).
+## Title : random flicker (alpha 1.0 → 0.94 → 1.0) at irregular intervals.
+## Slashes : STEPPED alpha changes (4 discrete levels, hard jumps).
+## Hint : binary alpha toggle (on/off at 1.2s interval).
 func _start_idle_loops() -> void:
 	var title := _ui.get_node_or_null("Title2D") as Label
 	var slash_gold := _ui.get_node_or_null("AccentGold") as ColorRect
 	var slash_crimson := _ui.get_node_or_null("AccentCrimson") as ColorRect
 	var hint := _ui.get_node_or_null("Hint") as Label
+
+	# Title flicker — random brief dim every 2-4s (digital "signal interference")
 	if title != null:
-		var t_title := create_tween().bind_node(title).set_loops()
-		t_title.tween_interval(1.8)
-		t_title.tween_property(title, "scale", Vector2(1.015, 1.015), 1.6) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		t_title.tween_property(title, "scale", Vector2.ONE, 1.6) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_schedule_title_flicker(title)
+
+	# Gold slash : stepped alpha 0.92 → 0.96 → 1.0 → 0.96 → 0.92 (4 levels, hard jumps)
 	if slash_gold != null:
 		var t_gold := create_tween().bind_node(slash_gold).set_loops()
-		t_gold.tween_interval(1.0)
-		t_gold.tween_property(slash_gold, "modulate:a", 1.0, 2.0).set_trans(Tween.TRANS_SINE)
-		t_gold.tween_property(slash_gold, "modulate:a", 0.92, 2.0).set_trans(Tween.TRANS_SINE)
+		t_gold.tween_interval(0.8)
+		# Each "tween" is instant (TRANS_LINEAR + duration 0.001 — hard jump)
+		t_gold.tween_property(slash_gold, "modulate:a", 0.96, 0.001).set_trans(Tween.TRANS_LINEAR)
+		t_gold.tween_interval(0.6)
+		t_gold.tween_property(slash_gold, "modulate:a", 1.0, 0.001).set_trans(Tween.TRANS_LINEAR)
+		t_gold.tween_interval(0.8)
+		t_gold.tween_property(slash_gold, "modulate:a", 0.96, 0.001).set_trans(Tween.TRANS_LINEAR)
+		t_gold.tween_interval(0.6)
+		t_gold.tween_property(slash_gold, "modulate:a", 0.92, 0.001).set_trans(Tween.TRANS_LINEAR)
+
+	# Crimson slash : hard binary toggle (on/dim) at 1.5s interval (clock pulse)
 	if slash_crimson != null:
 		var t_crim := create_tween().bind_node(slash_crimson).set_loops()
-		t_crim.tween_interval(1.6)
-		t_crim.tween_property(slash_crimson, "modulate:a", 0.72, 1.75).set_trans(Tween.TRANS_SINE)
-		t_crim.tween_property(slash_crimson, "modulate:a", 0.88, 1.75).set_trans(Tween.TRANS_SINE)
+		t_crim.tween_interval(1.5)
+		t_crim.tween_property(slash_crimson, "modulate:a", 0.65, 0.001).set_trans(Tween.TRANS_LINEAR)
+		t_crim.tween_interval(0.18)   # brief dim
+		t_crim.tween_property(slash_crimson, "modulate:a", 0.88, 0.001).set_trans(Tween.TRANS_LINEAR)
+
+	# Hint : terminal cursor-style on/off blink (1.2s on, 0.4s off)
 	if hint != null:
 		var t_hint := create_tween().bind_node(hint).set_loops()
-		t_hint.tween_interval(2.0)
-		t_hint.tween_property(hint, "modulate:a", 0.78, 2.0).set_trans(Tween.TRANS_SINE)
-		t_hint.tween_property(hint, "modulate:a", 0.55, 2.0).set_trans(Tween.TRANS_SINE)
+		t_hint.tween_interval(1.2)
+		t_hint.tween_property(hint, "modulate:a", 0.0, 0.001).set_trans(Tween.TRANS_LINEAR)
+		t_hint.tween_interval(0.4)
+		t_hint.tween_property(hint, "modulate:a", 0.55, 0.001).set_trans(Tween.TRANS_LINEAR)
+
+
+## Title flicker — random brief dim. Recursive scheduling for natural irregularity.
+func _schedule_title_flicker(title: Label) -> void:
+	if not is_instance_valid(title):
+		return
+	var wait: float = randf_range(2.5, 4.5)
+	get_tree().create_timer(wait).timeout.connect(func() -> void:
+		if not is_instance_valid(title):
+			return
+		# Single hard dim 50ms, then back to full
+		title.modulate.a = 0.86
+		get_tree().create_timer(0.05).timeout.connect(func() -> void:
+			if is_instance_valid(title):
+				title.modulate.a = 1.0
+				_schedule_title_flicker(title)   # reschedule
+		)
+	)
 
 
 ## Hover : scale punch on button + stripe expansion (6 → 10 px).
