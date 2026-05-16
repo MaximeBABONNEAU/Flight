@@ -6,6 +6,35 @@
 
 ---
 
+## v7.7.20 — Intraitable UI system (gold border + white text + black outline + dark bg) [2026-05-16]
+
+User mandate (verbatim) : *« Force la vérification de TOUTES les UI et UX de chaque scene du jeu, tout doit être au même format, on doit avoir un systeme intraitable complet qui quand positionné dans une case ou espace délimité est toujours représenté de la même manière ... (bordure gold, texte en blanc entouré de noir sur fond légèrement assombri pour facilité la lecture) »*
+
+### Phase 1 — Tighten MerlinVisual factories
+- NEW const UI_GOLD (0.92, 0.75, 0.30) — bordure gold (single source)
+- NEW const UI_WHITE (0.97, 0.97, 0.94) — texte en blanc (single source)
+- NEW const UI_BLACK (0.02, 0.02, 0.02) — outline noir
+- NEW const UI_BG_DARK (0.05, 0.04, 0.03, 0.92) — fond légèrement assombri
+- NEW const UI_BG_HOVER (0.10, 0.08, 0.05, 0.95) — hover bg
+- digital_button : ALL kinds (primary/secondary/danger) now share white text + black outline + dark bg. Only border varies (gold/gold-dim/crimson).
+- digital_panel : gold border default + dark bg + sharp edges
+- Inspirations : Dredge gothic gold + Disco Elysium gold borders + Inscryption digital terminal + Mörk Borg high-contrast
+
+### Phase 2 — Cross-scene retrofit (force ALL buttons through factory)
+- MenuTest ENTRER button
+- BoardNarration floating option buttons + biome buttons audit
+- SelectionSauvegarde save slots
+- ScenarioLoading back button (v7.7.19 already retrofitted)
+
+### Phase 3 — Update CHARTER doc
+- docs/UI_UX_CHARTER.md : add INTRAITABLE spec section with exact Color values
+
+### Validation
+- Smoke each touched scene
+- Visual capture : every Button shows gold border + white text + black outline + dark bg uniformly
+
+---
+
 ## v7.7.19 — Fix scene transitions + UI charter compliance [2026-05-16]
 
 Plan : `~/.claude/plans/kind-humming-peach.md` v7.7.19 section (user approved).

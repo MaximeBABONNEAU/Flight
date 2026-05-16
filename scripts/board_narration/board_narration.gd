@@ -3191,33 +3191,16 @@ func _build_floating_option_buttons() -> void:
 	if _live_card_3d.has_method("get_option_texts"):
 		texts = _live_card_3d.get_option_texts()
 	for i in range(3):
-		var btn := Button.new()
+		# v7.7.20 — Intraitable UI : MerlinVisual.digital_button enforces uniform
+		# gold border + white text + black outline + dark bg per user mandate.
+		# 16 lines inline styling replaced with single factory call.
+		var btn_text: String = str(texts[i]) if i < texts.size() else ("Option %d" % (i + 1))
+		var btn: Button = MerlinVisual.digital_button(btn_text, "primary")
 		btn.name = "FloatOption_%d" % i
-		# v7.7.2.1 — text rendered ON the button itself (was empty "")
-		btn.text = str(texts[i]) if i < texts.size() else ("Option %d" % (i + 1))
 		btn.flat = false
 		btn.custom_minimum_size = Vector2(560, 56)
-		btn.clip_text = true  # cut overlong option text rather than overflow
+		btn.clip_text = true   # cut overlong option text rather than overflow
 		btn.add_theme_font_size_override("font_size", 18)
-		btn.add_theme_color_override("font_color", Color(0.95, 0.88, 0.62))
-		btn.add_theme_color_override("font_hover_color", Color(1.0, 0.96, 0.72))
-		btn.add_theme_color_override("font_pressed_color", Color(0.85, 0.68, 0.30))
-		# Stylebox : translucent dark with amber border — readable on any biome bg.
-		# v7.7.19 — Charter v7.7.18 fix : radius 8 → 0 (sharp edges law) + border 2 → 4.
-		var normal_sb := StyleBoxFlat.new()
-		normal_sb.bg_color = Color(0.08, 0.05, 0.03, 0.78)
-		normal_sb.border_color = Color(0.90, 0.68, 0.30, 0.75)
-		normal_sb.set_border_width_all(4)
-		normal_sb.set_corner_radius_all(0)
-		normal_sb.set_content_margin_all(12)
-		btn.add_theme_stylebox_override("normal", normal_sb)
-		var hover_sb := normal_sb.duplicate()
-		hover_sb.bg_color = Color(0.20, 0.14, 0.06, 0.92)
-		hover_sb.border_color = Color(1.0, 0.85, 0.45, 1.0)
-		btn.add_theme_stylebox_override("hover", hover_sb)
-		var pressed_sb := normal_sb.duplicate()
-		pressed_sb.bg_color = Color(0.85, 0.65, 0.30, 0.85)
-		btn.add_theme_stylebox_override("pressed", pressed_sb)
 		# v7.7.2.1 — FIXED screen position : vertical stack centered, bottom 30% of screen.
 		# This stops them from following the card and overlapping body text.
 		btn.anchor_left = 0.5

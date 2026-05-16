@@ -193,35 +193,18 @@ func _build_ui() -> void:
 	stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn_box.add_child(stripe)
 
-	var btn := Button.new()
+	# v7.7.20 — Intraitable UI : use MerlinVisual factory for uniform spec
+	# (bordure gold + texte blanc + outline noir + fond assombri).
+	# All 19 lines of inline styling replaced with single factory call.
+	# Font size bumped to 36 via local override (factory default = 22).
+	var btn: Button = MerlinVisual.digital_button("ENTRER", "primary")
 	btn.name = "BtnTester"
-	btn.text = "ENTRER"
 	btn.anchor_left = 0.0
 	btn.anchor_right = 1.0
 	btn.anchor_top = 0.0
 	btn.anchor_bottom = 1.0
 	btn.offset_left = 6
 	btn.add_theme_font_size_override("font_size", 36)
-	btn.add_theme_color_override("font_color", p_cream)
-	btn.add_theme_color_override("font_hover_color", p_gold)
-	btn.add_theme_color_override("font_pressed_color", p_cream)
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = p_ink
-	# v7.7.19 — Charter v7.7.18 mandates border_width >= 4 on primary CTAs.
-	# Was 0 (violates charter). Bumped to 4 + amber color for visibility.
-	normal.set_border_width_all(4)
-	normal.border_color = p_gold
-	normal.set_corner_radius_all(0)
-	normal.set_content_margin_all(14)
-	btn.add_theme_stylebox_override("normal", normal)
-	var hover := normal.duplicate()
-	hover.bg_color = Color(0.10, 0.08, 0.08, 1.0)
-	hover.border_color = p_crimson
-	hover.set_border_width_all(6)
-	btn.add_theme_stylebox_override("hover", hover)
-	var pressed := normal.duplicate()
-	pressed.bg_color = p_crimson
-	btn.add_theme_stylebox_override("pressed", pressed)
 	btn.pressed.connect(_on_tester_pressed)
 	btn_box.add_child(btn)
 

@@ -696,60 +696,85 @@ static func apply_kingdom_portrait(portrait: TextureRect, biome: String = "") ->
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# v7.7.18 — Digital UI Charter factories (docs/UI_UX_CHARTER.md)
+# v7.7.20 — INTRAITABLE UI Charter (docs/UI_UX_CHARTER.md)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Use these factories instead of inline StyleBoxFlat for cross-scene consistency.
+# User mandate : « bordure gold, texte en blanc entouré de noir sur fond
+# légèrement assombri pour facilité la lecture ».
+#
+# The factories below ENFORCE this rigid spec uniformly across ALL scenes.
+# Every UI element positioned in a given slot is rendered EXACTLY the same way.
+# Inspirations : Dredge gothic gold + Disco Elysium gold borders + Inscryption
+# digital terminal + Mörk Borg high-contrast readability.
 
-## Returns a charter-compliant Button.
-## @param kind: "primary" (gold border) | "secondary" (dim) | "danger" (crimson)
+## v7.7.20 — Intraitable UI tokens (single source of truth)
+## All factories use these — no per-kind drift.
+const UI_GOLD := Color(0.92, 0.75, 0.30)              # bordure gold (the only border color)
+const UI_GOLD_BRIGHT := Color(1.00, 0.85, 0.40)        # hover state
+const UI_WHITE := Color(0.97, 0.97, 0.94)              # texte en blanc (the only text color)
+const UI_BLACK := Color(0.02, 0.02, 0.02)              # outline noir + dark bg base
+const UI_BG_DARK := Color(0.05, 0.04, 0.03, 0.92)       # fond légèrement assombri (button bg)
+const UI_BG_HOVER := Color(0.10, 0.08, 0.05, 0.95)      # hover bg (slightly lighter)
+const UI_CRIMSON := Color(0.78, 0.16, 0.18)            # danger / pressed flash
+const UI_OUTLINE_SIZE := 3                              # black text outline thickness
+const UI_BORDER_NORMAL := 4                             # gold border thickness
+const UI_BORDER_HOVER := 6                              # hover bumps border
+
+
+## Returns an INTRAITABLE Button : gold border, white text, black outline, dark bg.
+## @param kind: "primary" (gold) | "secondary" (gold dim) | "danger" (crimson)
+##              All kinds share white text + black outline + dark bg.
+##              Only the border accent varies per kind.
 static func digital_button(text: String, kind: String = "primary") -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.add_theme_font_size_override("font_size", 22)
+	# White text + black outline — ALWAYS, regardless of kind (intraitable).
+	btn.add_theme_color_override("font_color", UI_WHITE)
+	btn.add_theme_color_override("font_hover_color", UI_WHITE)
+	btn.add_theme_color_override("font_pressed_color", UI_WHITE)
+	btn.add_theme_color_override("font_disabled_color", Color(0.55, 0.55, 0.55))
+	btn.add_theme_color_override("font_outline_color", UI_BLACK)
+	btn.add_theme_constant_override("outline_size", UI_OUTLINE_SIZE)
+	# Border accent per kind (gold default).
 	var border_color: Color
-	var font_color: Color
-	var hover_color: Color
 	match kind:
 		"danger":
-			border_color = CRT_PALETTE["danger"]
-			font_color = CRT_PALETTE["amber_bright"]
-			hover_color = CRT_PALETTE["danger"]
+			border_color = UI_CRIMSON
 		"secondary":
-			border_color = CRT_PALETTE["phosphor_dim"]
-			font_color = CRT_PALETTE["phosphor_dim"]
-			hover_color = CRT_PALETTE["phosphor_bright"]
+			border_color = Color(UI_GOLD.r * 0.7, UI_GOLD.g * 0.7, UI_GOLD.b * 0.7)
 		_:  # primary
-			border_color = CRT_PALETTE["phosphor"]
-			font_color = CRT_PALETTE["amber_bright"]
-			hover_color = CRT_PALETTE["phosphor_bright"]
-	btn.add_theme_color_override("font_color", font_color)
-	btn.add_theme_color_override("font_hover_color", hover_color)
-	btn.add_theme_color_override("font_outline_color", CRT_PALETTE["bg_dark"])
-	btn.add_theme_constant_override("outline_size", 3)
+			border_color = UI_GOLD
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = CRT_PALETTE["bg_dark"]
+	sb.bg_color = UI_BG_DARK
 	sb.border_color = border_color
-	sb.set_border_width_all(4)
+	sb.set_border_width_all(UI_BORDER_NORMAL)
 	sb.set_corner_radius_all(0)
-	sb.set_content_margin_all(12)
+	sb.set_content_margin_all(14)
 	btn.add_theme_stylebox_override("normal", sb)
 	var sb_hover := sb.duplicate() as StyleBoxFlat
-	sb_hover.bg_color = CRT_PALETTE["bg_highlight"]
-	sb_hover.border_color = hover_color
-	sb_hover.set_border_width_all(6)
+	sb_hover.bg_color = UI_BG_HOVER
+	sb_hover.border_color = UI_GOLD_BRIGHT
+	sb_hover.set_border_width_all(UI_BORDER_HOVER)
 	btn.add_theme_stylebox_override("hover", sb_hover)
 	var sb_pressed := sb.duplicate() as StyleBoxFlat
-	sb_pressed.bg_color = CRT_PALETTE["danger"] if kind != "danger" else CRT_PALETTE["bg_dark"]
+	sb_pressed.bg_color = UI_CRIMSON if kind != "danger" else UI_BG_DARK
 	btn.add_theme_stylebox_override("pressed", sb_pressed)
+	# Disabled state : preserve charter aesthetic, dim everything.
+	var sb_disabled := sb.duplicate() as StyleBoxFlat
+	sb_disabled.bg_color = UI_BG_DARK
+	sb_disabled.border_color = Color(border_color.r * 0.4, border_color.g * 0.4, border_color.b * 0.4)
+	btn.add_theme_stylebox_override("disabled", sb_disabled)
 	return btn
 
 
-## Returns a charter-compliant StyleBoxFlat for Panel/Container.
-static func digital_panel(bg: Color = Color(0, 0, 0, 0), border: Color = Color(0, 0, 0, 0), border_w: int = 2) -> StyleBoxFlat:
+## Returns an INTRAITABLE StyleBoxFlat for any Panel/Container.
+## Gold border default, dark bg, sharp edges. Use bg/border params only to
+## override the default (e.g. per-biome tinted bg).
+static func digital_panel(bg: Color = Color(0, 0, 0, 0), border: Color = Color(0, 0, 0, 0), border_w: int = -1) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = bg if bg.a > 0.0 else CRT_PALETTE["bg_panel"]
-	sb.border_color = border if border.a > 0.0 else CRT_PALETTE["phosphor_dim"]
-	sb.set_border_width_all(border_w)
+	sb.bg_color = bg if bg.a > 0.0 else UI_BG_DARK
+	sb.border_color = border if border.a > 0.0 else UI_GOLD
+	sb.set_border_width_all(border_w if border_w >= 0 else UI_BORDER_NORMAL)
 	sb.set_corner_radius_all(0)
 	sb.set_content_margin_all(12)
 	return sb

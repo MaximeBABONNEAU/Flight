@@ -9,6 +9,35 @@ sera toujours similaire dans le jeu et cross scene ... quelque chose de digital
 
 ---
 
+## 0. Intraitable spec (v7.7.20 — single source of truth)
+
+**User mandate** : *« bordure gold, texte en blanc entouré de noir sur fond légèrement assombri pour facilité la lecture »*
+
+Every Button / Panel positioned anywhere uses **exactly** this spec :
+
+| Token | Value | Role |
+|---|---|---|
+| `UI_GOLD` | `Color(0.92, 0.75, 0.30)` | bordure gold |
+| `UI_GOLD_BRIGHT` | `Color(1.00, 0.85, 0.40)` | hover border |
+| `UI_WHITE` | `Color(0.97, 0.97, 0.94)` | texte en blanc |
+| `UI_BLACK` | `Color(0.02, 0.02, 0.02)` | outline noir + dark bg base |
+| `UI_BG_DARK` | `Color(0.05, 0.04, 0.03, 0.92)` | fond légèrement assombri |
+| `UI_BG_HOVER` | `Color(0.10, 0.08, 0.05, 0.95)` | hover bg |
+| `UI_CRIMSON` | `Color(0.78, 0.16, 0.18)` | danger + pressed flash |
+| `UI_OUTLINE_SIZE` | `3` | black text outline thickness |
+| `UI_BORDER_NORMAL` | `4` | gold border |
+| `UI_BORDER_HOVER` | `6` | hover bumps border |
+
+Constants exposed at `scripts/autoload/merlin_visual.gd:711-720`.
+
+**ALL kinds (primary/secondary/danger) share white text + black outline + dark bg.** Only the border color varies (gold / gold-dim / crimson). No other variation allowed.
+
+Inspirations : Dredge gothic gold + Disco Elysium gold borders + Inscryption digital terminal + Mörk Borg high-contrast.
+
+**THE FACTORY IS THE LAW.** Never style buttons inline — always `MerlinVisual.digital_button(text, kind)`.
+
+---
+
 ## 1. Aesthetic directive
 
 **Digital / PC retro / AI — very readable.**
