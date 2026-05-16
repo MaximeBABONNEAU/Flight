@@ -94,17 +94,33 @@ Per CLAUDE.md §10 systematic policy :
 3. Material check : 1 StandardMaterial3D per mesh, vertex_color_use_as_albedo = true
 4. Smoke scene loading the asset → no SCRIPT ERROR + visible outline
 
-## Status (v7.7.8 — 2026-05-16)
+## Status (v7.7.16 — 2026-05-16)
 
-- [x] external/kaykit/adventurers — cloned + Mage.glb imported as `Assets/blender/kaykit_mage.glb`
-- [ ] external/kaykit/skeletons — clone pending (Ankou faction)
-- [ ] external/kaykit/hexagon — clone pending (biome tiles)
-- [ ] external/kaykit/dungeon — clone pending (interiors)
-- [ ] external/kaykit/mini-game-variety — itch.io only, manual download required
-- [ ] external/kaykit/animated-characters — itch.io only, manual download required
+Full KayKit-Game-Assets org library cloned (10 packs, ~540 MB, all gitignored).
 
-**Note** : clones are gitignored (`external/kaykit/*/`). Only specific `.glb`
-copies in `Assets/blender/` are committed.
+- [x] external/kaykit/adventurers — Character-Pack-Adventures-1.0 (Mage = druide)
+- [x] external/kaykit/skeletons — Character-Pack-Skeletons-1.0 (Ankou faction)
+- [x] external/kaykit/hexagon — Medieval-Hexagon-Pack-1.0 (biome tiles)
+- [x] external/kaykit/dungeon — Dungeon-Remastered-1.0 (cabin/temple interiors)
+- [x] external/kaykit/city — City-Builder-Bits-1.0 (villages)
+- [x] external/kaykit/prototype — Prototype-Bits-1.0 (greybox primitives)
+- [x] external/kaykit/halloween — Halloween-Bits-1.0 (cemetery / headstones for ruines)
+- [x] external/kaykit/furniture — Furniture-Bits-1.0 (interiors)
+- [x] external/kaykit/restaurant — Restaurant-Bits-1.0 (kitchen/food)
+- [x] external/kaykit/space — Space-Base-Bits-1.0 (sci-fi, may surprise-fit Niamh archipel)
+
+Complementary repos cloned in `external/lowpoly_assets/` :
+- plants (Shapespark-Low-Poly-Exterior-Plants — CC0)
+- lowpoly_tree (MechanicalFlower procedural tree — MIT)
+- kenney_platformer (Kenney Nature/Platformer GLBs — CC0)
+- kenney_hexagons (hex terrain blueprint — CC0)
+- awesome_cc0_index (madjin curated index)
+
+Mage.glb still imported as `Assets/blender/kaykit_mage.glb` (kept for revert),
+but scene spawn removed in v7.7.16 (user request « enleve le mage des scenes »).
+
+**Note** : clones are gitignored (`external/kaykit/*/` + `external/lowpoly_assets/*/`).
+Only specific `.glb` copies in `Assets/blender/` are committed.
 
 ### Verified pipeline (v7.7.8)
 

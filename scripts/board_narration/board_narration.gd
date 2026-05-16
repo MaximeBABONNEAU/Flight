@@ -2094,13 +2094,14 @@ func _build_scene_tree() -> void:
 		# v7.1 — Cel-shading + outline noir per bible §20 (marque de fabrique).
 		CelShadingManager.apply(_plateau, {"outline_thickness": 0.008})
 
-	# v7.7.8 — Plateau enrichment + KayKit guardian fire regardless of plateau
-	# source (biome bundle, legacy glb, or procedural cylinder) so the bible §20.6
-	# canonical assets always appear. Code-review MEDIUM-1 fix (was inside `if
-	# _plateau == null` fallback branch and skipped on biome bundles).
+	# v7.7.8 — Plateau enrichment fires regardless of plateau source (biome
+	# bundle, legacy glb, or procedural cylinder).
+	# v7.7.16 — KayKit Mage guardian REMOVED per user request « enleve le mage
+	# des scenes ». The _spawn_kaykit_guardian() + _spawn_glb_guardian() helper
+	# functions stay in the file (dead code) for easy revert / future biome
+	# guardian use, but the call is dropped.
 	if _plateau != null:
 		_build_plateau_enrichment()
-		_spawn_kaykit_guardian()
 
 	# Biome backdrop root
 	_backdrop_root = Node3D.new()

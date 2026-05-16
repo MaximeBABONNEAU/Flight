@@ -49,6 +49,7 @@ MerlinMetrics="*res://scripts/autoload/merlin_metrics.gd"
 DayNightManager="*res://scripts/autoload/day_night_manager.gd"
 MerlinResponsive="*res://scripts/autoload/merlin_responsive.gd"
 GameFlow="*res://scripts/core/game_flow_controller.gd"
+FPSOverlay="*res://scripts/autoload/fps_overlay.gd"
 
 [display]
 
@@ -91,5 +92,12 @@ low_spec_mode=true
 [rendering]
 
 renderer/rendering_method.mobile="gl_compatibility"
-anti_aliasing/quality/msaa_3d=2
+; v7.7.16 — Aggressive 60 FPS audit per user request « 60 fps constants ».
+; MSAA 2→0 + FXAA on (lighter on GL Compatibility renderer).
+; scaling_3d/scale=0.90 = render at 90% then upscale (15-20% GPU saving).
+; mesh_lod threshold 1.0→4.0 = aggressive LOD on distant meshes.
+anti_aliasing/quality/msaa_3d=0
+anti_aliasing/quality/screen_space_aa=1
+scaling_3d/scale=0.9
+mesh_lod/lod_change/threshold_pixels=4.0
 environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)
