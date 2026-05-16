@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 
 GameManager="*res://scripts/game_manager.gd"
 MerlinAI="*res://addons/merlin_ai/merlin_ai.gd"
+MerlinStats="*res://scripts/merlin/merlin_stats_system.gd"
 MerlinBackdrop="*res://scripts/merlin_backdrop.gd"
 ScreenFrame="*res://scripts/autoload/screen_frame.gd"
 ScreenEffects="*res://scripts/autoload/ScreenEffects.gd"
@@ -47,7 +48,6 @@ GameFlow="*res://scripts/core/game_flow_controller.gd"
 
 [display]
 
-; v7.2 — QA MEDIUM 5.2 : canonical resolution 1920×1080 (was 1280×720).
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/size/window_width_override=1920
@@ -80,18 +80,10 @@ low_spec_mode=true
 
 [physics]
 
-; Jolt Physics 3D — native since Godot 4.4. Stable stacking + contact resolution
-; for the BoardNarration scene's RigidBody3D cards/dice (no drift on stacks).
-; Per docs/MCP_TOOL_RESEARCH.md §B2 (research agent 2026-05-14).
 3d/physics_engine="JoltPhysics3D"
 
 [rendering]
 
-; BoardNarration v5 (2026-05-14) : Forward+ enables volumetric_fog, godrays,
-; SDFGI for the plateau-alive scene. Mobile fallback stays on Compatibility.
-renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="gl_compatibility"
-environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)
-; v7.2 — QA MEDIUM 5.3 : MSAA 2x for cel-shading outlines (bible §20).
-; Without MSAA the inverted-hull outlines alias visibly on diagonals.
 anti_aliasing/quality/msaa_3d=2
+environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)
