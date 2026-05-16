@@ -2,7 +2,89 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-17 (v7.7.22a LLM card distribution + balance validator).
+> **Last refresh**: 2026-05-17 (v7.7.22b 100 Brocéliande LLM reference scenarios).
+
+---
+
+## v7.7.22b — 100 Brocéliande LLM reference scenarios + HTML doc [2026-05-17]
+
+User mandate (verbatim) : *« Il faut que nous imaginions 100+ scénarios pour broceliande en exemple qui servirons pour le LLM en guise de gage de qualité rédactionnelle, avec pour chacun d'entre eux les consignes de découpage en carte en exemple ... rédaction de haute volée, rebondissements, scénarios calmes, de la variété lié au biome ! De grandes aventures en 25 cartes et d'autres plus courtes en 11 cartes par exemple, génère un doc HTML me permettant demain matin de lire tes 100 scénarios ... et leur découpage en carte avec routes possibles ! »*
+
+### Output deliverables (in `~/Downloads/`)
+
+- `broceliande_scenarios_v7.7.22.html` (1.18 MB) — self-contained druidic dark theme + TOC + filters (Pole/Length/Archetype/search) + collapsibles
+- `broceliande_scenarios_v7.7.22.json` (1.45 MB) — same data for LLM ingestion / RAG
+
+### Content structure (verified evidence)
+
+- **100 scenarios** generated (10 archetypes × 10 variants)
+- **1740 cards** total, average **17.4 cards/scenario**
+- **Avg 24 sentences/premise** (above user's 20-sentence floor, below 100 ceiling)
+- **Pole distribution** (per bible §7.1 Liminal-dominant) : 40 Liminal / 30 Chaos / 30 Ordre
+- **Length spread** : 16×11c / 20×15c / 34×17c / 16×21c / 14×25c
+- **CardType totals** : 1138 NARRATIVE (65%) · 278 EVENT (16%) · 130 SHOP (7.5%) · 130 MERLIN_DIRECT (7.5%) · 64 PROMISE (3.7%)
+- **Zero adjacency violations** (no 2 SHOP/MERLIN_DIRECT/RUNE_UNLOCK/PROMISE consecutive)
+
+### 10 narrative archetypes (Brocéliande canon)
+
+| Archetype | Pole | Length pref | Twist pattern |
+|---|---|---|---|
+| L'Éveil Druidique | Liminal | 11/15/17 | calm_revelation |
+| La Ruse des Korrigans | Chaos | 11-21 | deception_unveiled |
+| Le Conseil du Chêne Ancien | Ordre | 15-25 | wisdom_arc |
+| Le Vagabond de Brume | Liminal | 11-21 | lost_then_found |
+| L'Épreuve de la Forêt | Chaos | 15-25 | physical_test |
+| Le Rite Oublié | Ordre | 15-25 | ritual_completion |
+| Le Sanctuaire Caché | Liminal | 11/15/17 | calm_decision |
+| La Bête Cornue | Chaos | 11-21 | wild_communion |
+| La Lignée des Druides | Ordre | 17/21/25 | ancestral_echo |
+| Le Passage des Seuils | Liminal | 17/21/25 | transformation |
+
+### Generator architecture
+
+`tools/generate_broceliande_scenarios.py` (~900 LOC) :
+
+1. **10 archetype seeds** with Pole, emotion arc, length preferences, twist pattern
+2. **3 prose fragment banks** per archetype (opening / middle / closing, 3 fragments each, 3-5 sentences) — **hand-crafted druidic prose** respecting canon (no anglicisms/cyber/neon in text)
+3. **Card summary templates** per CardType × Pole (5 cardtypes × 4 Poles ≈ 70 unique card text snippets)
+4. **6 option templates** (trio_explore / trio_decide / trio_react / trio_offer / trio_threshold / trio_korrigan)
+5. **Deterministic RNG** seeded per scenario `{archetype_id}-{variant_idx}` (reproducible output)
+6. **Post-pass adjacency enforcer** : demotes consecutive special types to NARRATIVE COMMUNE
+7. **HTML renderer** : druidic dark theme matching MERLIN UI charter (gold border, dark bg, white text, Pole-colored badges)
+
+### Sample scenario titles (10 from 100)
+
+- "Le Premier Pas Druidique" (Liminal, 15 cartes, calm_revelation)
+- "Trois Cailloux Blancs" (Chaos, 11 cartes, deception_unveiled)
+- "L'Arbre qui Pleure" (Ordre, 21 cartes, wisdom_arc)
+- "La Lune Mauve" (Liminal, 17 cartes, lost_then_found)
+- "Le Tunnel de Sang" (Chaos, 21 cartes, physical_test)
+- "Le Cercle Imparfait" (Ordre, 17 cartes, ritual_completion)
+- "Le Pain au Goût d'Enfance" (Liminal, 11 cartes, calm_decision)
+- "La Louve aux Yeux Jaunes" (Chaos, 15 cartes, wild_communion)
+- "La Stèle Inachevée" (Ordre, 25 cartes, ancestral_echo)
+- "Le Seuil entre Deux Forêts" (Liminal, 25 cartes, transformation)
+
+### Compliance with canon
+
+- Bible §3.2 (3 Poles) : badges Ordre/Chaos/Liminal mapped per v7.7.21b system
+- Bible §7.1 (Brocéliande = Liminal dominant) : 40% Liminal respected
+- Bible §13 (run lengths) : all 5 valid lengths (11/15/17/21/25) represented
+- Bible §28.1 (rarity ratios) : Commune/Rare/Épique/Légendaire follow positional rules
+- v7.7.22a balance system : card_type / rarity / Pole metadata per card matches DigitalPickerCard.apply_card_metadata schema
+- Tone : druidic French throughout, **NO anglicisms, NO cyber/neon/data terms in text** (per content_worldbuilding agent canon brief)
+
+### Iterations queued
+
+- **v7.7.22c** : LLM Ollama expansion to enrich premises 25→100 sentences per scenario (optional richness)
+- **v7.7.22d** : RAG ingestion of the JSON into `addons/merlin_ai/rag_manager.gd` for runtime LLM reference
+- **v7.7.22e** : Same generator for the 7 other biomes (Landes/Côtes/Villages/Cercles/Marais/Collines/Iles)
+- **v7.7.23** : Compare LLM-generated vs reference scenarios for quality scoring
+
+### Files modified
+- `tools/generate_broceliande_scenarios.py` (NEW, ~900 LOC) — generator
+- `~/Downloads/broceliande_scenarios_v7.7.22.html` (NEW, 1.18 MB output)
+- `~/Downloads/broceliande_scenarios_v7.7.22.json` (NEW, 1.45 MB output)
 
 ---
 
