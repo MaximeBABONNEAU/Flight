@@ -83,8 +83,12 @@ func resolve_option_check(option: Dictionary) -> Dictionary:
 	if stats_node == null or not stats_node.has_method("check_pass"):
 		# Autoload missing (test harness / smoke / very early boot) — default pass.
 		return {"passed": true, "stat": stat_name, "type": check_type, "chance": 1.0, "modifier": modifier}
+	# v7.7.4d.1 (code-review HIGH-1 fix) — single roll. Was : get_pass_chance() then
+	# check_pass() which internally re-called get_pass_chance(). Double lookup
+	# wasted + risked divergence if future changes added side-effects to
+	# get_pass_chance(). Now we compute chance ONCE and roll inline.
 	var chance: float = float(stats_node.get_pass_chance(stat_name)) + modifier
-	var passed: bool = bool(stats_node.check_pass(stat_name, modifier))
+	var passed: bool = randf() < chance
 	return {"passed": passed, "stat": stat_name, "type": check_type, "chance": chance, "modifier": modifier}
 
 
