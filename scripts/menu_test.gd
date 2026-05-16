@@ -117,31 +117,41 @@ func _build_ui() -> void:
 	var p_ink := Color(0.04, 0.03, 0.03)
 	var p_cream := Color(0.98, 0.94, 0.82)
 
-	# Accent slash 1 — bande or longue derrière le titre.
+	# v7.7.17 — DA strict terminal/cyberpunk per user request « digitaliser ».
+	# Persona-magazine rotated slashes DROPPED. Replaced by digital data-readout
+	# elements : flat horizontal bands (no rotation), monospace data labels,
+	# hex code drift. AI-terminal aesthetic, zero editorial geometry.
+	# AccentGold + AccentCrimson nodes KEPT (named the same) so the existing
+	# intro reveal / idle loops still find them — they're now thin horizontal
+	# bands instead of rotated slashes, evoking signal-bars not magazine cuts.
+
+	# Top data band — thin horizontal gold strip (was rotated -8°, now flat).
 	var accent_gold := ColorRect.new()
 	accent_gold.name = "AccentGold"
 	accent_gold.color = p_gold
 	accent_gold.anchor_left = 0.0
 	accent_gold.anchor_right = 1.0
 	accent_gold.anchor_top = 0.22
-	accent_gold.anchor_bottom = 0.34
-	accent_gold.rotation = deg_to_rad(-8.0)
-	accent_gold.modulate = Color(1, 1, 1, 0.92)
+	accent_gold.anchor_bottom = 0.225   # 0.5% of viewport height — thin bar
+	accent_gold.modulate = Color(1, 1, 1, 0.85)
 	accent_gold.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ui.add_child(accent_gold)
 
-	# Accent slash 2 — bande crimson plus mince, offset.
+	# Bottom data band — thin horizontal crimson strip below title.
 	var accent_crimson := ColorRect.new()
 	accent_crimson.name = "AccentCrimson"
 	accent_crimson.color = p_crimson
 	accent_crimson.anchor_left = 0.0
 	accent_crimson.anchor_right = 1.0
-	accent_crimson.anchor_top = 0.34
-	accent_crimson.anchor_bottom = 0.365
-	accent_crimson.rotation = deg_to_rad(-8.0)
-	accent_crimson.modulate = Color(1, 1, 1, 0.88)
+	accent_crimson.anchor_top = 0.355
+	accent_crimson.anchor_bottom = 0.358
+	accent_crimson.modulate = Color(1, 1, 1, 0.80)
 	accent_crimson.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ui.add_child(accent_crimson)
+
+	# v7.7.17 — Data readout panel : 3 monospace rows in top-right corner.
+	# Shows fake "system status" lines that cycle subtly (digital terminal feel).
+	_build_data_readout_panel(p_gold, p_ink)
 
 	# Titre M.E.R.L.I.N. — bold uppercase 130px, encre noire sur l'or (lisibilité max).
 	var title2d := Label.new()
@@ -243,6 +253,60 @@ func _build_ui() -> void:
 	# Idle loops start IMMEDIATELY (dust + scanline) — they're ambient and don't
 	# overlap the prelude visually since dust is faint and scanline is overlay.
 	_start_idle_loops()
+
+
+## v7.7.17 — Data readout panel : 3 monospace rows top-right showing fake
+## system status. Cycles values every 1.5s for "live system" feel.
+const DATA_READOUT_TEMPLATES := [
+	"SYS  : %s",
+	"RUNE : %d/9",
+	"FATE : 0x%s",
+]
+const DATA_READOUT_SYS_STATES := ["ONLINE", "BIND", "WEAVE", "TRACE"]
+const DATA_READOUT_FATE_TOKENS := ["BEITH", "LUIS", "FEARN", "SAIL", "NION", "HUATH", "DUIR", "TINNE", "QUERT", "COLL"]
+
+func _build_data_readout_panel(gold: Color, ink: Color) -> void:
+	var panel := VBoxContainer.new()
+	panel.name = "DataReadoutPanel"
+	panel.anchor_left = 1.0
+	panel.anchor_right = 1.0
+	panel.anchor_top = 0.04
+	panel.offset_left = -260.0
+	panel.offset_right = -16.0
+	panel.add_theme_constant_override("separation", 2)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(panel)
+	var labels: Array[Label] = []
+	# Each template has exactly 1 placeholder — initial values vary per row.
+	var initial_values: Array = [DATA_READOUT_SYS_STATES[0], 9, "DEADBEEF"]
+	for i in range(3):
+		var lbl := Label.new()
+		lbl.text = DATA_READOUT_TEMPLATES[i] % initial_values[i]
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", gold)
+		lbl.add_theme_color_override("font_outline_color", ink)
+		lbl.add_theme_constant_override("outline_size", 2)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		panel.add_child(lbl)
+		labels.append(lbl)
+	# Live cycle : update values every 1.5s.
+	var tw := create_tween().bind_node(panel).set_loops()
+	tw.tween_callback(_cycle_data_readout.bind(labels))
+	tw.tween_interval(1.5)
+
+
+func _cycle_data_readout(labels: Array) -> void:
+	if labels.is_empty():
+		return
+	var sys_state: String = DATA_READOUT_SYS_STATES[randi() % DATA_READOUT_SYS_STATES.size()]
+	var rune_count: int = randi_range(6, 9)
+	var fate: String = DATA_READOUT_FATE_TOKENS[randi() % DATA_READOUT_FATE_TOKENS.size()]
+	if is_instance_valid(labels[0]):
+		(labels[0] as Label).text = DATA_READOUT_TEMPLATES[0] % sys_state
+	if is_instance_valid(labels[1]):
+		(labels[1] as Label).text = DATA_READOUT_TEMPLATES[1] % rune_count
+	if is_instance_valid(labels[2]):
+		(labels[2] as Label).text = DATA_READOUT_TEMPLATES[2] % fate
 
 
 ## v7.7.15 — Hide all menu elements BEFORE the prelude pops them in.

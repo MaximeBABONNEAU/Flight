@@ -44,6 +44,9 @@ var _skeleton: Dictionary = {}
 var _ui_layer: CanvasLayer = null
 var _info_label: Label = null     # foundation : displays current step textually
 var _camera: Camera3D = null
+# v7.7.17 — Merlin sound bar appears during LLM writing (user request).
+const MERLIN_SOUND_BAR_SCRIPT := preload("res://scripts/board_narration/merlin_sound_bar.gd")
+var _merlin_sound_bar: Node3D = null
 
 # v7.7 Phase 2.1.3 — 3 parchemin 3D meshes (PlaneMesh + parchment NoiseTexture +
 # title Label3D + ogham Label3D). Player clicks one to pick the title.
@@ -143,6 +146,10 @@ func _setup_ui() -> void:
 # ═════════ Foundation flow (Phase 2.1.1+2.1.2+2.1.8+2.1.9) ═══════════════════
 
 func _run_flow() -> void:
+	# v7.7.17 — Spawn Merlin BEFORE the LLM call so the player sees him
+	# "thinking" / "writing" during the wait (user request : « M.E.R.L.I.N qui
+	# doit apparaitre à ce moment (la bouche qui parle etc) »).
+	_spawn_merlin_for_writing()
 	# Step 1 : generate 3 titles
 	_info_label.text = "Le sage Merlin consulte les Oghams…\n(génération des titres)"
 	_titles = await _planner.generate_titles(_biome_id)
@@ -307,10 +314,10 @@ func _build_single_parchemin(title_text: String, ogham_id: String, idx: int) -> 
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mi.material_override = mat
 	add_child(mi)
-	# v7.7 outline audit fix — bible §20 signature on the parchemins (first 3D
-	# asset player sees per run, pre-skeleton). PlaneMesh outline thickness slim
-	# (0.005) to keep silhouette discreet on the flat face.
-	CelShadingManager.apply(mi, {"outline_thickness": 0.005})
+	# v7.7.17 — User « contour noir complet ». Parchment outline 0.005→0.015.
+	# Combined with new OUTLINE_THICKNESS_MULTIPLIER=1.4 in CelShadingManager,
+	# final outline thickness ≈ 0.021 — clearly visible.
+	CelShadingManager.apply(mi, {"outline_thickness": 0.015})
 	# Title Label3D (top half of parchemin)
 	var lbl := Label3D.new()
 	lbl.text = title_text
@@ -336,13 +343,64 @@ func _build_single_parchemin(title_text: String, ogham_id: String, idx: int) -> 
 		ogham_lbl.position = Vector3(0, -0.55, 0.01)
 		ogham_lbl.no_depth_test = true
 		mi.add_child(ogham_lbl)
-	# Subtle reveal : scale-in TRANS_BACK with staggered delay per parchemin.
+	# v7.7.17 — Staggered reveal extended 0.18s → 2.5s per card for the 10s cascade
+	# (user request « 10 secondes de chargements d'assets les uns après les autres »).
+	# Cards spawn at t=0, 2.5, 5.0 — total cascade ~5.5s for 3 cards + sound bar
+	# intro + final speech = ~10s budget.
 	mi.scale = Vector3.ZERO
-	var t := create_tween()
-	t.tween_interval(float(idx) * 0.18)
-	t.tween_property(mi, "scale", Vector3.ONE, 0.45) \
+	var t := create_tween().bind_node(mi)
+	t.tween_interval(float(idx) * 2.5)
+	t.tween_property(mi, "scale", Vector3.ONE, 0.55) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# Pulse the Merlin sound bar (if spawned) when this card materializes — gives the
+	# feeling that Merlin "writes" each parchment in succession.
+	t.tween_callback(_pulse_merlin_sound_bar_for_card)
 	return mi
+
+
+## v7.7.17 — Pulse the MerlinSoundBar (if spawned) for ~0.6s simulating Merlin
+## speaking while a parchment is being written. Idempotent — safe if no bar.
+func _pulse_merlin_sound_bar_for_card() -> void:
+	if _merlin_sound_bar == null or not is_instance_valid(_merlin_sound_bar):
+		return
+	if _merlin_sound_bar.has_method("start_speaking"):
+		_merlin_sound_bar.call("start_speaking")
+	# Fire 5 pulses over 0.6s (one per ~120ms)
+	for i in range(5):
+		var delay: float = float(i) * 0.12
+		get_tree().create_timer(delay).timeout.connect(func() -> void:
+			if is_instance_valid(_merlin_sound_bar) and _merlin_sound_bar.has_method("pulse"):
+				_merlin_sound_bar.call("pulse", randf_range(0.5, 0.9))
+		)
+	get_tree().create_timer(0.7).timeout.connect(func() -> void:
+		if is_instance_valid(_merlin_sound_bar) and _merlin_sound_bar.has_method("stop_speaking"):
+			_merlin_sound_bar.call("stop_speaking")
+	)
+
+
+## v7.7.17 — Instantiate the Merlin sound bar above the parchments,
+## positioned in front of the camera. Idempotent : safe to call twice.
+func _spawn_merlin_for_writing() -> void:
+	if _merlin_sound_bar != null and is_instance_valid(_merlin_sound_bar):
+		return
+	_merlin_sound_bar = Node3D.new()
+	_merlin_sound_bar.set_script(MERLIN_SOUND_BAR_SCRIPT)
+	_merlin_sound_bar.name = "MerlinWritingSoundBar"
+	# Position : above the parchments (y=2.6, behind them z=1.8), facing camera.
+	_merlin_sound_bar.position = Vector3(0.0, 2.6, 1.8)
+	_merlin_sound_bar.rotation = Vector3(deg_to_rad(-8.0), 0.0, 0.0)
+	# Slight scale-up for visibility from camera distance.
+	_merlin_sound_bar.scale = Vector3.ONE * 1.5
+	add_child(_merlin_sound_bar)
+	# Initial speaking state — pulses for ~1.5s simulating "Merlin begins to weave"
+	if _merlin_sound_bar.has_method("start_speaking"):
+		_merlin_sound_bar.call("start_speaking")
+	for i in range(8):
+		var d: float = float(i) * 0.15
+		get_tree().create_timer(d).timeout.connect(func() -> void:
+			if is_instance_valid(_merlin_sound_bar) and _merlin_sound_bar.has_method("pulse"):
+				_merlin_sound_bar.call("pulse", randf_range(0.4, 0.85))
+		)
 
 
 ## Build 3 floating 2D Buttons on the UI layer, positioned at the unproject of each

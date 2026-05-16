@@ -361,7 +361,9 @@ func _build_biome_selector() -> void:
 			sb.border_color = accent_color.darkened(0.5)
 			btn.add_theme_color_override("font_color", Color(0.45, 0.45, 0.48))
 			btn.add_theme_color_override("font_disabled_color", Color(0.45, 0.45, 0.48))
-		sb.set_border_width_all(2)
+		# v7.7.17 — Thicker borders to match cel-shading « contour noir complet ».
+		# Was 2→3 hover. Now 4→6 hover. Matches the 3D outline thickness bump.
+		sb.set_border_width_all(4)
 		sb.set_corner_radius_all(0)   # Persona sharp edges, no radius
 		sb.set_content_margin_all(12)
 		btn.add_theme_stylebox_override("normal", sb)
@@ -369,7 +371,7 @@ func _build_biome_selector() -> void:
 		if unlocked:
 			sb_hover.bg_color = bg_color.lightened(0.10)
 			sb_hover.border_color = accent_color.lightened(0.18)
-			sb_hover.set_border_width_all(3)
+			sb_hover.set_border_width_all(6)
 		btn.add_theme_stylebox_override("hover", sb_hover)
 		btn.add_theme_stylebox_override("disabled", sb)
 

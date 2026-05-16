@@ -30,7 +30,11 @@
 class_name CelShadingManager
 extends Object
 
-const DEFAULT_OUTLINE_THICKNESS := 0.015
+## v7.7.17 — User request « contour noir complet ». Bumped default thickness
+## and added a global multiplier so all 11 callers get a uniform thicker outline
+## without per-call-site changes.
+const DEFAULT_OUTLINE_THICKNESS := 0.022   # was 0.015
+const OUTLINE_THICKNESS_MULTIPLIER := 1.4   # global uniform bump (A/B tunable)
 const OUTLINE_NODE_NAME := "_CelOutline"
 
 
@@ -83,7 +87,10 @@ static func _remap_smat(smat: StandardMaterial3D) -> void:
 static func _attach_inverted_hull_outline(mesh: MeshInstance3D, opts: Dictionary) -> void:
 	if mesh.mesh == null:
 		return
-	var thickness: float = float(opts.get("outline_thickness", DEFAULT_OUTLINE_THICKNESS))
+	# v7.7.17 — Apply global multiplier so all 11 callers get a uniform thicker
+	# outline ("contour noir complet" per user request).
+	var base_thickness: float = float(opts.get("outline_thickness", DEFAULT_OUTLINE_THICKNESS))
+	var thickness: float = base_thickness * OUTLINE_THICKNESS_MULTIPLIER
 	var color: Color = opts.get("outline_color", Color.BLACK)
 	var outline := MeshInstance3D.new()
 	outline.name = OUTLINE_NODE_NAME

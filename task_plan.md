@@ -6,6 +6,51 @@
 
 ---
 
+## v7.7.17 — DA digitalization + 10s ScenarioLoading + thick outline everywhere [2026-05-16]
+
+Plan : `~/.claude/plans/kind-humming-peach.md` v7.7.17 section (user approved via ExitPlanMode).
+
+### User decisions (locked)
+- MenuTest digitalization : **Strict terminal/cyberpunk** (drop Persona slashes)
+- ScenarioLoading budget : **Élastique avec skip-after-5s**
+
+### Phase 1 — MenuTest DA digitalization (menu_test.gd)
+Drop 2 rotated Persona slashes → replace with horizontal data-readout panel (3 monospace rows), hex code drift at margins, denser scanlines (2px alpha 0.10), frequent glitch (every 1.5-3s).
+
+### Phase 2 — ScenarioLoading 10s LLM-writing cascade (scenario_loading.gd)
+- Sound bar appears top, speech bubble below
+- 3 cards stagger 2.5s apart (0→4.5→7s), each with internal writing anim
+- Skip-after-5s hint bottom-right
+- Total target 10s with elastic skip
+
+### Phase 3 — Cel-shading 100% coverage + thick outline (cel_shading_manager.gd + merlin_sound_bar.gd)
+- DEFAULT_OUTLINE_THICKNESS : 0.015 → 0.022
+- NEW const OUTLINE_THICKNESS_MULTIPLIER = 1.4 (global uniform bump)
+- merlin_sound_bar.gd : add CelShadingManager.apply to all 12 bars in _ready
+- scenario_loading.gd : parchment outline 0.005 → 0.015
+
+### Phase 4 — Biome buttons consistency (board_narration.gd)
+border_width 2 → 4, hover 6
+
+### Phase 5 — jocamar PPOutlinesCamera global outline (deferred to v7.7.18 if v7.7.17 ships first)
+
+### Audit findings
+99% cel-shading coverage already. Single gap : MerlinSoundBar 12 bars.
+
+---
+
+## v7.7.16 — Remove Mage + 17 asset/shader repos cloned + 60 FPS aggressive [2026-05-16]
+
+Plan : `~/.claude/plans/kind-humming-peach.md` v7.7.16 section.
+Commit : `ca639b6a`.
+
+- Phase 1 : KayKit Mage removed from BoardNarration (function body kept for revert)
+- Phase 2 : 9 KayKit packs + 5 lowpoly_assets cloned (606 MB gitignored)
+- Phase 3 : 2 cel-shaders cloned (eldskald + jocamar) + integration README
+- Phase 5 : FPSOverlay autoload + project.godot MSAA 0 / FXAA / scaling_3d=0.9 / mesh_lod=4.0
+
+---
+
 ## v7.7.15 — Menu boot construction + Plateau dark arrival + Merlin sound bar + 8 biomes stylés [2026-05-16]
 
 Plan : `~/.claude/plans/kind-humming-peach.md` (user approved).

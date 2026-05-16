@@ -62,6 +62,11 @@ func _ready() -> void:
 		_bars.append(bar)
 		_amplitudes.append(BAR_IDLE_HEIGHT)
 		_targets.append(BAR_IDLE_HEIGHT)
+	# v7.7.17 — Apply CelShadingManager outline noir to each bar per user request
+	# « TOUS les assets aient un effet cel shadé ... contour noir complet ».
+	# Audit confirmed this was the single gap in 99% coverage.
+	for bar in _bars:
+		CelShadingManager.apply(bar, {"outline_thickness": 0.012, "skip_flat_remap": true})
 
 
 func _process(_delta: float) -> void:
