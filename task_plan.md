@@ -2,7 +2,62 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-16 (v7.7.10 pipeline complete : KayKit + HUD + animations).
+> **Last refresh**: 2026-05-16 (v7.7.11 Persona UI + addons survey + bible cleanup).
+
+---
+
+## v7.7.11 — Persona digital UI + addon survey + erasure subtitle [2026-05-16]
+
+User instruction (verbatim) : *« Fais un tour sur les extensions Godots qui nous seraient utiles et deploies ici ! Je veux une interface digital dans le style très prononcé Persona, il faut que ce soit travaillé tout en etant simple et pas surchargé, fais disparaitre définitivement de la bible et de toute note jeu des oghams + du titre, on en parle pas, KayKIT doit me servir de reference graphique pour détourer et comprendre les assets de personnage, decor et autres (variété max) sont fait pour répliquer la technique sous blender et garder en permanence de la cohérence visuelle, essaie de générer egalement à partir d'une image de plateau de broceliande la version améliorée visées grace à gemini (en restant dans du low poly cel shadé) »*
+
+### Phase 1 — Persona menu redesign (DONE)
+- [x] menu_test.gd : retirer subtitle « — Le Jeu des Oghams — » + redesign Persona-style
+- [x] Palette Persona-celtique : noir profond (#0a0808) + or chaud (#ebb833) + sang celtique (#c72929) + crème (#fbf0d1)
+- [x] Diagonal slash or rotation -8° derrière titre
+- [x] Diagonal slash crimson plus mince offset
+- [x] Titre M.E.R.L.I.N. bold 130px (vs 96 avant) avec outline crème pour lisibilité
+- [x] Bouton « ENTRER » : stripe crimson 6px à gauche + fond noir + hover border crimson top/bottom
+- [x] Bords nets (radius=0), affordance hover via border (pas glow)
+- [x] Footer minimal « Le sage t'attend » (vs verbeux avant)
+- [x] Smoke MenuTest : exit=0 script_errors=0 warnings=0 passed=True
+
+### Phase 2 — Cleanup « Jeu des Oghams » subtitle (IN PROGRESS)
+Audit a trouvé 78+ occurrences. Priorité = canonical + player-visible :
+- [x] menu_test.gd:126 (subtitle in-game)
+- [x] CLAUDE.md:1
+- [x] PROJECT.md:11
+- [x] progress.md:1
+- [x] findings.md:1
+- [x] docs/GAME_DESIGN_BIBLE.md:1275 + bump v3.0→v3.7
+- [x] docs/README.md:1 + paragraph intro L11
+- [x] shaders/screen_distortion.gdshader:5
+- [x] docs/root/doc.md:1 (architecture title)
+- [ ] docs/dashboard.html:459,474,720 (DEFERRED — non-canonical)
+- [ ] docs/GAMEPLAY_BIBLE.md / MASTER_DOCUMENT.md (DEFERRED — bulk archives)
+- [ ] 20+ legacy docs (DEFERRED — non-critical body refs)
+
+**Règle** : INDIVIDUAL Ogham rune mechanics (Beith/Coll/etc.) **KEEP** — gameplay tokens. Seul le SUBTITLE de marque est purgé.
+
+### Phase 3 — Godot extensions survey + deploy (DONE)
+Top 2 installés (MIT, Godot 4.x compatible) :
+- [x] `addons/phantom_camera/` (4.3 MB) — Cinemachine-style virtual cameras pour cinematics plateau / cartes / MOS
+- [x] `addons/godot_game_template/` (11 MB) — Maaack scene transitions + loader framework
+- [ ] DEFERRED : Dialogic 2 (LLM fallback), GodotRetro shaders (CRT/halftone P5), KoBeWi Tween Suite, Chavafei P5 reference (mine code only)
+
+### Phase 4 — KayKit reframe = REFERENCE technique (DONE)
+- [ ] Update bible §20.6 : KayKit est REFERENCE graphique pour étudier la technique Blender low-poly cel-shadé + répliquer en assets custom (PAS juste import). Variété max sur perso/décor.
+
+### Phase 5 — Gemini plateau enhancement (BLOCKED quota)
+- [ ] nano-banana edit_image sur `frame_0008.png` (capture v7.7.7 plateau actuel)
+- Prompt : version améliorée low-poly cel-shadée (outline plus net, plus de variété arbres, accents Celtic knot, fog stylisé, mountains silhouettes, glow mystique pedestal)
+- Status : quota Gemini free tier exhausted → retry après cooldown
+
+### Validation
+- Smoke MenuTest passed=True (Persona redesign visible)
+- Bible header v3.7 (was v3.0 — bumped to match canonical state)
+
+### Visual capture
+- `tools/autodev/captures/v7_7_11_persona_menu/frame_0000.png` — Persona menu rendering confirmed
 
 ---
 

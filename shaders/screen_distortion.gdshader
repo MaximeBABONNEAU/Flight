@@ -2,7 +2,7 @@ shader_type canvas_item;
 render_mode unshaded;
 
 // Screen Distortion Shader - Subtle, Realistic Monitor Imperfections
-// For DRU: Le Jeu des Oghams - Designed for mobile performance
+// For M.E.R.L.I.N. - Designed for mobile performance
 // All effects are designed to be barely noticeable, creating subliminal unease
 
 // === MASTER CONTROLS ===

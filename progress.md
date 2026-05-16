@@ -1,4 +1,4 @@
-# Progress Log - M.E.R.L.I.N.: Le Jeu des Oghams
+# Progress Log - M.E.R.L.I.N.
 
 > **Note**: Sessions anterieures archivees dans `archive/progress_archive_2026-02-05_to_2026-02-08.md`
 

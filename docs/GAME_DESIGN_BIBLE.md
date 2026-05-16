@@ -1,4 +1,4 @@
-# GAME DESIGN BIBLE — M.E.R.L.I.N. v3.7
+# GAME DESIGN BIBLE — M.E.R.L.I.N. v3.8
 
 > **Source de verite unique** pour le game design de M.E.R.L.I.N.
 > Supersede : GAME_DESIGN_BIBLE v2.4 + v3.0, MASTER_DOCUMENT.md, DOC_12, DOC_13, DOC_11
@@ -1006,20 +1006,42 @@ Le pipeline est appelé automatiquement par :
 - [ ] **Shading_mode = PER_VERTEX**, `diffuse = LAMBERT`, `specular = DISABLED` sur tout StandardMaterial3D du plateau.
 - [ ] **Pas un asset PBR isolé** au milieu d'assets low-poly flat (incohérence visuelle).
 
-### 20.6 Source asset canonique : KayKit pipeline (v3.7+, NON-NÉGOCIABLE)
+### 20.6 KayKit = RÉFÉRENCE technique pour assets Blender custom (v3.8+, NON-NÉGOCIABLE)
 
-> **Décrété 2026-05-16 part 2.** Source asset principale du jeu = **KayKit by Kay Lousberg** (license CC0/MIT). Documenté dans `external/kaykit/README.md`.
+> **Décrété 2026-05-16 part 3** (reframe). KayKit n'est PAS un asset pack de production drop-in. C'est une **référence graphique** pour étudier la technique low-poly cel-shadé et **répliquer cette technique sous Blender** pour produire NOS assets custom MERLIN. Variété max sur personnages/décors/props. Cohérence visuelle permanente.
+>
+> Documenté dans `external/kaykit/README.md` (clones + naming).
 
-#### Pourquoi KayKit
+#### Pourquoi KayKit comme référence
 
-| Critère | Pourquoi ça matche MERLIN |
+| Critère | Pourquoi étudier KayKit |
 |---|---|
-| **Style consistency** | Tous packs KayKit partagent identique stylisation low-poly stylized |
-| **License** | CC0 / MIT (commercial free, pas d'attribution requise) |
-| **Format** | `.blend` + `.glb` shipped, drop-in Godot 4.5 |
-| **Vertex colors** | Faces flat-shaded via vertex colors (compatible CelShadingManager native) |
-| **Scale & rig** | 1 unit = 1m, characters rigged for Godot AnimationPlayer |
-| **Pack diversity** | Adventurers, Mini-Game Variety, Hexagon Tiles, Skeletons, Dungeon — couvre 90%+ assets MERLIN |
+| **Technique consistante** | Tous packs KayKit partagent identique stylisation low-poly cel-shadé — modèle parfait à analyser |
+| **License** | CC0 / MIT (free study + free derivative production) |
+| **Source .blend disponible** | On peut ouvrir leurs `.blend`, regarder la topologie, le vertex paint, les modifier stacks |
+| **Vertex colors** | Faces flat-shaded via vertex colors — exact pipeline qu'on doit reproduire (compatible CelShadingManager native) |
+| **Scale & rig** | 1 unit = 1m, characters rigged — standard à copier |
+| **Pack diversity** | Adventurers, Mini-Game Variety, Hexagon, Skeletons, Dungeon — large échantillonnage de patterns à apprendre |
+
+#### Workflow technique réplication (4 étapes)
+
+1. **Étudier** : ouvrir un .blend KayKit dans Blender, analyser :
+   - Topologie low-poly (segments cylindre, edge loops minimaux)
+   - Face shading (Flat partout, no Smooth)
+   - Vertex color painting (2-3 tones discrets par mesh, ZERO gradient)
+   - Modifier stack (Subdivision off, Bevel parfois)
+   - Material setup (Principled BSDF metallic=0, roughness=0.8+)
+2. **Répliquer** : créer NOTRE asset Blender custom en suivant ces patterns :
+   - Même densité de poly (Mage KayKit ~ 500-800 tris → on vise pareil)
+   - Mêmes proportions stylisées (head:body:legs ~ 1:2:1.5)
+   - Vertex colors painted manuellement avec biome palette §22 MERLIN
+   - Outline géré via CelShadingManager runtime (PAS dans le .blend)
+3. **Diversifier** : produire VARIÉTÉ MAX :
+   - Personnages : druides, anciens, korrigans, niamh, ankou, NPC biomes (5 factions × multi variantes)
+   - Décors : arbres (pins, chênes, twisted Celtic), totems, dolmens, ruines, fougères, champignons
+   - Props : runes, parchemins, potions, coffres, lanternes, cristaux
+   - Tuiles biomes : forêt, lande, marais, falaise, ruine, montagne (8 biomes × 5 variantes)
+4. **Exporter** : `.blend → .glb` via `external/godot-blender-exporter`, drop dans `Assets/blender/<cat>/<name>.glb`, smoke + CelShadingManager test.
 
 #### Pipeline complet (utilise les 3 outils déjà installés)
 
@@ -1053,14 +1075,16 @@ grep -rE "MeshInstance3D\.new\(|preload\(.*\.glb" scripts/ | grep -v test/ \
   # → liste fichiers créant meshes SANS appliquer outline → BLOCKER avant commit
 ```
 
-#### Mapping pack KayKit → catégorie MERLIN
+#### Mapping pack KayKit → catégorie MERLIN (référence d'étude par catégorie)
 
-| Pack KayKit | Categorie MERLIN | Trigger d'usage |
+> Note v3.8 : ces packs sont à **étudier** par catégorie pour comprendre la technique avant de répliquer. PAS à importer en bloc. `kaykit_mage.glb` actuellement utilisé comme guardian (v7.7.8) reste exception transitoire pour valider le pipeline runtime ; sera remplacé par asset custom MERLIN dès production.
+
+| Pack KayKit (référence) | Categorie MERLIN à produire custom | Variété attendue |
 |---|---|---|
-| Adventurers | `druide_*.glb` | Pion principal du joueur, figurines factions |
-| Mini-Game Variety | `prop_rune_*.glb`, `prop_potion_*.glb` | Props plateau + cartes de prop reveal |
-| Animated Characters 2.0 | `creature_*.glb` rigged | Boss faction, animations idle/attack |
-| Medieval Hexagon | `tile_biome_*.glb` | 8 biomes terrain tiles modulaires |
+| Adventurers | `druide_*.glb` | 5+ figurines druide/anciens/korrigans/niamh/ankou + variantes par biome |
+| Mini-Game Variety | `prop_*.glb` | 20+ props (runes, potions, coffres, lanternes, cristaux, parchemins) |
+| Animated Characters 2.0 | `creature_*.glb` | 8+ créatures rigged faction (boss + minions par faction) |
+| Medieval Hexagon | `tile_biome_*.glb` | 40+ tuiles (8 biomes × 5 variantes minimum) |
 | Skeletons | `creature_ankou_*.glb` | Faction Ankou (mort) creatures |
 | Dungeon | `cabin_*.glb`, `temple_*.glb` | Hub MerlinCabinHub + intérieurs scénarios |
 
@@ -1272,7 +1296,8 @@ Les palettes sont exposées dans `scripts/board_narration/biome_palettes.gd` (à
 
 ---
 
-*GAME_DESIGN_BIBLE v3.0 — M.E.R.L.I.N. : Le Jeu des Oghams*
+*GAME_DESIGN_BIBLE v3.8 — M.E.R.L.I.N.*
+*v3.8 (2026-05-16) — §20.6 reframed : KayKit = RÉFÉRENCE technique pour assets custom + §20.7 Persona digital UI accents (menu_test v7.7.11) + subtitle definitively removed*
 *Refonte majeure 2026-05-09 — Inscryption x AI Dungeon x Cyber-Druidique*
 *v3.1 (2026-05-14) — §19 UI/UX Coherence Rules added*
 *v3.2 (2026-05-14) — §20 Cel-Shading + Outline Noir : marque de fabrique du jeu*

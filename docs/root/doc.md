@@ -1,4 +1,4 @@
-🌿 ARCHITECTURE TECHNIQUE — DRU : Le Jeu des Oghams
+🌿 ARCHITECTURE TECHNIQUE — M.E.R.L.I.N.
 Document de Référence pour l'Intégration de Merlin (LLM Local)
 
 📋 TABLE DES MATIÈRES

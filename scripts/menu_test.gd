@@ -103,80 +103,126 @@ func _build_ui() -> void:
 	_ui.layer = 10
 	add_child(_ui)
 
-	# v7.7.2.2 — Primary visible title via 2D Label in CanvasLayer (guaranteed
-	# render even if global overlays misbehave or 3D camera culls the Label3D).
-	# The 3D Label3D in _build_3d_scene now plays a decorative role only.
+	# v7.7.11 — Persona-style menu : digital interface très prononcé, simple, pas surchargé.
+	# Subtitle retiré définitivement per user instruction (« on en parle pas »).
+	# Palette adaptée : noir profond + or chaud + sang celtique (variante celtique du P5 red/black/gold).
+	# Layout :
+	#   - Diagonal gold slash derrière le titre (-8°, P5 dynamism)
+	#   - Diagonal crimson slash plus mince (-8° offset, visual tension)
+	#   - Titre M.E.R.L.I.N. bold uppercase 130px, encre noire sur slash or
+	#   - Bouton ENTRER avec stripe crimson à gauche + hover border top/bottom
+	#   - Footer hint minimal
+	var p_gold := Color(0.92, 0.72, 0.20)
+	var p_crimson := Color(0.78, 0.16, 0.18)
+	var p_ink := Color(0.04, 0.03, 0.03)
+	var p_cream := Color(0.98, 0.94, 0.82)
+
+	# Accent slash 1 — bande or longue derrière le titre.
+	var accent_gold := ColorRect.new()
+	accent_gold.name = "AccentGold"
+	accent_gold.color = p_gold
+	accent_gold.anchor_left = 0.0
+	accent_gold.anchor_right = 1.0
+	accent_gold.anchor_top = 0.22
+	accent_gold.anchor_bottom = 0.34
+	accent_gold.rotation = deg_to_rad(-8.0)
+	accent_gold.modulate = Color(1, 1, 1, 0.92)
+	accent_gold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(accent_gold)
+
+	# Accent slash 2 — bande crimson plus mince, offset.
+	var accent_crimson := ColorRect.new()
+	accent_crimson.name = "AccentCrimson"
+	accent_crimson.color = p_crimson
+	accent_crimson.anchor_left = 0.0
+	accent_crimson.anchor_right = 1.0
+	accent_crimson.anchor_top = 0.34
+	accent_crimson.anchor_bottom = 0.365
+	accent_crimson.rotation = deg_to_rad(-8.0)
+	accent_crimson.modulate = Color(1, 1, 1, 0.88)
+	accent_crimson.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(accent_crimson)
+
+	# Titre M.E.R.L.I.N. — bold uppercase 130px, encre noire sur l'or (lisibilité max).
 	var title2d := Label.new()
 	title2d.name = "Title2D"
 	title2d.text = "M.E.R.L.I.N."
 	title2d.anchor_left = 0.0
 	title2d.anchor_right = 1.0
-	title2d.anchor_top = 0.18
-	title2d.anchor_bottom = 0.32
+	title2d.anchor_top = 0.21
+	title2d.anchor_bottom = 0.35
 	title2d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title2d.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title2d.add_theme_font_size_override("font_size", 96)
-	title2d.add_theme_color_override("font_color", Color(0.96, 0.85, 0.45))
-	title2d.add_theme_color_override("font_outline_color", Color(0.10, 0.06, 0.02))
-	title2d.add_theme_constant_override("outline_size", 8)
+	title2d.add_theme_font_size_override("font_size", 130)
+	title2d.add_theme_color_override("font_color", p_ink)
+	title2d.add_theme_color_override("font_outline_color", p_cream)
+	title2d.add_theme_constant_override("outline_size", 6)
 	_ui.add_child(title2d)
 
-	var sub2d := Label.new()
-	sub2d.name = "Subtitle2D"
-	sub2d.text = "— Le Jeu des Oghams —"
-	sub2d.anchor_left = 0.0
-	sub2d.anchor_right = 1.0
-	sub2d.anchor_top = 0.34
-	sub2d.anchor_bottom = 0.40
-	sub2d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub2d.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	sub2d.add_theme_font_size_override("font_size", 28)
-	sub2d.add_theme_color_override("font_color", Color(0.72, 0.62, 0.40))
-	sub2d.add_theme_color_override("font_outline_color", Color(0.05, 0.03, 0.01))
-	sub2d.add_theme_constant_override("outline_size", 4)
-	_ui.add_child(sub2d)
+	# Bouton ENTRER — Persona-style : stripe crimson à gauche + panel noir net.
+	var btn_box := Control.new()
+	btn_box.name = "BtnContainer"
+	btn_box.anchor_left = 0.5
+	btn_box.anchor_right = 0.5
+	btn_box.anchor_top = 0.68
+	btn_box.anchor_bottom = 0.68
+	btn_box.offset_left = -200
+	btn_box.offset_right = 200
+	btn_box.offset_top = -42
+	btn_box.offset_bottom = 42
+	btn_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(btn_box)
+
+	var stripe := ColorRect.new()
+	stripe.name = "BtnStripe"
+	stripe.color = p_crimson
+	stripe.anchor_top = 0.0
+	stripe.anchor_bottom = 1.0
+	stripe.offset_left = 0
+	stripe.offset_right = 6
+	stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn_box.add_child(stripe)
 
 	var btn := Button.new()
 	btn.name = "BtnTester"
-	btn.text = "TESTER UN RUN"
-	btn.anchor_left = 0.5
-	btn.anchor_right = 0.5
-	btn.anchor_top = 0.7
-	btn.anchor_bottom = 0.7
-	btn.offset_left = -180
-	btn.offset_right = 180
-	btn.offset_top = -36
-	btn.offset_bottom = 36
-	btn.add_theme_font_size_override("font_size", 28)
-	btn.add_theme_color_override("font_color", Color(0.96, 0.85, 0.45))
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.55))
-	btn.add_theme_color_override("font_pressed_color", Color(0.85, 0.70, 0.30))
-	# v7.7.2.1 — no borders per user feedback ("bordures à enlever"). Use only
-	# a subtle bg color shift on hover for affordance. Border width = 0 across states.
+	btn.text = "ENTRER"
+	btn.anchor_left = 0.0
+	btn.anchor_right = 1.0
+	btn.anchor_top = 0.0
+	btn.anchor_bottom = 1.0
+	btn.offset_left = 6
+	btn.add_theme_font_size_override("font_size", 36)
+	btn.add_theme_color_override("font_color", p_cream)
+	btn.add_theme_color_override("font_hover_color", p_gold)
+	btn.add_theme_color_override("font_pressed_color", p_cream)
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.08, 0.06, 0.04, 0.40)
+	normal.bg_color = p_ink
 	normal.set_border_width_all(0)
-	normal.set_corner_radius_all(4)
+	normal.set_corner_radius_all(0)   # Persona : bords nets, pas de radius
 	normal.set_content_margin_all(14)
 	btn.add_theme_stylebox_override("normal", normal)
 	var hover := normal.duplicate()
-	hover.bg_color = Color(0.18, 0.12, 0.06, 0.70)
+	hover.bg_color = Color(0.10, 0.08, 0.08, 1.0)
+	hover.border_color = p_crimson
+	hover.border_width_top = 2
+	hover.border_width_bottom = 2
 	btn.add_theme_stylebox_override("hover", hover)
 	var pressed := normal.duplicate()
-	pressed.bg_color = Color(0.04, 0.03, 0.02, 0.85)
+	pressed.bg_color = p_crimson
 	btn.add_theme_stylebox_override("pressed", pressed)
 	btn.pressed.connect(_on_tester_pressed)
-	_ui.add_child(btn)
+	btn_box.add_child(btn)
 
+	# Footer minimal — pas de subtitle.
 	var hint := Label.new()
-	hint.text = "Le sage Merlin t'attend dans la pièce sombre…"
+	hint.text = "Le sage t'attend"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.anchor_left = 0.0
 	hint.anchor_right = 1.0
 	hint.anchor_top = 0.92
 	hint.anchor_bottom = 0.97
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.add_theme_color_override("font_color", Color(0.55, 0.45, 0.32, 0.7))
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_color_override("font_color", Color(0.45, 0.38, 0.30, 0.55))
 	_ui.add_child(hint)
 
 

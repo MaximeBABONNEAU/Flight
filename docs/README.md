@@ -1,4 +1,4 @@
-# M.E.R.L.I.N.: Le Jeu des Oghams - Index de Documentation
+# M.E.R.L.I.N. - Index de Documentation
 
 **Version**: 4.0 (Triade + Multi-Brain + Documentation Complete)
 **Derniere mise a jour**: 2026-02-09
@@ -8,7 +8,7 @@
 
 ## Vue d'ensemble du Projet
 
-**M.E.R.L.I.N.: Le Jeu des Oghams** est un jeu narratif roguelite de style JDR Parlant developpe avec Godot 4.x. Le joueur incarne un druide guide par Merlin, un narrateur omniscient genere par LLM local (Qwen2.5-3B-Instruct), accompagne de Bestiole, un compagnon mystique qui offre des skills passifs (les 18 Oghams).
+**M.E.R.L.I.N.** est un jeu narratif roguelite de style JDR Parlant developpe avec Godot 4.x. Le joueur incarne un druide guide par Merlin, un narrateur omniscient genere par LLM local (Qwen2.5-3B-Instruct), accompagne de Bestiole, un compagnon mystique qui offre des skills passifs.
 
 Le coeur du jeu est un **"JDR Parlant"** ou:
 - **Merlin narre** des histoires generees dynamiquement par LLM local

@@ -1,4 +1,4 @@
-# Findings & Decisions - DRU: Le Jeu des Oghams
+# Findings & Decisions - M.E.R.L.I.N.
 
 ## Session: 2026-02-19
 

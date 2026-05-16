@@ -8,7 +8,7 @@
 
 ## Finalité
 
-Sortie commerciale **MERLIN — Le Jeu des Oghams** sur Steam / itch.io payant.
+Sortie commerciale **MERLIN** sur Steam / itch.io payant.
 Pas de release web. Cible : desktop + console (mobile envisagé).
 
 Le studio agentique (Octogent + 103 agents + studio-director) est un MOYEN

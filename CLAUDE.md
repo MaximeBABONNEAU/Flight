@@ -1,4 +1,4 @@
-# CLAUDE.md — M.E.R.L.I.N.: Le Jeu des Oghams
+# CLAUDE.md — M.E.R.L.I.N.
 
 > Comportements OBLIGATOIRES pour Claude Code sur ce projet.
 
