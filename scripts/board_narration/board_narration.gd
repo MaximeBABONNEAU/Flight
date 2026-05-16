@@ -180,32 +180,27 @@ func _apply_neutral_lighting() -> void:
 		env.volumetric_fog_enabled = true
 		env.volumetric_fog_density = 0.008
 		env.volumetric_fog_emission = Color(0.10, 0.07, 0.03)
-	_build_merlin_mouth_silhouette()
+	_build_merlin_sound_bar()
 
 
-## v7.7.2 — Spawn a dim Label3D at the back wall acting as Merlin's spectral mouth.
-## Ogham glyphs (whisper-like), low opacity amber, no_depth_test so it floats over fog.
-## Per user : "la bouche de merlin au fond". Idempotent (skips if already present).
-func _build_merlin_mouth_silhouette() -> void:
-	if has_node("MerlinMouthSilhouette"):
+## v7.7.15 — Merlin is now a digital sound bar at the back of the plateau
+## (user request : « merlin sous forme de barre de son digitale qui s'anima
+## quand il parle »). Replaces the static MerlinMouthSilhouette Label3D.
+## Typed as Node3D + preload to avoid class_name registry timing issues
+## with first-pass headless smoke. The methods pulse/start/stop_speaking are
+## called via has_method guards (defensive).
+const MERLIN_SOUND_BAR_SCRIPT := preload("res://scripts/board_narration/merlin_sound_bar.gd")
+var _merlin_sound_bar: Node3D = null
+
+func _build_merlin_sound_bar() -> void:
+	if _merlin_sound_bar != null and is_instance_valid(_merlin_sound_bar):
 		return
-	var mouth := Label3D.new()
-	mouth.name = "MerlinMouthSilhouette"
-	mouth.text = "ᚇ  ᚐ  ᚌ  ᚏ"  # whisper-like ogham glyphs
-	mouth.modulate = Color(0.55, 0.35, 0.15, 0.45)  # dim amber, low opacity
-	mouth.outline_modulate = Color(0.08, 0.04, 0.02, 0.3)
-	mouth.outline_size = 6
-	mouth.font_size = 84
-	mouth.pixel_size = 0.0035
-	mouth.no_depth_test = true
-	mouth.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	mouth.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mouth.position = Vector3(0, 2.3, -3.8)  # back wall, above eye line
-	add_child(mouth)
-	# Subtle pulse — Merlin "breathing" — driven by a slow tween loop.
-	var t := create_tween().set_loops()
-	t.tween_property(mouth, "modulate:a", 0.22, 2.4).set_trans(Tween.TRANS_SINE)
-	t.tween_property(mouth, "modulate:a", 0.48, 2.4).set_trans(Tween.TRANS_SINE)
+	_merlin_sound_bar = Node3D.new()
+	_merlin_sound_bar.set_script(MERLIN_SOUND_BAR_SCRIPT)
+	_merlin_sound_bar.name = "MerlinSoundBar"
+	_merlin_sound_bar.position = Vector3(0.0, 1.6, -3.4)
+	_merlin_sound_bar.rotation = Vector3(deg_to_rad(-8.0), 0.0, 0.0)
+	add_child(_merlin_sound_bar)
 
 
 # ─── Biome selector overlay ─────────────────────────────────────────────────
@@ -2386,15 +2381,73 @@ func _run_cinematic() -> void:
 
 
 func _phase_intro() -> void:
-	# Camera ease-in: starts further back, eases to wide pos. Lights ramp up.
-	_camera.position = CAMERA_WIDE_POS + Vector3(0.0, 0.4, 2.0)
+	# v7.7.15 — Dark room arrival per user request : « on arrive dans une salle
+	# sombre, une lumière projetée arrive avec de nombreuses particules d'effets ».
+	# Kill all lights at start so the player begins in actual darkness, then
+	# ramp the spotlight up dramatically (the "projected light arrives") while
+	# the camera dollies in. Particle burst from light cone happens here too.
+	_camera.position = CAMERA_WIDE_POS + Vector3(0.0, 0.6, 2.6)
+	if _spot_light != null:
+		_spot_light.light_energy = 0.0
+	if _key_light != null:
+		_key_light.light_energy = 0.0
+	if _fill_light != null:
+		_fill_light.light_energy = 0.0
+	# Brief moment of pure darkness before the spotlight ignites.
+	await get_tree().create_timer(0.35).timeout
+	# Spawn the particle burst when the light arrives.
+	_spawn_arrival_particles()
+	# Spotlight ramps first (the "projected light") — fast.
 	var t := create_tween().set_parallel(true)
-	t.tween_property(_camera, "position", CAMERA_WIDE_POS, INTRO_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	t.tween_property(_spot_light, "light_energy", 0.6, INTRO_DURATION).set_trans(Tween.TRANS_SINE)
+	t.tween_property(_spot_light, "light_energy", 1.4, 0.55) \
+		.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	# Key + fill ramp slower (ambient fills in gradually after the spotlight punch).
+	t.tween_property(_key_light, "light_energy", 2.0, INTRO_DURATION) \
+		.set_trans(Tween.TRANS_SINE).set_delay(0.30)
+	t.tween_property(_fill_light, "light_energy", 1.2, INTRO_DURATION) \
+		.set_trans(Tween.TRANS_SINE).set_delay(0.30)
+	# Camera dolly in (same timing as before, just from further back).
+	t.tween_property(_camera, "position", CAMERA_WIDE_POS, INTRO_DURATION) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	# Subtle initial narration: biome title
 	_narration_label.text = "…" + str(_biome_label.text) + "…"
 	await get_tree().create_timer(INTRO_DURATION).timeout
 	_narration_label.text = ""
+
+
+## v7.7.15 — Spawn ~60 gold particle motes spiraling down from the spotlight
+## position to the plateau center. Burst is one-shot, dies after 1.5s.
+func _spawn_arrival_particles() -> void:
+	var particles := GPUParticles3D.new()
+	particles.name = "ArrivalParticles"
+	particles.amount = 60
+	particles.lifetime = 1.4
+	particles.one_shot = true
+	particles.explosiveness = 0.65
+	particles.position = Vector3(0.0, 3.4, 0.0)   # high above plateau (spotlight source)
+	var pm := ParticleProcessMaterial.new()
+	pm.gravity = Vector3(0.0, -1.2, 0.0)
+	pm.initial_velocity_min = 0.4
+	pm.initial_velocity_max = 1.2
+	pm.angle_min = 0.0
+	pm.angle_max = 360.0
+	pm.spread = 45.0
+	pm.scale_min = 0.04
+	pm.scale_max = 0.10
+	pm.color = Color(0.95, 0.82, 0.35)
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.6
+	particles.process_material = pm
+	# Use a simple BoxMesh as the particle's draw mesh (lightweight, cel-friendly).
+	var draw_mesh := BoxMesh.new()
+	draw_mesh.size = Vector3(0.06, 0.06, 0.06)
+	particles.draw_pass_1 = draw_mesh
+	add_child(particles)
+	# Auto-cleanup after lifetime + small buffer.
+	get_tree().create_timer(particles.lifetime + 0.5).timeout.connect(func() -> void:
+		if is_instance_valid(particles):
+			particles.queue_free()
+	)
 
 
 func _phase_token(index: int) -> void:
@@ -2983,13 +3036,23 @@ func _typewriter_narration(text: String) -> void:
 	if _narration_label == null:
 		return
 	_narration_label.text = ""
+	# v7.7.15 — Merlin sound bar activates during speech, pulses per typed char.
+	if _merlin_sound_bar != null and is_instance_valid(_merlin_sound_bar):
+		_merlin_sound_bar.start_speaking()
 	var delay: float = 1.0 / LIVE_TYPEWRITER_CPS
 	var i := 0
 	while i < text.length() and not _skip_requested:
 		_narration_label.text = text.substr(0, i + 1)
+		# Pulse a few random bars per char (skip whitespace for variety).
+		if _merlin_sound_bar != null and is_instance_valid(_merlin_sound_bar):
+			var ch: String = text.substr(i, 1)
+			if ch.strip_edges() != "":
+				_merlin_sound_bar.pulse(randf_range(0.4, 0.95))
 		await get_tree().create_timer(delay).timeout
 		i += 1
 	_narration_label.text = text
+	if _merlin_sound_bar != null and is_instance_valid(_merlin_sound_bar):
+		_merlin_sound_bar.stop_speaking()
 
 
 func _on_card_option_pressed(option_index: int) -> void:
