@@ -508,6 +508,128 @@ func _build_plateau_breathing_lights() -> void:
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
+## v7.7.7 — Enrich the plateau with 4 procedural layers per design intent
+## "plateau de base plus travaillé". All layers child of _plateau so they
+## inherit position/transform. All apply CelShadingManager outline noir per
+## bible §20.1 mandatory rule.
+##
+## Layers spawned :
+##   L2 — Bronze raised border ring (TorusMesh, outer rim, accent gold)
+##   L3 — Carved rune circle (5 inverted segment markers around inner ring,
+##         one per faction : Druides/Anciens/Korrigans/Niamh/Ankou)
+##   L4 — 4 cardinal stat markers (Logic N, Empathie E, Volonté S, Instinct W)
+##   L5 — Center pedestal (small cylinder, LiveCard3D fly-to target marker)
+func _build_plateau_enrichment() -> void:
+	if _plateau == null:
+		return
+	# Read biome palette + accent gold (bible §22).
+	var palette: Dictionary = BiomePalettes.get_palette(_biome_id)
+	var accent_gold: Color = palette.get("accent", Color("#d4a868"))
+	var outline_black: Color = palette.get("outline", Color("#0a0500"))
+
+	# L2 — Bronze raised border ring (TorusMesh on plateau rim, slight raise)
+	var border := MeshInstance3D.new()
+	border.name = "PlateauBorder"
+	var border_mesh := TorusMesh.new()
+	border_mesh.inner_radius = 2.42
+	border_mesh.outer_radius = 2.62
+	border_mesh.rings = 36
+	border_mesh.ring_segments = 6
+	border.mesh = border_mesh
+	var border_mat := StandardMaterial3D.new()
+	border_mat.albedo_color = accent_gold * 0.85
+	border_mat.metallic = 0.65
+	border_mat.roughness = 0.42
+	border_mat.emission_enabled = true
+	border_mat.emission = accent_gold * 0.45
+	border_mat.emission_energy_multiplier = 0.35
+	border.material_override = border_mat
+	border.position = Vector3(0.0, 0.10, 0.0)
+	_plateau.add_child(border)
+	CelShadingManager.apply(border, {"outline_thickness": 0.010, "outline_color": outline_black})
+
+	# L3 — Carved rune circle : 5 small inverted segment markers (one per faction)
+	# Positioned at 72° intervals around inner ring (radius 1.4)
+	const FACTION_STAT_COLORS := [
+		Color("#7c9e6e"),  # Druides (vert sage)
+		Color("#9c8a6e"),  # Anciens (ocre)
+		Color("#8e7ca0"),  # Korrigans (violet)
+		Color("#c0a878"),  # Niamh (gold pale)
+		Color("#5a4e64"),  # Ankou (gris-pourpre)
+	]
+	for i in range(5):
+		var angle: float = float(i) * (TAU / 5.0)
+		var segment := MeshInstance3D.new()
+		segment.name = "RuneSegment_%d" % i
+		var seg_mesh := BoxMesh.new()
+		seg_mesh.size = Vector3(0.18, 0.02, 0.10)
+		segment.mesh = seg_mesh
+		var seg_mat := StandardMaterial3D.new()
+		seg_mat.albedo_color = FACTION_STAT_COLORS[i]
+		seg_mat.roughness = 0.78
+		seg_mat.emission_enabled = true
+		seg_mat.emission = FACTION_STAT_COLORS[i] * 0.65
+		seg_mat.emission_energy_multiplier = 0.32
+		segment.material_override = seg_mat
+		segment.position = Vector3(cos(angle) * 1.35, 0.095, sin(angle) * 1.35)
+		segment.rotation.y = -angle  # face center
+		_plateau.add_child(segment)
+		CelShadingManager.apply(segment, {"outline_thickness": 0.008, "outline_color": outline_black})
+
+	# L4 — 4 cardinal stat markers at N/E/S/W (raised small stones)
+	# Maps to bible §25.1 : Logic N (druides) / Empathie E (niamh) / Volonté S (anciens) / Instinct W (korrigans)
+	const CARDINAL_STAT_COLORS := [
+		Color("#7c9e6e"),  # N = Logic (druides)
+		Color("#c0a878"),  # E = Empathie (niamh)
+		Color("#9c8a6e"),  # S = Volonté (anciens)
+		Color("#8e7ca0"),  # W = Instinct (korrigans)
+	]
+	const CARDINAL_DIRECTIONS := [
+		Vector3( 0.0, 0.0,  2.05),  # N — Logic
+		Vector3( 2.05, 0.0, 0.0),   # E — Empathie
+		Vector3( 0.0, 0.0, -2.05),  # S — Volonté
+		Vector3(-2.05, 0.0, 0.0),   # W — Instinct
+	]
+	for i in range(4):
+		var marker := MeshInstance3D.new()
+		marker.name = "CardinalMarker_%d" % i
+		var marker_mesh := BoxMesh.new()
+		marker_mesh.size = Vector3(0.16, 0.18, 0.16)
+		marker.mesh = marker_mesh
+		var marker_mat := StandardMaterial3D.new()
+		marker_mat.albedo_color = CARDINAL_STAT_COLORS[i]
+		marker_mat.roughness = 0.85
+		marker_mat.metallic = 0.05
+		marker_mat.emission_enabled = true
+		marker_mat.emission = CARDINAL_STAT_COLORS[i] * 0.45
+		marker_mat.emission_energy_multiplier = 0.28
+		marker.material_override = marker_mat
+		marker.position = CARDINAL_DIRECTIONS[i] + Vector3(0.0, 0.18, 0.0)
+		_plateau.add_child(marker)
+		CelShadingManager.apply(marker, {"outline_thickness": 0.012, "outline_color": outline_black})
+
+	# L5 — Center pedestal (LiveCard3D fly-to-marker target)
+	var pedestal := MeshInstance3D.new()
+	pedestal.name = "CenterPedestal"
+	var ped_mesh := CylinderMesh.new()
+	ped_mesh.top_radius = 0.42
+	ped_mesh.bottom_radius = 0.48
+	ped_mesh.height = 0.06
+	ped_mesh.radial_segments = 24
+	pedestal.mesh = ped_mesh
+	var ped_mat := StandardMaterial3D.new()
+	ped_mat.albedo_color = accent_gold * 0.70
+	ped_mat.metallic = 0.40
+	ped_mat.roughness = 0.55
+	ped_mat.emission_enabled = true
+	ped_mat.emission = accent_gold * 0.50
+	ped_mat.emission_energy_multiplier = 0.40
+	pedestal.material_override = ped_mat
+	pedestal.position = Vector3(0.0, 0.12, 0.0)
+	_plateau.add_child(pedestal)
+	CelShadingManager.apply(pedestal, {"outline_thickness": 0.010, "outline_color": outline_black})
+
+
 ## Looped subtle scale-breath on the plateau mesh — barely perceptible (1.0 → 1.002).
 ## Pumps up the "alive" feel without distorting the geometry.
 func _animate_plateau_breath() -> void:
@@ -1669,6 +1791,8 @@ func _build_scene_tree() -> void:
 		add_child(_plateau)
 		# v7.1 — Cel-shading + outline noir per bible §20 (marque de fabrique).
 		CelShadingManager.apply(_plateau, {"outline_thickness": 0.008})
+		# v7.7.7 — Enrich plateau with 4 layers (bible §20.6 KayKit pipeline pending).
+		_build_plateau_enrichment()
 
 	# Biome backdrop root
 	_backdrop_root = Node3D.new()
