@@ -45,22 +45,47 @@ func _ready() -> void:
 	add_child(_label)
 
 
+## v7.7.18 — Running-min cache + throttled UI refresh per Explore agent audit.
+## Previous O(N) loop over _history every frame cost 0.5-1.2ms. Now :
+## - Track running min via incremental update (O(1) on append, O(N) only when
+##   the oldest sample popped IS the current min — rare).
+## - UI text update throttled to every 6 frames (still feels live at 10Hz).
+var _ui_refresh_counter: int = 0
+const UI_REFRESH_EVERY_N_FRAMES: int = 6
+
 func _process(_delta: float) -> void:
 	if _label == null:
 		return
 	var fps: float = Engine.get_frames_per_second()
 	var now: float = float(Time.get_ticks_msec()) / 1000.0
+
+	# Track min cheaply : new sample is either the new min or doesn't change it.
+	if _history.is_empty() or fps < _min_fps:
+		_min_fps = fps
 	_history.append(fps)
 	_history_timestamps.append(now)
+
+	# Drop expired samples. If the dropped sample WAS the current min, we must
+	# rebuild via O(N) scan — but only on the rare pop-min case (not every frame).
+	var min_invalidated: bool = false
 	while not _history_timestamps.is_empty() and now - _history_timestamps[0] > HISTORY_DURATION:
-		_history.pop_front()
+		var popped: float = _history.pop_front()
 		_history_timestamps.pop_front()
-	_min_fps = 999.0
-	for v in _history:
-		if v < _min_fps:
-			_min_fps = v
-	if _min_fps > 998.0:
-		_min_fps = fps
+		if popped <= _min_fps + 0.001:
+			min_invalidated = true
+	if min_invalidated:
+		_min_fps = 999.0
+		for v in _history:
+			if v < _min_fps:
+				_min_fps = v
+		if _min_fps > 998.0:
+			_min_fps = fps
+
+	# Throttle expensive theme overrides + text format to ~10Hz.
+	_ui_refresh_counter += 1
+	if _ui_refresh_counter < UI_REFRESH_EVERY_N_FRAMES:
+		return
+	_ui_refresh_counter = 0
 	var color: Color
 	if fps >= 58.0 and _min_fps >= 58.0:
 		color = Color(0.0, 1.0, 0.5)

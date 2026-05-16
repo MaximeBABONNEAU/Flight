@@ -123,7 +123,7 @@ func _setup_ui() -> void:
 	_info_label.add_theme_font_size_override("font_size", 28)
 	_info_label.add_theme_color_override("font_color", Color(0.96, 0.94, 0.82))
 	_info_label.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.02, 1.0))
-	_info_label.add_theme_constant_override("outline_size", 8)
+	_info_label.add_theme_constant_override("outline_size", 4)   # v7.7.18 charter : was 8, max 4
 	_info_label.text = "Le sage Merlin consulte les Oghams…"
 	_ui_layer.add_child(_info_label)
 

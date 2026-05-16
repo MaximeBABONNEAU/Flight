@@ -166,7 +166,7 @@ func _build_ui() -> void:
 	title2d.add_theme_font_size_override("font_size", 130)
 	title2d.add_theme_color_override("font_color", p_ink)
 	title2d.add_theme_color_override("font_outline_color", p_cream)
-	title2d.add_theme_constant_override("outline_size", 6)
+	title2d.add_theme_constant_override("outline_size", 4)   # v7.7.18 charter : was 6, max 4
 	_ui.add_child(title2d)
 
 	# Bouton ENTRER — Persona-style : stripe crimson à gauche + panel noir net.

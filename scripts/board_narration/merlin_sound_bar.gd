@@ -69,8 +69,14 @@ func _ready() -> void:
 		CelShadingManager.apply(bar, {"outline_thickness": 0.012, "skip_flat_remap": true})
 
 
+## v7.7.18 — Idle frame-skip to recover 0.4-0.8ms per frame.
+## When silent AND all bars at rest, call set_process(false). Re-enable on
+## pulse()/start_speaking().
+const REST_TOLERANCE: float = 0.001
+
 func _process(_delta: float) -> void:
 	var rest_amp: float = (BAR_SPEAKING_HEIGHT_MIN if _is_speaking else BAR_IDLE_HEIGHT)
+	var all_at_rest: bool = not _is_speaking
 	for i in range(BAR_COUNT):
 		_amplitudes[i] = lerp(_amplitudes[i], _targets[i], PULSE_DECAY)
 		_targets[i] = lerp(_targets[i], rest_amp, REST_DECAY)
@@ -81,6 +87,13 @@ func _process(_delta: float) -> void:
 		if box != null:
 			box.size = Vector3(BAR_WIDTH, _amplitudes[i], BAR_DEPTH)
 		bar.position.y = _amplitudes[i] * 0.5
+		# Check rest convergence
+		if absf(_amplitudes[i] - rest_amp) > REST_TOLERANCE or absf(_targets[i] - rest_amp) > REST_TOLERANCE:
+			all_at_rest = false
+	# v7.7.18 — Once all 12 bars converged to rest AND not speaking, suspend
+	# _process. Re-enabled by pulse() / start_speaking().
+	if all_at_rest:
+		set_process(false)
 
 
 ## Pulse N random bars by `intensity` (0..1). Trigger on each typewriter char.
@@ -91,11 +104,13 @@ func pulse(intensity: float) -> void:
 	for _i in range(pulse_count):
 		var idx: int = randi() % BAR_COUNT
 		_targets[idx] = max(_targets[idx], randf_range(target_h * 0.6, target_h))
+	set_process(true)   # v7.7.18 — wake up from idle
 
 
 ## Enable active-speech mode (taller idle baseline + auto-wiggle).
 func start_speaking() -> void:
 	_is_speaking = true
+	set_process(true)   # v7.7.18 — wake up from idle
 
 
 ## Disable speech mode — bars decay to rest amplitude.

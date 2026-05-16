@@ -6,6 +6,35 @@
 
 ---
 
+## v7.7.18 — 60 FPS aggressive lock + UI/UX charter foundation [2026-05-16]
+
+Plan : `~/.claude/plans/kind-humming-peach.md` v7.7.18 section (user approved via ExitPlanMode).
+
+### User decisions (locked)
+- Retrofit scope : **Retrofit complet cross-scene**
+- FPS scope : **Agressif : tous les autoloads**
+
+### Phase 1 — 60 FPS fixes
+- **FXAA disabled** : `project.godot` `screen_space_aa 1→0` (saves 3-5ms/frame on GL Compatibility renderer — biggest culprit per Explore audit)
+- **FPSOverlay optimized** : running-min tracker (was O(N) per frame) + UI refresh throttled to 10Hz (every 6 frames). Saves 0.5-1.2ms/frame.
+- **MerlinSoundBar idle frame-skip** : `set_process(false)` when all 12 bars converge to rest. Re-enabled on `pulse()` / `start_speaking()`. Saves 0.4-0.8ms/frame when idle.
+- **GameTimeManager throttle** : 60Hz → 10Hz via `_tick_accumulator` (game time imperceptible at 10Hz). Saves 0.2-0.4ms/frame.
+- MerlinResponsive : SKIPPED — actual `_process` cost negligible (just touch time tracking when active).
+
+Total expected gain : ~5-7ms/frame recovered. Should restore stable 60 FPS.
+
+### Phase 4 — Charter violations fixed
+- `SelectionSauvegarde.gd` line 53 + 84 : `set_corner_radius_all(4) → (0)` + `border_width 1→4` (compliance with `CARD_CORNER_RADIUS=0`)
+- `menu_test.gd:169` : title `outline_size 6→4`
+- `scenario_loading.gd:126` : info label `outline_size 8→4`
+
+### Phases 2/3/5 — deferred to v7.7.18b (next batch)
+- Phase 2 : `docs/UI_UX_CHARTER.md` charter doc
+- Phase 3 : `MerlinVisual.digital_button/panel/label/scanline` factories
+- Phase 5 : cross-scene retrofit (MenuTest + ScenarioLoading + BoardNarration biome buttons + MenuOptions + SelectionSauvegarde)
+
+---
+
 ## v7.7.17 — DA digitalization + 10s ScenarioLoading + thick outline everywhere [2026-05-16]
 
 Plan : `~/.claude/plans/kind-humming-peach.md` v7.7.17 section (user approved via ExitPlanMode).

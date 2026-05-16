@@ -97,7 +97,10 @@ renderer/rendering_method.mobile="gl_compatibility"
 ; scaling_3d/scale=0.90 = render at 90% then upscale (15-20% GPU saving).
 ; mesh_lod threshold 1.0→4.0 = aggressive LOD on distant meshes.
 anti_aliasing/quality/msaa_3d=0
-anti_aliasing/quality/screen_space_aa=1
+; v7.7.18 — FXAA DISABLED. On GL Compatibility renderer FXAA adds 3-5ms/frame
+; (Explore agent audit). Major culprit for 60 FPS instability. With scaling_3d=0.9
+; the low-poly aesthetic forgives aliasing — re-enable only if visibly jagged.
+anti_aliasing/quality/screen_space_aa=0
 scaling_3d/scale=0.9
 mesh_lod/lod_change/threshold_pixels=4.0
 environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)

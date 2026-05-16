@@ -49,8 +49,10 @@ func _apply_theme() -> void:
 		var panel_style := StyleBoxFlat.new()
 		panel_style.bg_color = MerlinVisual.CRT_PALETTE["bg_panel"]
 		panel_style.border_color = MerlinVisual.CRT_PALETTE["border"]
-		panel_style.set_border_width_all(1)
-		panel_style.set_corner_radius_all(4)
+		# v7.7.18 — Charter mandates 0px corner radius (CARD_CORNER_RADIUS=0).
+		# Was 4px which violated « charte complète digitale cross scene ».
+		panel_style.set_border_width_all(4)   # bumped 1→4 to match cel-shading outline
+		panel_style.set_corner_radius_all(0)
 		panel_style.shadow_color = MerlinVisual.CRT_PALETTE["shadow"]
 		panel_style.shadow_size = 12
 		panel_style.shadow_offset = Vector2(0, 4)
@@ -78,8 +80,9 @@ func _style_button(btn: Button) -> void:
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = MerlinVisual.CRT_PALETTE["bg_panel"]
 	normal.border_color = MerlinVisual.CRT_PALETTE["border"]
-	normal.set_border_width_all(1)
-	normal.set_corner_radius_all(4)
+	# v7.7.18 — Charter compliance : 0px radius (was 4) + thicker border (was 1).
+	normal.set_border_width_all(4)
+	normal.set_corner_radius_all(0)
 	normal.content_margin_left = 16
 	normal.content_margin_right = 16
 	normal.content_margin_top = 8
