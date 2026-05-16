@@ -1,9 +1,30 @@
-# GAME DESIGN BIBLE — M.E.R.L.I.N. v3.0
+# GAME DESIGN BIBLE — M.E.R.L.I.N. v3.5
 
 > **Source de verite unique** pour le game design de M.E.R.L.I.N.
-> Supersede : GAME_DESIGN_BIBLE v2.4, MASTER_DOCUMENT.md, DOC_12, DOC_13, DOC_11
-> Date de creation : 2026-03-12 | Refonte v3.0 : 2026-05-09
-> References : Inscryption (MJ adversarial, 4e mur) + AI Dungeon (liberte narrative IA)
+> Supersede : GAME_DESIGN_BIBLE v2.4 + v3.0, MASTER_DOCUMENT.md, DOC_12, DOC_13, DOC_11
+> Date de creation : 2026-03-12 | v3.0 : 2026-05-09 | v3.1 : 2026-05-16
+> References : Inscryption (MJ adversarial, 4e mur) + AI Dungeon (liberte narrative IA) + **Hand of Fate 2** (no drain, equilibre via cartes)
+
+## v3.5 Changelog (2026-05-16)
+
+Reconciliation bible v3.0 ↔ code v7.7.3 via 15 questions AskUserQuestion. Decisions :
+
+| Topic | v3.0 stale | v3.1 canon |
+|---|---|---|
+| Factions | "Reduit a 3 Poles" | **5 Factions confirmees** (druides/anciens/korrigans/niamh/ankou) |
+| Rune-Circuits | 9 (bible) | **9 confirmees** (refacto Godot 18→9 a faire) |
+| Drain de vie | -1 par carte auto | **SUPPRIME — HoF2-style, equilibre via card effects uniquement** |
+| Pipeline | 12 etapes | **11 etapes** (drop DRAIN -1) |
+| Acte structure | non specifie | **5 actes × 5 cartes = 25 cartes** (MOS target) |
+| MOS HUD | non specifie | **Visible discret "Carte X/25" top-right** |
+| Scene flow | DruidTable monolith | **Plateau-only v7.7.2 : MenuTest → BoardNarration (sub-scenes inline)** |
+| Game over | vie=0 only | **vie=0 OR MOS hard_max(50) OR choix joueur** |
+| Asset spawn | non specifie | **Module commun `asset_spawn_animator.gd` pattern unique** |
+| Merlin voice | text only | **Speech-bar + TTS (use_my_voice)** pendant scenario writing |
+| Card flip | non specifie | **Double-tap RotateY 180° pour scenarios longs** |
+| Bible-first | non specifie | **Lecture obligatoire §1-§24 au debut de chaque session MERLIN** |
+| AskUserQuestion | non specifie | **SIMPLE+ obligatoire, longues sessions MODERATE+** |
+| Bible update | non specifie | **Per-feature complete (sync code ↔ bible)** |
 
 ---
 
@@ -271,20 +292,25 @@ Score attribue par Merlin : 20-80 (jamais extremes sauf T3).
 
 ## 5. Systemes de jeu
 
-### 5.1 Vie (barre unique)
+### 5.1 Vie (barre unique) — v3.1 HoF2-style, NO DRAIN
 
 | Parametre | Valeur |
 |-----------|--------|
 | Maximum | 100 |
 | Depart | 100 |
-| Drain de base | -1 par carte (pression de survie) |
+| Drain de base | **0 (SUPPRIME v3.1)** — equilibre via card effects uniquement |
 | Degats echec critique | -10 |
+| Degats challenge rate | -3 a -8 (via card effects) |
 | Soin succes critique | +5 |
+| Soin succes standard | +2 a +4 (via card effects) |
 | Soin repos | +18 (carte repos rare) |
 | Seuil alerte UI | 25 |
 | A 0 | Fin de run (narration, pas "game over") |
-| Drain timing | Au **debut** de chaque carte (avant choix) |
 | Verification mort | **Apres** tous les effets de la carte |
+
+**Philosophie HoF2** (v3.1) : la tension ne vient PAS de la pression temporelle (drain auto) mais des **choix** du joueur. Chaque option de carte porte ses propres effects. Le joueur peut theoriquement survivre 50 cartes en jouant safe — mais la pression vient de la **diversite limitee des choix safes** (le LLM/FastRoute peut imposer 3 options dont aucune n'est confortable).
+
+**Game over conditions (v3.1)** : `vie = 0` OU `MOS hard_max (50 cartes)` OU `choix joueur abandon`.
 
 ### 5.2 Monnaies
 
@@ -316,22 +342,23 @@ Remplace la monnaie biome. Universelle, pas specifique au biome.
 | Sources | Recompenses de challenges, cartes bonus |
 | Usage | Achats marchands, boost challenge, offrandes |
 
-### 5.3 Pipeline d'effets (ordre strict)
+### 5.3 Pipeline d'effets (ordre strict) — v3.1 11 etapes
 
 ```
-1. DRAIN -1 PV
-2. CARTE affichee
-3. RUNE-CIRCUIT? (activation optionnelle)
-4. CHOIX du joueur (3 options)
-5. CHALLENGE (4 types)
-6. SCORE 0-100
-7. EFFETS appliques (multiplies par score)
-8. PROTECTION (Rune-Circuits actifs)
-9. VIE = 0? (verification mort)
-10. PROMESSES (check delais)
-11. MERLIN COMMENTE
-12. CARTE SUIVANTE
+1. CARTE affichee (Merlin commentary opt., 1-line LLM intro)
+2. RUNE-CIRCUIT? (activation optionnelle, avant choix)
+3. CHOIX du joueur (3 options + flip si scenario long)
+4. CHALLENGE (4 types : lexical, dice, skill, choice)
+5. SCORE 0-100
+6. EFFETS appliques (multiplies par score, capped x2.0)
+7. PROTECTION (Rune-Circuits actifs, shields, etc.)
+8. VIE = 0? (verification mort APRES tous les effets)
+9. PROMESSES (check delais, expiration)
+10. MERLIN COMMENTE (LLM, faction-aware via echo_memory)
+11. CARTE SUIVANTE (MOS cards++ + verification hard_max 50)
 ```
+
+**v3.1 change** : etape 1 `DRAIN -1` SUPPRIMEE (HoF2 philosophy). La carte commence directement par son affichage + commentaire Merlin optionnel.
 
 ### 5.4 Effets autorises (whitelist)
 
@@ -722,24 +749,27 @@ Sons additionnels v3.0 :
 
 ---
 
-## 14. Systemes SUPPRIMES (v2.4 -> v3.0)
+## 14. Systemes SUPPRIMES (v2.4 -> v3.0 -> v3.1)
 
-| Systeme | Raison |
-|---------|--------|
-| Marche 3D on-rails | Filler couteux, remplace par Table |
-| 14 minigames | Surcharge, reduit a 4 types x 6 minigames |
-| 18 Oghams | Surcharge cognitive, reduit a 9 Rune-Circuits |
-| 5 Factions | Trop de systemes, reduit a 3 Poles |
-| Monnaie biome specifique | Confusion, remplace par Essence universelle |
-| Collecte 3D (clic au sol) | Supprime avec la marche 3D |
-| Arbre de talents | Remplace par Grimoire |
-| 8 champs lexicaux | Simplification du routing |
-| 45 verbes liste fermee | Narrator plus libre |
-| Judge 0.8B | Integre dans le GM 2B |
-| Calendrier/Periodes bonus | Pas dans la demo |
-| Festivals saisonniers | Reporte post-v1 |
-| Bestiole/Compagnon | Supprime depuis v2.0 |
-| Triade/Souffle/4 Jauges | Supprime depuis v2.0 |
+| Systeme | Raison | Version |
+|---------|--------|---------|
+| **Drain de vie automatique -1/carte** | **HoF2-style : equilibre via card effects uniquement** | **v3.1** |
+| Pipeline etape 1 DRAIN | Supprimee, pipeline desormais 11 etapes | v3.1 |
+| Marche 3D on-rails Broceliande | Filler couteux, remplace par plateau Table v7.7.2 | v3.0 |
+| 14 minigames | Surcharge, reduit a 4 types x 6 minigames | v3.0 |
+| 18 Oghams chiffres | Surcharge cognitive, reduit a 9 Rune-Circuits | v3.0 (refacto code en cours) |
+| Monnaie biome specifique | Confusion, remplace par Essence universelle | v3.0 |
+| Collecte 3D (clic au sol) | Supprime avec la marche 3D | v3.0 |
+| Arbre de talents | Remplace par Grimoire | v3.0 |
+| 8 champs lexicaux | Simplification du routing | v3.0 |
+| 45 verbes liste fermee | Narrator plus libre | v3.0 |
+| Judge 0.8B | Integre dans le GM 2B | v3.0 |
+| Calendrier/Periodes bonus | Pas dans la demo | v3.0 |
+| Festivals saisonniers | Reporte post-v1 | v3.0 |
+| Bestiole/Compagnon | Supprime depuis v2.0 | v2.0 |
+| Triade/Souffle/4 Jauges | Supprime depuis v2.0 | v2.0 |
+
+**v3.1 NOTE** : la mention "5 Factions reduit a 3 Poles" de v3.0 est **annulee**. Les 5 Factions (druides/anciens/korrigans/niamh/ankou) restent canon en v3.1 — alignement avec le code v7.7.3 et le pool FastRoute 810 cards.
 
 ---
 
@@ -1181,3 +1211,71 @@ Les palettes sont exposées dans `scripts/board_narration/biome_palettes.gd` (à
 *v3.2 (2026-05-14) — §20 Cel-Shading + Outline Noir : marque de fabrique du jeu*
 *v3.3 (2026-05-14) — §21 UX Standards : Minimal/Évident/Tactile+Desktop + cascade obligatoire game design*
 *v3.4 (2026-05-15) — §20 pivot Low-Poly Flat + §22 palettes adaptives 8 biomes + §23 mood mystique chaleureux*
+*v3.5 (2026-05-16) — HoF2-style no-drain + pipeline 11 etapes + plateau-only v7.7.2 + §24 Politique Systematique MERLIN*
+
+---
+
+## 24. Politique Systematique MERLIN (NON-NEGOCIABLE)
+
+> **Source** : 15 reponses AskUserQuestion 2026-05-16. **Enforced** par CLAUDE.md §10 + hook UserPromptSubmit.
+
+Toute session de travail sur le projet MERLIN suit ce protocole strict :
+
+### 24.1 Bible-first ritual (debut de session)
+
+Au debut de **chaque** session MERLIN, l'agent **DOIT** :
+
+1. Lire `docs/GAME_DESIGN_BIBLE.md` sections §1-§24 AVANT toute action de code ou de design
+2. Verifier la coherence du contexte courant avec la bible (factions, oghams, pipeline, MOS, flow scene)
+3. En cas de divergence detectee : flag immediat + AskUserQuestion de reconciliation
+
+**Exception** : prefixes `*` `/` `!` bypass. Sessions de pur debug (no design decision) peuvent skip si bypass explicite.
+
+### 24.2 AskUserQuestion cadence
+
+| Complexite | Comportement |
+|------------|--------------|
+| TRIVIAL | Action directe, pas de questions |
+| **SIMPLE+** | **4 questions obligatoires** avant action |
+| **MODERATE** | **8-12 questions multi-round** obligatoires |
+| **COMPLEX** | **16+ questions multi-round** obligatoires |
+
+Les longues sessions multi-round suivent le pattern : R1 (divergences fondamentales) → R2 (implications) → R3 (decisions pending) → R4 (politique). Bypass via prefixe `*`.
+
+### 24.3 Bible update cadence
+
+**Per-feature complete** : a chaque feature complete (groupe de commits formant une unite), update les sections impactees de la bible + bump version (v3.5 → v3.6 → ...).
+
+Trigger : la feature touche un mecanisme listé dans §1-§24 (game loop, factions, oghams, pipeline, MOS, scene flow, UI, audio, lore).
+
+### 24.4 Coherence code ↔ bible
+
+| Bible v3.5 canon | Code v7.7.3 etat | Action |
+|---|---|---|
+| 5 Factions | OK (matchant) | aucune |
+| 9 Rune-Circuits | 18 Oghams chiffres | **refacto a faire** (~6h) |
+| No drain auto | LIFE_ESSENCE_DRAIN_PER_CARD = 1 | **refacto a faire** (constant = 0) |
+| Pipeline 11 etapes | EFFECT_PIPELINE 12 etapes | **refacto a faire** (drop step 1) |
+| MOS 8/20-25/50 | OK | aucune |
+| 5 actes × 5 cartes | ACT_SEQUENCE [standard/shop/standard/event/boss] | OK |
+| MOS HUD "Carte X/25" | non implemente | **a ajouter** |
+| Card flip | non implemente | **a ajouter** (Phase 2 backlog) |
+| asset_spawn_animator | non extrait | **a faire** (cascade refacto SigleToken) |
+| Merlin speech-bar + TTS | non implemente | **a ajouter** (Phase 2.1.5/2.1.6 backlog) |
+
+### 24.5 Cascade obligatoire game-design (rappel §21.4)
+
+Toute touche au game design declenche la cascade :
+- **Wave 1 parallele** : `game_designer.md` + `ux_flow.md` + `game_playtester.md`
+- **Wave 2 sequentielle** : `game_design_auditor.md`
+
+### 24.6 Test sessions canonical (10 sessions reference)
+
+Pour zero angle mort, executer regulierement les 10 sessions de reference identifiees 2026-05-16 :
+S1 Onboarding, S2 Boot Stability, S3 Run Abandon, S4 LLM Disconnect, S5 Mid-Run Tension, S6 Cross-Run Memory, S7 Long Session FPS, S8 Tactile Accessibility, S9 Visual Coherence, S10 Save Corruption.
+
+Detail : voir `task_plan.md` Active Feature v7.7.3.
+
+---
+
+*Fin de bible v3.5*

@@ -127,6 +127,44 @@ En debut de session MODERATE+:
 
 **Skill**: `/maxime:status` — affiche l'etat complet de la memoire
 
+### 10. MERLIN Systematic Policy — Bible-First + AskUserQuestion (NON-NÉGOCIABLE)
+
+**Décrété 2026-05-16.** Sur projet MERLIN, **toute** session déclenche un protocole strict.
+
+#### 10.1 Bible-first ritual au début de chaque session MERLIN
+
+L'agent **DOIT** lire `docs/GAME_DESIGN_BIBLE.md` sections §1-§24 **AVANT** toute action de code/design. Vérifier cohérence contexte ↔ bible. Divergence détectée → flag + AskUserQuestion réconciliation.
+
+**Exception** : prefixes `*` `/` `!` bypass. Pure debug sans design decision peut skip si bypass explicite.
+
+#### 10.2 AskUserQuestion cadence longue (étend §questioning-protocol global)
+
+| Complexité | Comportement MERLIN |
+|------------|---------------------|
+| TRIVIAL | Action directe |
+| **SIMPLE+** | **4 questions obligatoires** avant action |
+| **MODERATE** | **8-12 questions multi-round** obligatoires (4 rounds × 4 questions) |
+| **COMPLEX** | **16+ questions multi-round** (4-6 rounds × 4 questions) |
+
+Pattern multi-round : R1 (divergences fondamentales) → R2 (implications) → R3 (décisions pending) → R4 (politique). Bypass via `*`.
+
+#### 10.3 Bible update cadence per-feature complete
+
+À chaque feature complète (groupe de commits formant une unité), update les sections bible impactées + bump version (v3.5 → v3.6 → ...). Trigger : mécanisme listé §1-§24.
+
+#### 10.4 Référence canonique v3.5 (2026-05-16)
+
+- **5 Factions** (druides/anciens/korrigans/niamh/ankou)
+- **9 Rune-Circuits** (refacto Godot 18→9 à faire)
+- **NO drain de vie auto** (HoF2-style, équilibre via card effects)
+- **Pipeline 11 étapes** (drop step DRAIN -1)
+- **5 actes × 5 cartes = 25 cartes** target (MOS 8/20-25/50)
+- **Plateau-only v7.7.2** : MenuTest → BoardNarration (sub-scenes inline)
+- **MOS HUD** "Carte X/25" top-right
+- **Card flip** double-tap RotateY 180°
+- **asset_spawn_animator** module commun
+- **Merlin speech-bar + TTS** pendant scenario writing
+
 ### 9. Game Design & Playthrough — Cascade Obligatoire (NON-NÉGOCIABLE)
 
 **Décrété 2026-05-14 part 16.** Toute activité touchant au game design DOIT
