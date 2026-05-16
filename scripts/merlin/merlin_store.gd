@@ -327,6 +327,18 @@ func _reduce(action: Dictionary) -> Dictionary:
 			var mod_effects: Array = action.get("modulated_effects", [])
 			var result: Dictionary = StoreRun.resolve_choice(state, card, option, mod_effects, _apply_effect, biomes)
 			if result["ok"]:
+				# v7.7.4d — award +1 XP to the stat associated with the chosen option
+				# per bible §25.2 (Disco-style XP-per-choice). Cards may specify
+				# `check_stat` on each option ("logic"|"empathie"|"volonte"|"instinct").
+				# Cards without stat tags are pure-narrative and award no XP.
+				var options_arr: Array = card.get("options", [])
+				if option >= 0 and option < options_arr.size():
+					var chosen_opt: Dictionary = options_arr[option] if options_arr[option] is Dictionary else {}
+					var stat_name: String = str(chosen_opt.get("check_stat", "")).to_lower()
+					if not stat_name.is_empty():
+						var stats_node: Node = get_node_or_null("/root/MerlinStats")
+						if stats_node and stats_node.has_method("award_xp"):
+							stats_node.award_xp(stat_name, 1)
 				if merlin != null:
 					merlin.record_choice(card, option, state)
 				card_resolved.emit(card.get("id", ""), option)
