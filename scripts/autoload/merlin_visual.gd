@@ -693,3 +693,121 @@ static func apply_kingdom_portrait(portrait: TextureRect, biome: String = "") ->
 	# Ensure texture filtering is off (pixel-perfect)
 	if portrait.texture:
 		portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v7.7.18 — Digital UI Charter factories (docs/UI_UX_CHARTER.md)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Use these factories instead of inline StyleBoxFlat for cross-scene consistency.
+
+## Returns a charter-compliant Button.
+## @param kind: "primary" (gold border) | "secondary" (dim) | "danger" (crimson)
+static func digital_button(text: String, kind: String = "primary") -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.add_theme_font_size_override("font_size", 22)
+	var border_color: Color
+	var font_color: Color
+	var hover_color: Color
+	match kind:
+		"danger":
+			border_color = CRT_PALETTE["danger"]
+			font_color = CRT_PALETTE["amber_bright"]
+			hover_color = CRT_PALETTE["danger"]
+		"secondary":
+			border_color = CRT_PALETTE["phosphor_dim"]
+			font_color = CRT_PALETTE["phosphor_dim"]
+			hover_color = CRT_PALETTE["phosphor_bright"]
+		_:  # primary
+			border_color = CRT_PALETTE["phosphor"]
+			font_color = CRT_PALETTE["amber_bright"]
+			hover_color = CRT_PALETTE["phosphor_bright"]
+	btn.add_theme_color_override("font_color", font_color)
+	btn.add_theme_color_override("font_hover_color", hover_color)
+	btn.add_theme_color_override("font_outline_color", CRT_PALETTE["bg_dark"])
+	btn.add_theme_constant_override("outline_size", 3)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = CRT_PALETTE["bg_dark"]
+	sb.border_color = border_color
+	sb.set_border_width_all(4)
+	sb.set_corner_radius_all(0)
+	sb.set_content_margin_all(12)
+	btn.add_theme_stylebox_override("normal", sb)
+	var sb_hover := sb.duplicate() as StyleBoxFlat
+	sb_hover.bg_color = CRT_PALETTE["bg_highlight"]
+	sb_hover.border_color = hover_color
+	sb_hover.set_border_width_all(6)
+	btn.add_theme_stylebox_override("hover", sb_hover)
+	var sb_pressed := sb.duplicate() as StyleBoxFlat
+	sb_pressed.bg_color = CRT_PALETTE["danger"] if kind != "danger" else CRT_PALETTE["bg_dark"]
+	btn.add_theme_stylebox_override("pressed", sb_pressed)
+	return btn
+
+
+## Returns a charter-compliant StyleBoxFlat for Panel/Container.
+static func digital_panel(bg: Color = Color(0, 0, 0, 0), border: Color = Color(0, 0, 0, 0), border_w: int = 2) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg if bg.a > 0.0 else CRT_PALETTE["bg_panel"]
+	sb.border_color = border if border.a > 0.0 else CRT_PALETTE["phosphor_dim"]
+	sb.set_border_width_all(border_w)
+	sb.set_corner_radius_all(0)
+	sb.set_content_margin_all(12)
+	return sb
+
+
+## Returns a charter-compliant Label.
+## @param role: "title" (52px) | "body" (22px) | "label" (18px) | "data" (13px) | "hint" (11px)
+static func digital_label(text: String, role: String = "body") -> Label:
+	var lbl := Label.new()
+	lbl.text = text
+	var size: int
+	var color: Color
+	var outline: int
+	match role:
+		"title":
+			size = 52
+			color = CRT_PALETTE["phosphor_bright"]
+			outline = 4
+		"data":
+			size = 13
+			color = CRT_PALETTE["phosphor"]
+			outline = 2
+		"hint":
+			size = 11
+			color = CRT_PALETTE["phosphor_dim"]
+			outline = 0
+		"label":
+			size = 18
+			color = CRT_PALETTE["amber_bright"]
+			outline = 2
+		_:  # body
+			size = 22
+			color = CRT_PALETTE["amber_bright"]
+			outline = 3
+	lbl.add_theme_font_size_override("font_size", size)
+	lbl.add_theme_color_override("font_color", color)
+	if outline > 0:
+		lbl.add_theme_color_override("font_outline_color", CRT_PALETTE["bg_dark"])
+		lbl.add_theme_constant_override("outline_size", outline)
+	return lbl
+
+
+## Returns a CRT scanline overlay (60+ thin horizontal ColorRects).
+## Add as child of a CanvasLayer at high layer index for "PC retro" feel.
+static func scanline_overlay_node(viewport_size: Vector2 = Vector2(1920, 1080)) -> Control:
+	var root := Control.new()
+	root.name = "ScanlineOverlay"
+	root.anchor_left = 0.0
+	root.anchor_right = 1.0
+	root.anchor_top = 0.0
+	root.anchor_bottom = 1.0
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var line_count: int = int(viewport_size.y / 3.0)
+	for i in range(line_count):
+		var line := ColorRect.new()
+		line.color = Color(0.0, 0.0, 0.0, 0.08)
+		line.size = Vector2(viewport_size.x, 1.0)
+		line.position = Vector2(0.0, float(i) * 3.0)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(line)
+	return root
