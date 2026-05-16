@@ -57,6 +57,14 @@ static func _get_default_profile() -> Dictionary:
 			"oghams_discovered_in_runs": 0, "total_anam_earned": 0,
 			"total_play_time_seconds": 0, "total_minigames_played": 0,
 		},
+		# v7.7.4b — Disco-style 4-stat skill system (bible §25). XP cross-run persistent.
+		# Baseline first-run = all 0 (Lv 0). Lv = floor(xp/10), max 10.
+		"disco_stats": {
+			"logic_xp": 0,
+			"empathie_xp": 0,
+			"volonte_xp": 0,
+			"instinct_xp": 0,
+		},
 	}
 
 
@@ -105,6 +113,11 @@ static func _get_default_run_state() -> Dictionary:
 
 func save_profile(meta: Dictionary) -> bool:
 	_backup_file(PROFILE_PATH)
+	# v7.7.4b — pull latest 4-stat XP from MerlinStats autoload into meta before
+	# serializing, so disco_stats stays in sync after gameplay XP awards.
+	var stats_node: Node = Engine.get_main_loop().root.get_node_or_null("MerlinStats") if Engine.get_main_loop() else null
+	if stats_node and stats_node.has_method("write_to_profile"):
+		stats_node.write_to_profile(meta)
 	var data: Dictionary = {
 		"version": CURRENT_VERSION,
 		"timestamp": int(Time.get_unix_time_from_system()),
@@ -155,6 +168,11 @@ func load_profile() -> Dictionary:
 	for faction in faction_rep:
 		faction_rep[faction] = clampf(float(faction_rep[faction]), 0.0, 100.0)
 	meta["faction_rep"] = faction_rep
+	# v7.7.4b — push disco_stats from loaded meta into MerlinStats autoload so
+	# get_stat_level / get_pass_chance reflect persisted XP from day 1.
+	var stats_node: Node = Engine.get_main_loop().root.get_node_or_null("MerlinStats") if Engine.get_main_loop() else null
+	if stats_node and stats_node.has_method("sync_from_profile"):
+		stats_node.sync_from_profile(meta)
 	return meta
 
 
