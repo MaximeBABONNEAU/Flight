@@ -1140,6 +1140,11 @@ func _build_hud() -> void:
 	_hud_card_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_ui_layer.add_child(_hud_card_count_label)
 
+	# v7.7.9 — Disco-style 4-stat HUD strip (bible v3.6 §25-§26).
+	# Stacked vertically under Carte X/Y, top-right anchor. Each label shows
+	# icon glyph + stat name + level + pass% (e.g. "◆ Logic L3 80%").
+	_build_disco_stats_hud()
+
 	# Floating FX layer (for "+5 Druides" labels appearing on choice)
 	_floating_fx_layer = Control.new()
 	_floating_fx_layer.name = "FloatingFx"
@@ -1188,6 +1193,122 @@ func _build_hud() -> void:
 	_ui_layer.add_child(_hud_stat_strip)
 
 	_refresh_hud()
+
+
+## v7.7.9 — Build the 4-stat HUD strip (top-right under Carte X/Y).
+## Each stat = its own Label, stacked vertically. Icons via glyph chars
+## (◆ Logic, ♥ Empathie, ⚔ Volonté, ☆ Instinct) per bible §25 archetypes.
+## Wired to MerlinStats.stat_changed + level_up signals for live updates.
+const DISCO_STAT_GLYPHS := {
+	"logic":    "◆",
+	"empathie": "♥",
+	"volonte":  "⚔",
+	"instinct": "☆",
+}
+const DISCO_STAT_COLORS := {
+	"logic":    Color(0.55, 0.85, 0.95),   # cyan-blue (cold reason)
+	"empathie": Color(0.95, 0.65, 0.75),   # rose (warmth)
+	"volonte":  Color(0.95, 0.78, 0.30),   # gold (resolve)
+	"instinct": Color(0.78, 0.62, 0.95),   # violet (gut)
+}
+const DISCO_STAT_ORDER: Array[String] = ["logic", "empathie", "volonte", "instinct"]
+const DISCO_HUD_RIGHT_OFFSET: float = 16.0
+const DISCO_HUD_TOP_START: float = 112.0    # below "Carte X/Y" label
+const DISCO_HUD_LINE_HEIGHT: float = 22.0
+
+func _build_disco_stats_hud() -> void:
+	# Skip cleanly if MerlinStats autoload not present (defensive — should be).
+	var stats_node: Node = Engine.get_main_loop().root.get_node_or_null("MerlinStats")
+	if stats_node == null:
+		push_warning("[BoardNarration] MerlinStats autoload missing — skipping stats HUD")
+		return
+	for i in range(DISCO_STAT_ORDER.size()):
+		var stat: String = DISCO_STAT_ORDER[i]
+		var lbl := Label.new()
+		lbl.name = "DiscoStat_" + stat
+		lbl.text = _format_disco_stat_text(stat, stats_node)
+		lbl.add_theme_font_size_override("font_size", 14)
+		lbl.add_theme_color_override("font_color", DISCO_STAT_COLORS[stat])
+		lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		lbl.add_theme_constant_override("outline_size", 4)
+		lbl.anchor_left = 1.0
+		lbl.anchor_right = 1.0
+		lbl.offset_left = -180.0
+		lbl.offset_right = -DISCO_HUD_RIGHT_OFFSET
+		lbl.offset_top = DISCO_HUD_TOP_START + float(i) * DISCO_HUD_LINE_HEIGHT
+		lbl.offset_bottom = lbl.offset_top + DISCO_HUD_LINE_HEIGHT
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_ui_layer.add_child(lbl)
+		_hud_stat_labels[stat] = lbl
+	# Wire signals — refresh + toast on level up.
+	if stats_node.has_signal("stat_changed"):
+		stats_node.stat_changed.connect(_on_disco_stat_changed)
+	if stats_node.has_signal("level_up"):
+		stats_node.level_up.connect(_on_disco_level_up)
+
+
+## Format one stat label : "◆ Logic L3 80%"
+func _format_disco_stat_text(stat: String, stats_node: Node) -> String:
+	var glyph: String = String(DISCO_STAT_GLYPHS.get(stat, "•"))
+	var label: String = stat.capitalize()
+	var level: int = int(stats_node.call("get_stat_level", stat))
+	var chance: float = float(stats_node.call("get_pass_chance", stat))
+	return "%s %s L%d %d%%" % [glyph, label, level, int(round(chance * 100.0))]
+
+
+func _on_disco_stat_changed(stat_name: String, _xp: int, _level: int) -> void:
+	if not _hud_stat_labels.has(stat_name):
+		return
+	var stats_node: Node = Engine.get_main_loop().root.get_node_or_null("MerlinStats")
+	if stats_node == null:
+		return
+	var lbl: Label = _hud_stat_labels[stat_name]
+	lbl.text = _format_disco_stat_text(stat_name, stats_node)
+	# Subtle pulse to draw eye on XP gain. bind_node ensures the tween auto-stops
+	# if `lbl` is freed mid-animation (code-review MEDIUM fix).
+	var tw := create_tween().bind_node(lbl)
+	tw.tween_property(lbl, "scale", Vector2(1.18, 1.18), 0.10).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(lbl, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_SINE)
+
+
+## Spawn a transient toast "Lv ↑ Logic L3" center-screen for 1.5s on level up.
+func _on_disco_level_up(stat_name: String, new_level: int) -> void:
+	if _ui_layer == null:
+		return
+	if _hud_level_toast != null and is_instance_valid(_hud_level_toast):
+		_hud_level_toast.queue_free()
+	var toast := Label.new()
+	toast.name = "DiscoLevelUpToast"
+	var glyph: String = String(DISCO_STAT_GLYPHS.get(stat_name, "•"))
+	var color: Color = DISCO_STAT_COLORS.get(stat_name, Color.WHITE)
+	toast.text = "Lv ↑  %s  %s  L%d" % [glyph, stat_name.capitalize(), new_level]
+	toast.add_theme_font_size_override("font_size", 28)
+	toast.add_theme_color_override("font_color", color)
+	toast.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	toast.add_theme_constant_override("outline_size", 8)
+	toast.anchor_left = 0.5
+	toast.anchor_right = 0.5
+	toast.anchor_top = 0.5
+	toast.anchor_bottom = 0.5
+	toast.offset_left = -160
+	toast.offset_right = 160
+	toast.offset_top = -120
+	toast.offset_bottom = -60
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.modulate.a = 0.0
+	_ui_layer.add_child(toast)
+	_hud_level_toast = toast
+	# bind_node auto-stops the tween if `toast` is freed mid-animation (rapid
+	# level-up sequences would otherwise dangle the tween — code-review HIGH-2).
+	var tw := create_tween().bind_node(toast)
+	tw.tween_property(toast, "modulate:a", 1.0, 0.25).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(toast, "offset_top", -150.0, 1.0).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(toast, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(toast):
+			toast.queue_free()
+		_hud_level_toast = null
+	)
 
 
 ## Read current life + faction rep from Store, update HUD widgets.
@@ -2277,6 +2398,14 @@ func _exit_tree() -> void:
 	# Final restore — fires when the scene leaves the tree for good.
 	_restore_psx_filter()
 	_restore_global_overlays()
+	# v7.7.9 — Disconnect MerlinStats autoload signals so we don't leak handler
+	# refs across scene reloads (code-review HIGH-1 fix).
+	var stats_node: Node = Engine.get_main_loop().root.get_node_or_null("MerlinStats")
+	if stats_node != null:
+		if stats_node.has_signal("stat_changed") and stats_node.stat_changed.is_connected(_on_disco_stat_changed):
+			stats_node.stat_changed.disconnect(_on_disco_stat_changed)
+		if stats_node.has_signal("level_up") and stats_node.level_up.is_connected(_on_disco_level_up):
+			stats_node.level_up.disconnect(_on_disco_level_up)
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -2614,6 +2743,11 @@ var _hud_act_label: Label = null
 var _hud_stat_strip: HBoxContainer = null
 var _hud_anam_label: Label = null            # v5.2 : Anam cumulé top-left
 var _hud_card_count_label: Label = null      # v5.2 : "Carte X / 5" top-right
+## v7.7.9 — Disco-style 4-stat HUD (bible v3.6 §25-§26).
+## 4 stacked labels top-right under Carte X/Y, format "[ICON] Logic L3 80%".
+## Updated via MerlinStats.stat_changed signal ; level_up triggers toast.
+var _hud_stat_labels: Dictionary = {}        # stat_name → Label
+var _hud_level_toast: Label = null            # transient level_up notification
 var _live_acts_played: int = 0                # for card count display
 var _floating_fx_layer: Control = null
 var _last_ambient_variant: String = ""        # v5.5 : last faction ambient played (de-bounce)
