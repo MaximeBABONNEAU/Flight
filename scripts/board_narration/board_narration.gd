@@ -430,7 +430,12 @@ func _on_biome_picked(biome_id: String) -> void:
 		var scenario_pack: PackedScene = load("res://scenes/ScenarioLoading.tscn")
 		if scenario_pack == null:
 			push_warning("[BoardNarration] ScenarioLoading.tscn missing — fallback to scene change")
-			get_tree().change_scene_to_file("res://scenes/ScenarioLoading.tscn")
+			# v7.7.19 — Use PixelTransition for fade if available (user request « aucune transition »).
+			var pt: Node = get_node_or_null("/root/PixelTransition")
+			if pt != null and pt.has_method("transition_to"):
+				pt.call("transition_to", "res://scenes/ScenarioLoading.tscn")
+			else:
+				get_tree().change_scene_to_file("res://scenes/ScenarioLoading.tscn")
 			return
 		var scenario_inst: Node = scenario_pack.instantiate()
 		if scenario_inst.has_signal("skeleton_dispatched"):
@@ -2241,7 +2246,13 @@ func _resolve_dependencies() -> void:
 
 func _failsafe_to_hub() -> void:
 	# v7.7.1 C3 failsafe target — see _resolve_dependencies.
-	if is_inside_tree():
+	# v7.7.19 — Use PixelTransition fade for harmonized cross-scene transitions.
+	if not is_inside_tree():
+		return
+	var pt: Node = get_node_or_null("/root/PixelTransition")
+	if pt != null and pt.has_method("transition_to"):
+		pt.call("transition_to", "res://scenes/MerlinCabinHub.tscn")
+	else:
 		get_tree().change_scene_to_file("res://scenes/MerlinCabinHub.tscn")
 
 
@@ -3192,11 +3203,12 @@ func _build_floating_option_buttons() -> void:
 		btn.add_theme_color_override("font_hover_color", Color(1.0, 0.96, 0.72))
 		btn.add_theme_color_override("font_pressed_color", Color(0.85, 0.68, 0.30))
 		# Stylebox : translucent dark with amber border — readable on any biome bg.
+		# v7.7.19 — Charter v7.7.18 fix : radius 8 → 0 (sharp edges law) + border 2 → 4.
 		var normal_sb := StyleBoxFlat.new()
 		normal_sb.bg_color = Color(0.08, 0.05, 0.03, 0.78)
 		normal_sb.border_color = Color(0.90, 0.68, 0.30, 0.75)
-		normal_sb.set_border_width_all(2)
-		normal_sb.set_corner_radius_all(8)
+		normal_sb.set_border_width_all(4)
+		normal_sb.set_corner_radius_all(0)
 		normal_sb.set_content_margin_all(12)
 		btn.add_theme_stylebox_override("normal", normal_sb)
 		var hover_sb := normal_sb.duplicate()

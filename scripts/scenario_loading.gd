@@ -127,18 +127,14 @@ func _setup_ui() -> void:
 	_info_label.text = "Le sage Merlin consulte les Oghams…"
 	_ui_layer.add_child(_info_label)
 
-	# v7.7.1 C4 — back button so the player can escape if title generation hangs
-	# or the parchemin choice is no longer wanted. Routes directly to Hub.
-	var back_btn := Button.new()
+	# v7.7.19 — Charter-compliant back button via MerlinVisual.digital_button factory.
+	# Was bare Button.new() + manual color overrides (no border, no panel structure).
+	var back_btn: Button = MerlinVisual.digital_button("← Retour Hub", "secondary")
 	back_btn.name = "BackBtn"
-	back_btn.text = "← Retour Hub"
 	back_btn.anchor_left = 0.02
 	back_btn.anchor_top = 0.02
 	back_btn.offset_right = 220.0
 	back_btn.offset_bottom = 56.0
-	back_btn.add_theme_font_size_override("font_size", 18)
-	back_btn.add_theme_color_override("font_color", Color(0.85, 0.85, 0.78, 0.85))
-	back_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.78, 1.0))
 	back_btn.pressed.connect(_on_back_to_hub_pressed)
 	_ui_layer.add_child(back_btn)
 
@@ -231,7 +227,12 @@ func _return_to_board() -> void:
 	if skeleton_dispatched.get_connections().size() > 0:
 		skeleton_dispatched.emit()
 		return
-	get_tree().change_scene_to_file("res://scenes/BoardNarration.tscn")
+	# v7.7.19 — PixelTransition fade for harmonized cross-scene transitions.
+	var pt: Node = get_node_or_null("/root/PixelTransition")
+	if pt != null and pt.has_method("transition_to"):
+		pt.call("transition_to", "res://scenes/BoardNarration.tscn")
+	else:
+		get_tree().change_scene_to_file("res://scenes/BoardNarration.tscn")
 
 
 # ═════════ v7.7.1 C4 — back button + fallback skeleton helpers ═══════════════
@@ -239,8 +240,14 @@ func _return_to_board() -> void:
 func _on_back_to_hub_pressed() -> void:
 	# Set abort flag to break the pick wait loop, then route to Hub. The flag
 	# also short-circuits the post-await _aborted checks in _run_flow.
+	# v7.7.19 — PixelTransition fade per user request « aucune transition ».
 	_aborted = true
-	if is_inside_tree():
+	if not is_inside_tree():
+		return
+	var pt: Node = get_node_or_null("/root/PixelTransition")
+	if pt != null and pt.has_method("transition_to"):
+		pt.call("transition_to", "res://scenes/MerlinCabinHub.tscn")
+	else:
 		get_tree().change_scene_to_file("res://scenes/MerlinCabinHub.tscn")
 
 

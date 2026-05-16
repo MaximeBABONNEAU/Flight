@@ -6,6 +6,31 @@
 
 ---
 
+## v7.7.19 — Fix scene transitions + UI charter compliance [2026-05-16]
+
+Plan : `~/.claude/plans/kind-humming-peach.md` v7.7.19 section (user approved).
+
+### Phase 1 — 5 scene-change sites switched to PixelTransition
+- `menu_test.gd:822` MenuTest → BoardNarration (ENTRER button — PRIMARY visible)
+- `board_narration.gd:433` BoardNarration → ScenarioLoading
+- `board_narration.gd:2245` _failsafe_to_hub → MerlinCabinHub
+- `scenario_loading.gd:234` ScenarioLoading → BoardNarration (standalone)
+- `scenario_loading.gd:244` _on_back_to_hub_pressed → MerlinCabinHub
+- All use defensive `get_node_or_null("/root/PixelTransition")` + has_method guard, fallback to bare `change_scene_to_file` if autoload missing
+- `ui_overlay_narrative.gd:291` + `game_flow_controller.gd:181` already had proper defensive pattern (audit overcounted)
+
+### Phase 2 — 3 charter violations corrected
+- **CRITICAL** `board_narration.gd:3210` floating option buttons `corner_radius_all(8) → (0)` + border `2 → 4`
+- `scenario_loading.gd:132-143` back button retrofit via `MerlinVisual.digital_button("← Retour Hub", "secondary")` — was bare Button.new() + manual colors
+- `menu_test.gd:210` ENTRER button `border_width_all(0) → (4)` + hover `2px → 6px` (charter mandates ≥ 4 on primary CTAs)
+
+### Validation
+- Smoke MenuTest : exit=0 script_errors=0 passed=True
+- Smoke BoardNarration : exit=0 script_errors=0 passed=True
+- Smoke ScenarioLoading : exit=0 script_errors=0 passed=True
+
+---
+
 ## v7.7.18 — 60 FPS aggressive lock + UI/UX charter foundation [2026-05-16]
 
 Plan : `~/.claude/plans/kind-humming-peach.md` v7.7.18 section (user approved via ExitPlanMode).

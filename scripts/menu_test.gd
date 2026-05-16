@@ -207,15 +207,17 @@ func _build_ui() -> void:
 	btn.add_theme_color_override("font_pressed_color", p_cream)
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = p_ink
-	normal.set_border_width_all(0)
-	normal.set_corner_radius_all(0)   # Persona : bords nets, pas de radius
+	# v7.7.19 — Charter v7.7.18 mandates border_width >= 4 on primary CTAs.
+	# Was 0 (violates charter). Bumped to 4 + amber color for visibility.
+	normal.set_border_width_all(4)
+	normal.border_color = p_gold
+	normal.set_corner_radius_all(0)
 	normal.set_content_margin_all(14)
 	btn.add_theme_stylebox_override("normal", normal)
 	var hover := normal.duplicate()
 	hover.bg_color = Color(0.10, 0.08, 0.08, 1.0)
 	hover.border_color = p_crimson
-	hover.border_width_top = 2
-	hover.border_width_bottom = 2
+	hover.set_border_width_all(6)
 	btn.add_theme_stylebox_override("hover", hover)
 	var pressed := normal.duplicate()
 	pressed.bg_color = p_crimson
@@ -818,5 +820,13 @@ func _on_btn_leave(btn_box: Control, stripe: ColorRect) -> void:
 
 
 func _on_tester_pressed() -> void:
-	if is_inside_tree():
+	if not is_inside_tree():
+		return
+	# v7.7.19 — Use PixelTransition for the fade between menu and game.
+	# User feedback : « Aucune transition, l'UI n'est pas refaite et harmonisée ».
+	# Defensive : fallback to bare change if PixelTransition autoload missing.
+	var pt: Node = get_node_or_null("/root/PixelTransition")
+	if pt != null and pt.has_method("transition_to"):
+		pt.call("transition_to", RUN_SCENE)
+	else:
 		get_tree().change_scene_to_file(RUN_SCENE)
