@@ -233,9 +233,188 @@ func _build_ui() -> void:
 	btn.mouse_entered.connect(_on_btn_hover.bind(btn_box, stripe))
 	btn.mouse_exited.connect(_on_btn_leave.bind(btn_box, stripe))
 
-	# v7.7.12 — Intro reveal animation + idle loops.
-	_animate_intro_reveal()
+	# v7.7.15 — Boot construction prelude (~0.85s, PC-power-on feel) + intro reveal.
+	# User feedback : « pas de transition mais des popups d'elements successifs qui
+	# produisent le menu, comme si un PC s'allumait ». Prelude pops BIOS-style
+	# system messages, then schedules _animate_intro_reveal at t=0.85s.
+	# Hide all menu elements FIRST so prelude is the only thing visible at boot.
+	_set_menu_elements_hidden_for_prelude()
+	_play_boot_prelude()
+	# Idle loops start IMMEDIATELY (dust + scanline) — they're ambient and don't
+	# overlap the prelude visually since dust is faint and scanline is overlay.
 	_start_idle_loops()
+
+
+## v7.7.15 — Hide all menu elements BEFORE the prelude pops them in.
+## Without this, the slashes/title/button flash for 1 frame at scene start
+## before _animate_intro_reveal sets them to scale 0 / alpha 0.
+func _set_menu_elements_hidden_for_prelude() -> void:
+	for n in ["AccentGold", "AccentCrimson", "Title2D", "BtnContainer", "Hint"]:
+		var el: CanvasItem = _ui.get_node_or_null(n) as CanvasItem
+		if el != null:
+			el.visible = false
+
+
+## v7.7.15 — Boot construction prelude (~0.85s).
+## Sequence per kind-humming-peach.md Phase A :
+##   0.0s : black screen (handled by _disable_global_overlays + hidden elements)
+##   0.1s : horizontal scanline appears mid-screen (white, 2px tall)
+##   0.2s : scanline expands vertically to fill viewport (0.18s ease-out)
+##   0.3s : 5 boot system Labels pop in top-left, hard-cut, 100ms apart
+##          ["BOOT v7", "KERNEL OK", "LOADING DRUID_CORE", "INIT 5/5", "READY"]
+##   0.80s : glitch flash + boot lines fade out
+##   0.85s : unhide menu elements + call _animate_intro_reveal()
+const BOOT_PRELUDE_LINES := [
+	"> BOOT v7              [OK]",
+	"> KERNEL DRUID         [OK]",
+	"> LOAD MERLIN_CORE     [OK]",
+	"> INIT FACTIONS  5/5   [OK]",
+	"> READY                [GO]",
+]
+const BOOT_PRELUDE_LINE_INTERVAL := 0.10
+const BOOT_PRELUDE_TOTAL_DURATION := 0.85
+
+func _play_boot_prelude() -> void:
+	# v7.7.15 prelude — PC power-on feel. Hard cuts only, no fades.
+	var p_gold := Color(0.92, 0.72, 0.20)
+	var p_cream := Color(0.98, 0.94, 0.82)
+	var p_ink := Color(0.04, 0.03, 0.03)
+	# 1. Scanline that appears mid-screen then expands to fill viewport
+	var scanline := ColorRect.new()
+	scanline.name = "BootScanline"
+	scanline.color = p_cream
+	scanline.anchor_left = 0.0
+	scanline.anchor_right = 1.0
+	scanline.anchor_top = 0.5
+	scanline.anchor_bottom = 0.5
+	scanline.offset_top = -1.0
+	scanline.offset_bottom = 1.0
+	scanline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scanline.modulate.a = 0.0
+	_ui.add_child(scanline)
+	# Delay appearance to t=0.10
+	get_tree().create_timer(0.10).timeout.connect(func() -> void:
+		if not is_instance_valid(scanline):
+			return
+		scanline.modulate.a = 1.0
+		# Expand to fill viewport over 0.18s
+		var tw := create_tween().bind_node(scanline).set_parallel(true)
+		tw.tween_property(scanline, "offset_top", -540.0, 0.18) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		tw.tween_property(scanline, "offset_bottom", 540.0, 0.18) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		# Then fade the white wash to expose the boot lines bg
+		tw.chain().tween_property(scanline, "color", p_ink, 0.10).set_trans(Tween.TRANS_LINEAR)
+		tw.tween_property(scanline, "modulate:a", 0.0, 0.40).set_trans(Tween.TRANS_LINEAR).set_delay(0.40)
+		tw.tween_callback(func() -> void:
+			if is_instance_valid(scanline):
+				scanline.queue_free()
+		)
+	)
+	# 2. Boot system lines pop in top-left at 0.30s + 0.10s per line
+	var boot_box := VBoxContainer.new()
+	boot_box.name = "BootLines"
+	boot_box.anchor_left = 0.0
+	boot_box.anchor_right = 0.0
+	boot_box.anchor_top = 0.0
+	boot_box.anchor_bottom = 0.0
+	boot_box.offset_left = 36.0
+	boot_box.offset_top = 36.0
+	boot_box.add_theme_constant_override("separation", 4)
+	boot_box.modulate.a = 0.0
+	boot_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(boot_box)
+	# Pre-create 5 hidden labels, reveal one per timer tick
+	var line_labels: Array[Label] = []
+	for line_text in BOOT_PRELUDE_LINES:
+		var lbl := Label.new()
+		lbl.text = line_text
+		lbl.add_theme_font_size_override("font_size", 18)
+		lbl.add_theme_color_override("font_color", p_gold)
+		lbl.add_theme_color_override("font_outline_color", p_ink)
+		lbl.add_theme_constant_override("outline_size", 3)
+		lbl.visible = false
+		boot_box.add_child(lbl)
+		line_labels.append(lbl)
+	# Reveal each line at 0.30, 0.40, 0.50, 0.60, 0.70
+	get_tree().create_timer(0.30).timeout.connect(func() -> void:
+		if is_instance_valid(boot_box):
+			boot_box.modulate.a = 1.0
+	)
+	for i in range(line_labels.size()):
+		var delay: float = 0.30 + float(i) * BOOT_PRELUDE_LINE_INTERVAL
+		var lbl_ref: Label = line_labels[i]
+		get_tree().create_timer(delay).timeout.connect(func() -> void:
+			if is_instance_valid(lbl_ref):
+				lbl_ref.visible = true
+			_play_boot_prelude_glitch_blip()
+		)
+	# 3. At t=0.80s, glitch flash + start fading the boot box
+	get_tree().create_timer(0.80).timeout.connect(func() -> void:
+		_play_boot_prelude_glitch_flash()
+		if is_instance_valid(boot_box):
+			var fadebt := create_tween().bind_node(boot_box)
+			fadebt.tween_property(boot_box, "modulate:a", 0.0, 0.25) \
+				.set_trans(Tween.TRANS_LINEAR)
+			fadebt.tween_callback(func() -> void:
+				if is_instance_valid(boot_box):
+					boot_box.queue_free()
+			)
+	)
+	# 4. At t=BOOT_PRELUDE_TOTAL_DURATION (0.85s), unhide menu + run reveal
+	get_tree().create_timer(BOOT_PRELUDE_TOTAL_DURATION).timeout.connect(func() -> void:
+		for n in ["AccentGold", "AccentCrimson", "Title2D", "BtnContainer", "Hint"]:
+			var el: CanvasItem = _ui.get_node_or_null(n) as CanvasItem
+			if el != null:
+				el.visible = true
+		_animate_intro_reveal()
+	)
+
+
+## Tiny 1-frame blip (white flash, alpha 0.10) per boot line pop — terminal feel.
+func _play_boot_prelude_glitch_blip() -> void:
+	if _ui == null:
+		return
+	var blip := ColorRect.new()
+	blip.color = Color(1.0, 1.0, 1.0, 0.08)
+	blip.anchor_left = 0.0
+	blip.anchor_right = 1.0
+	blip.anchor_top = 0.0
+	blip.anchor_bottom = 1.0
+	blip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(blip)
+	var bt := create_tween().bind_node(blip)
+	bt.tween_property(blip, "modulate:a", 0.0, 0.06).set_trans(Tween.TRANS_LINEAR)
+	bt.tween_callback(func() -> void:
+		if is_instance_valid(blip):
+			blip.queue_free()
+	)
+
+
+## Bigger glitch flash at t=0.80s — cyan + crimson RGB-split bands like
+## v7.7.13 digital animations. Marks the transition prelude → menu reveal.
+func _play_boot_prelude_glitch_flash() -> void:
+	if _ui == null:
+		return
+	for band_color in [Color(0.0, 1.0, 1.0, 0.30), Color(1.0, 0.10, 0.20, 0.30)]:
+		var band := ColorRect.new()
+		band.color = band_color
+		band.anchor_left = 0.0
+		band.anchor_right = 1.0
+		band.anchor_top = 0.0
+		band.anchor_bottom = 1.0
+		var jitter: float = randf_range(-12.0, 12.0)
+		band.offset_left = jitter
+		band.offset_right = jitter
+		band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ui.add_child(band)
+		var bt := create_tween().bind_node(band)
+		bt.tween_interval(0.06)
+		bt.tween_property(band, "modulate:a", 0.0, 0.12).set_trans(Tween.TRANS_LINEAR)
+		bt.tween_callback(func() -> void:
+			if is_instance_valid(band):
+				band.queue_free()
+		)
 
 
 ## v7.7.12 — 8 floating gold dust motes drifting upward.

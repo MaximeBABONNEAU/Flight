@@ -11,7 +11,11 @@ config_version=5
 [application]
 
 config/name="MERLIN"
-run/main_scene="res://scenes/IntroCeltOS.tscn"
+; v7.7.15 — main_scene moved from IntroCeltOS to MenuTest per user decision
+; "le CeltOS ne doit pas être présenté de cette manière du coup".
+; IntroCeltOS.tscn stays in repo (callable via SceneSelector debug if needed).
+run/main_scene="res://scenes/MenuTest.tscn"
+run/max_fps=60
 config/features=PackedStringArray("4.5", "GL Compatibility")
 boot_splash/bg_color=Color(0.02, 0.04, 0.02, 1)
 boot_splash/show_image=false
@@ -55,6 +59,8 @@ window/size/window_height_override=1080
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=5
+; v7.7.15 — Force VSync ON (no tearing). 1 = enabled (default in Godot 4 but explicit).
+window/vsync/vsync_mode=1
 
 [editor_plugins]
 

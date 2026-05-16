@@ -308,23 +308,43 @@ func _build_biome_selector() -> void:
 	grid.add_theme_constant_override("v_separation", 16)
 	_biome_selector.add_child(grid)
 
-	# Per user 2026-05-14 : "uniquement broceliande de pas grisé jusqu'ici".
-	# Force STRICT lock state — only foret_broceliande is selectable until the
-	# meta-progression hooks (player maturity score from save profile) are
-	# fully wired in this scene. The other 7 stay locked with their thematic
-	# "Apprends encore..." messages.
-	var force_only_broceliande := true
+	# v7.7.15 — User decision (kind-humming-peach.md plan) : DISABLE force_only_broceliande
+	# for this rework. All 8 biomes unlocked + each styled per its destination palette.
+	# Maturity gate code preserved for future re-lock (set dev_unlock_all_biomes = false).
+	var dev_unlock_all_biomes := true
 	var player_maturity: int = 0
 	if _store and _store.has_method("calculate_maturity_score"):
 		player_maturity = int(_store.calculate_maturity_score())
 
+	# v7.7.15 — Per-biome Ogham glyph icon (top-left of each button).
+	# Maps to bible §3 Rune-Circuits canonical mapping (Beith/Luis/Fearn/Sail/Nion/Huath/Duir/Tinne).
+	var biome_glyphs := {
+		"foret_broceliande":  "ᚁ",
+		"landes_bruyere":     "ᚂ",
+		"cotes_sauvages":     "ᚃ",
+		"villages_celtes":    "ᚄ",
+		"cercles_pierres":    "ᚅ",
+		"marais_korrigans":   "ᚆ",
+		"collines_dolmens":   "ᚇ",
+		"iles_mystiques":     "ᚈ",
+	}
+
 	for biome_id in BIOME_ORDER:
 		var threshold: int = int(MerlinConstants.BIOME_MATURITY_THRESHOLDS.get(biome_id, 999))
-		var unlocked: bool
-		if force_only_broceliande:
-			unlocked = (biome_id == "foret_broceliande")
-		else:
-			unlocked = (threshold <= player_maturity)
+		var unlocked: bool = true if dev_unlock_all_biomes else (threshold <= player_maturity)
+
+		# v7.7.15 — Pull per-biome palette for unique button styling.
+		var palette: Dictionary = BiomePalettes.get_palette(biome_id)
+		# Pick first non-accent/outline color as the "structural" bg tone.
+		var bg_color: Color = Color(0.18, 0.12, 0.08, 0.90)
+		for k in palette.keys():
+			if k != "accent" and k != "outline":
+				bg_color = palette[k]
+				bg_color.a = 0.90
+				break
+		var accent_color: Color = palette.get("accent", Color(0.85, 0.65, 0.30))
+		var outline_color: Color = palette.get("outline", Color(0.04, 0.03, 0.02))
+
 		var btn := Button.new()
 		btn.name = "Biome_" + biome_id
 		btn.text = str(BIOME_TITLES.get(biome_id, biome_id))
@@ -332,28 +352,54 @@ func _build_biome_selector() -> void:
 		btn.custom_minimum_size = Vector2(200, 130)
 		btn.tooltip_text = str(BIOME_LOCK_MESSAGES.get(biome_id, ""))
 		btn.add_theme_font_size_override("font_size", 17)
-		# Stone-disc style : flat StyleBoxFlat, bronze border for unlocked, grey for locked
+		# Per-biome StyleBoxFlat. Bg = structural tone, border = palette accent.
 		var sb := StyleBoxFlat.new()
 		if unlocked:
-			sb.bg_color = Color(0.18, 0.12, 0.08, 0.90)
-			sb.border_color = Color(0.62, 0.46, 0.24, 1.0)
-			btn.add_theme_color_override("font_color", Color(0.95, 0.85, 0.55))
-			btn.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.65))
+			sb.bg_color = bg_color
+			sb.border_color = accent_color
+			btn.add_theme_color_override("font_color", Color(0.96, 0.92, 0.78))
+			btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85))
+			btn.add_theme_color_override("font_outline_color", outline_color)
+			btn.add_theme_constant_override("outline_size", 4)
 		else:
-			sb.bg_color = Color(0.10, 0.10, 0.12, 0.85)
-			sb.border_color = Color(0.30, 0.30, 0.32, 0.7)
+			sb.bg_color = bg_color.lerp(Color(0.10, 0.10, 0.12, 0.85), 0.65)
+			sb.border_color = accent_color.darkened(0.5)
 			btn.add_theme_color_override("font_color", Color(0.45, 0.45, 0.48))
 			btn.add_theme_color_override("font_disabled_color", Color(0.45, 0.45, 0.48))
 		sb.set_border_width_all(2)
-		sb.set_corner_radius_all(8)
+		sb.set_corner_radius_all(0)   # Persona sharp edges, no radius
 		sb.set_content_margin_all(12)
 		btn.add_theme_stylebox_override("normal", sb)
 		var sb_hover: StyleBoxFlat = sb.duplicate()
 		if unlocked:
-			sb_hover.bg_color = Color(0.24, 0.16, 0.10, 0.95)
-			sb_hover.border_color = Color(0.85, 0.65, 0.30, 1.0)
+			sb_hover.bg_color = bg_color.lightened(0.10)
+			sb_hover.border_color = accent_color.lightened(0.18)
+			sb_hover.set_border_width_all(3)
 		btn.add_theme_stylebox_override("hover", sb_hover)
 		btn.add_theme_stylebox_override("disabled", sb)
+
+		# v7.7.15 — Ogham glyph icon at top-left corner of each button.
+		var glyph_text: String = String(biome_glyphs.get(biome_id, "ᛚ"))
+		var glyph := Label.new()
+		glyph.name = "Glyph"
+		glyph.text = glyph_text
+		glyph.add_theme_font_size_override("font_size", 22)
+		glyph.add_theme_color_override("font_color", accent_color)
+		glyph.add_theme_color_override("font_outline_color", outline_color)
+		glyph.add_theme_constant_override("outline_size", 3)
+		glyph.anchor_left = 0.0
+		glyph.anchor_right = 0.0
+		glyph.anchor_top = 0.0
+		glyph.anchor_bottom = 0.0
+		glyph.offset_left = 8
+		glyph.offset_right = 36
+		glyph.offset_top = 4
+		glyph.offset_bottom = 36
+		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if not unlocked:
+			glyph.modulate.a = 0.5
+		btn.add_child(glyph)
+
 		var captured_id: String = biome_id
 		btn.pressed.connect(func() -> void: _on_biome_picked(captured_id))
 		grid.add_child(btn)
