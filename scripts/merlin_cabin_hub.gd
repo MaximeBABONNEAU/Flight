@@ -84,7 +84,10 @@ func _build_3d_cabin() -> void:
 	fire_light.light_color = Color(1.0, 0.7, 0.3)
 	fire_light.light_energy = 2.5
 	fire_light.omni_range = 8.0
-	fire_light.shadow_enabled = true
+	# v7.7.3a — fire OmniLight is decorative (atmospheric only). Dynamic shadow
+	# map per omni light = 1-2ms/frame in Forward+. The cabin is low-poly enough
+	# that the loss of shadow casting from this light is imperceptible.
+	fire_light.shadow_enabled = false
 	_world.add_child(fire_light)
 
 	# Fire particles (dust motes in firelight)

@@ -171,8 +171,9 @@ func _apply_neutral_lighting() -> void:
 		env.fog_enabled = true
 		env.fog_light_color = Color(0.20, 0.13, 0.06)
 		env.fog_density = 0.035
+		# v7.7.3a — density cut 0.02→0.008 (still visible lamp cone, ~60% cheaper).
 		env.volumetric_fog_enabled = true
-		env.volumetric_fog_density = 0.02
+		env.volumetric_fog_density = 0.008
 		env.volumetric_fog_emission = Color(0.10, 0.07, 0.03)
 	_build_merlin_mouth_silhouette()
 
@@ -471,7 +472,8 @@ func _enable_volumetric_fog() -> void:
 	env.volumetric_fog_emission = Color(0.40, 0.62, 0.42)
 	env.volumetric_fog_emission_energy = 0.55  # was 0.25
 	env.volumetric_fog_anisotropy = 0.5
-	env.volumetric_fog_length = 36.0  # was 24.0
+	# v7.7.3a — length 36→18 cuts ray-march steps in half. Visual depth still OK.
+	env.volumetric_fog_length = 18.0  # was 36.0 (v7.5 over-extension)
 
 
 ## Build 3 breathing OmniLight3D point lights around the plateau, each with
@@ -545,8 +547,10 @@ func _run_biome_drop_choreography(biome_id: String) -> void:
 	# Step 3 (T=1.5..3.0s) : fog volumétrique s'infiltre (lent, ambiance).
 	if _world_env and _world_env.environment:
 		var env: Environment = _world_env.environment
-		# v7.5 — target density boosted 0.022 → 0.045 for stronger atmospheric depth.
-		create_tween().tween_property(env, "volumetric_fog_density", 0.045, 1.5) \
+		# v7.7.3a — ramp target back to 0.022 (v7.5 pre-boost). 0.045 was 2× too
+		# expensive — combined with the 36→18 length cut this section now costs
+		# ~3-4ms/frame instead of 6-8ms. Atmospheric depth still reads.
+		create_tween().tween_property(env, "volumetric_fog_density", 0.022, 1.5) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	await get_tree().create_timer(0.6).timeout
 	if _skip_requested:
@@ -1560,7 +1564,10 @@ func _build_scene_tree() -> void:
 	_key_light = DirectionalLight3D.new()
 	_key_light.name = "KeyLight"
 	_key_light.position = Vector3(3.0, 5.0, 2.0)
-	_key_light.shadow_enabled = true
+	# v7.7.3a — _key_light acts as fill in the plateau scene; _spot_light below is
+	# the primary shadow caster. Two shadow-casting lights = 2-3ms/frame, cut to
+	# one (spot only). Fill light shadow on a druidic plateau is imperceptible.
+	_key_light.shadow_enabled = false
 	_key_light.light_energy = 2.0
 	_key_light.light_indirect_energy = 1.2
 	add_child(_key_light)

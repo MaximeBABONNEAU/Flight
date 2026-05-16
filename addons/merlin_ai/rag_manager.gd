@@ -10,6 +10,10 @@ class_name RAGManager
 
 const VERSION := "3.0.0"
 
+## v7.7.3a — preload biome system so we never hit disk on the LLM context path.
+## Was: runtime `load()` on every cache-miss → 5-15ms main-thread stall per call.
+const MerlinBiomeSystemScript: GDScript = preload("res://scripts/merlin/merlin_biome_system.gd")
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TOKEN BUDGET — Per-brain, scaled to model context capacity
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -406,8 +410,8 @@ func _get_biome_context(game_state: Dictionary) -> String:
 	# Cache: avoid re-instantiating MerlinBiomeSystem on every call
 	if biome_key == _biome_cache_key and not _biome_cache_text.is_empty():
 		return _biome_cache_text
-	var BiomeSystemClass: GDScript = load("res://scripts/merlin/merlin_biome_system.gd")
-	var biome_sys = BiomeSystemClass.new()
+	# v7.7.3a — use preloaded const (see top of file) instead of synchronous load.
+	var biome_sys = MerlinBiomeSystemScript.new()
 	_biome_cache_text = biome_sys.get_biome_context_for_llm(biome_key)
 	_biome_cache_key = biome_key
 	return _biome_cache_text
