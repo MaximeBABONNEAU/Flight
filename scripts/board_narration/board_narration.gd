@@ -630,6 +630,59 @@ func _build_plateau_enrichment() -> void:
 	CelShadingManager.apply(pedestal, {"outline_thickness": 0.010, "outline_color": outline_black})
 
 
+## v7.7.8 — KayKit canonical asset pipeline (bible §20.6)
+## Reusable GLB guardian spawner. Parameterised per code-review MEDIUM-2 so
+## adding biome-specific guardians becomes a one-liner.
+##
+## Default = KayKit Adventurers Mage (druide-aligned).
+const KAYKIT_GUARDIAN_PATH := "res://Assets/blender/kaykit_mage.glb"
+const KAYKIT_GUARDIAN_POSITION := Vector3(3.4, 0.0, 0.6)
+const KAYKIT_GUARDIAN_SCALE := 0.55
+const KAYKIT_GUARDIAN_ROTATION_Y := -0.95   # face plateau center
+
+var _kaykit_spawned: bool = false
+
+## Spawns the default Mage druide guardian. One-shot via _kaykit_spawned flag.
+func _spawn_kaykit_guardian() -> void:
+	if _kaykit_spawned:
+		return
+	if _spawn_glb_guardian(
+		KAYKIT_GUARDIAN_PATH,
+		KAYKIT_GUARDIAN_POSITION,
+		KAYKIT_GUARDIAN_SCALE,
+		KAYKIT_GUARDIAN_ROTATION_Y,
+		"KayKitGuardian"
+	) != null:
+		_kaykit_spawned = true
+
+
+## Generic helper : load a `.glb` PackedScene, wrap in a Node3D, position/scale/rotate,
+## apply outline noir per bible §20.6. Returns the wrapper Node3D or null on failure.
+## Wrapper is added as child of `self` ; caller can keep the reference for later tweens.
+func _spawn_glb_guardian(path: String, pos: Vector3, scale_f: float, rot_y: float, node_name: String = "GLBGuardian") -> Node3D:
+	if not ResourceLoader.exists(path):
+		push_warning("[BoardNarration] GLB guardian not found at %s — skipping" % path)
+		return null
+	var packed: PackedScene = load(path) as PackedScene
+	if packed == null:
+		push_warning("[BoardNarration] GLB guardian failed to load as PackedScene: %s" % path)
+		return null
+	var inst: Node = packed.instantiate()
+	if inst == null:
+		push_warning("[BoardNarration] GLB guardian instantiate() returned null: %s" % path)
+		return null
+	var wrapper := Node3D.new()
+	wrapper.name = node_name
+	wrapper.position = pos
+	wrapper.scale = Vector3.ONE * scale_f
+	wrapper.rotation.y = rot_y
+	add_child(wrapper)
+	wrapper.add_child(inst)
+	# Outline noir signature mandatory per bible §20.6
+	CelShadingManager.apply_recursive(wrapper, {"outline_thickness": 0.008})
+	return wrapper
+
+
 ## Looped subtle scale-breath on the plateau mesh — barely perceptible (1.0 → 1.002).
 ## Pumps up the "alive" feel without distorting the geometry.
 func _animate_plateau_breath() -> void:
@@ -1791,8 +1844,14 @@ func _build_scene_tree() -> void:
 		add_child(_plateau)
 		# v7.1 — Cel-shading + outline noir per bible §20 (marque de fabrique).
 		CelShadingManager.apply(_plateau, {"outline_thickness": 0.008})
-		# v7.7.7 — Enrich plateau with 4 layers (bible §20.6 KayKit pipeline pending).
+
+	# v7.7.8 — Plateau enrichment + KayKit guardian fire regardless of plateau
+	# source (biome bundle, legacy glb, or procedural cylinder) so the bible §20.6
+	# canonical assets always appear. Code-review MEDIUM-1 fix (was inside `if
+	# _plateau == null` fallback branch and skipped on biome bundles).
+	if _plateau != null:
 		_build_plateau_enrichment()
+		_spawn_kaykit_guardian()
 
 	# Biome backdrop root
 	_backdrop_root = Node3D.new()

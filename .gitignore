@@ -14,6 +14,16 @@ external/VDLM/
 external/godot-svg/
 external/context-free/
 
+# KayKit clones — heavy (~140 MB per pack). Only specific .glb files
+# used by the game are copied into Assets/blender/ (committed).
+# Re-clone instructions: external/kaykit/README.md
+external/kaykit/adventurers/
+external/kaykit/skeletons/
+external/kaykit/hexagon/
+external/kaykit/dungeon/
+external/kaykit/mini-game-variety/
+external/kaykit/animated-characters/
+
 # -------------------------------------------
 # Runtime capture artifacts (v7.4+ — binary screenshots, do not commit)
 # -------------------------------------------

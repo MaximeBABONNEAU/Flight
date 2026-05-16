@@ -139,6 +139,11 @@ func _instantiate_glb_with_glyph_and_light(path: String, instance_name: String) 
 	instance.name = instance_name
 	add_child(instance)
 
+	# v7.7.8 — Outline noir signature mandatory per bible §20.6.
+	# Without this, imported GLBs (KayKit, custom Blender exports) ship without
+	# the celtic outline that defines MERLIN's visual identity.
+	CelShadingManager.apply_recursive(instance, {"outline_thickness": 0.008})
+
 	# Glyph billboard above head — same pattern as procedural path
 	var spec: Dictionary = FACTION_SPECS.get(faction, FACTION_SPECS[""])
 	var tint: Color = spec["accent"]

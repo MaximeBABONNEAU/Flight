@@ -15,33 +15,44 @@
 
 ## Recommended packs (clone as needed)
 
-| Pack | Purpose in MERLIN | Repo |
-|---|---|---|
-| Adventurers | Druide / hero figurines (pion tokens) | `KayLousberg/KayKit-Adventurers` |
-| Mini-Game Variety | Props rituels : runes, potions, coffres, parchemins | `KayLousberg/KayKit-Mini-Game-Variety-Pack` |
-| Animated Characters 2 | Animated rigs idle/attack | `KayLousberg/KayKit-Animated-Characters-2.0` |
-| Medieval Hexagon | Biome terrain tiles modulaires | `KayLousberg/KayKit-Medieval-Hexagon-Pack` |
-| Skeletons | Ankou faction creatures | `KayLousberg/KayKit-Skeletons-Pack` |
-| Dungeon Pack | Cabin/temple interiors | `KayLousberg/KayKit-Dungeon-Pack` |
+**Verified GitHub source (2026-05-16)** : `KayKit-Game-Assets` org (NOT `KayLousberg/`).
+The personal `KayLousberg/*` repos do not exist on GitHub ; KayKit is split between
+itch.io distribution and the `KayKit-Game-Assets` GitHub mirror.
 
-## Clone instructions
+| Pack | Purpose in MERLIN | GitHub Repo | Status |
+|---|---|---|---|
+| Adventurers v1.0 | Druide / hero figurines (Mage = druide-guardian) | `KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0` | ✓ verified |
+| Skeletons v1.0 | Ankou faction creatures | `KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0` | ✓ verified |
+| Medieval Hexagon v1.0 | Biome terrain tiles modulaires | `KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0` | ✓ verified |
+| Dungeon Remastered v1.0 | Cabin/temple interiors | `KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0` | ✓ verified |
+| City Builder Bits v1.0 | (optional) buildings/walls if needed | `KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0` | ✓ verified |
+| Prototype Bits v1.0 | (optional) primitives + ramps for greybox | `KayKit-Game-Assets/KayKit-Prototype-Bits-1.0` | ✓ verified |
+| Mini-Game Variety | Props rituels | itch.io only (gated) | × not on GitHub |
+| Animated Characters 2 | Animated rigs idle/attack | itch.io only (gated) | × not on GitHub |
 
-Each pack as git submodule under this directory :
+## Clone instructions (verified URLs)
+
+Each pack is heavy (~140 MB) so they are **gitignored** (not submodules) and
+specific `.glb` files used by the game are copied into `Assets/blender/` instead.
 
 ```bash
 cd external/kaykit
-git submodule add https://github.com/KayLousberg/KayKit-Adventurers.git adventurers
-git submodule add https://github.com/KayLousberg/KayKit-Mini-Game-Variety-Pack.git mini-game-variety
-git submodule add https://github.com/KayLousberg/KayKit-Animated-Characters-2.0.git animated-characters
-git submodule add https://github.com/KayLousberg/KayKit-Medieval-Hexagon-Pack.git hexagon
-git submodule add https://github.com/KayLousberg/KayKit-Skeletons-Pack.git skeletons
-git submodule add https://github.com/KayLousberg/KayKit-Dungeon-Pack.git dungeon
-git submodule update --init --recursive
+git clone --depth 1 https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0.git adventurers
+git clone --depth 1 https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0.git skeletons
+git clone --depth 1 https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0.git hexagon
+git clone --depth 1 https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0.git dungeon
 ```
 
-**Note** : exact KayKit repo URLs may differ ; verify on https://kaylousberg.com or
-https://github.com/kaylousberg . If KayLousberg's source is itch.io (gated), download
-manually + place `.blend`/`.glb` files in the appropriate subdirectory.
+After clone, copy needed `.glb` files into `Assets/blender/` with MERLIN naming :
+
+```bash
+# Druide figurines
+cp adventurers/addons/kaykit_character_pack_adventures/Characters/gltf/Mage.glb ../../Assets/blender/kaykit_mage.glb
+# Skeleton creatures (Ankou)
+cp skeletons/addons/kaykit_character_pack_skeletons/Characters/gltf/Skeleton_Warrior.glb ../../Assets/blender/creature_skeleton_warrior.glb
+# Tiles
+cp hexagon/addons/kaykit_medieval_hexagon_pack/Tiles/gltf/Tile_Forest.glb ../../Assets/blender/tile_forest.glb
+```
 
 ## Naming convention (MERLIN-specific)
 
@@ -83,15 +94,21 @@ Per CLAUDE.md §10 systematic policy :
 3. Material check : 1 StandardMaterial3D per mesh, vertex_color_use_as_albedo = true
 4. Smoke scene loading the asset → no SCRIPT ERROR + visible outline
 
-## Status
+## Status (v7.7.8 — 2026-05-16)
 
-- [ ] external/kaykit/adventurers (clone pending)
-- [ ] external/kaykit/mini-game-variety (clone pending)
-- [ ] external/kaykit/animated-characters (clone pending)
-- [ ] external/kaykit/hexagon (clone pending)
-- [ ] external/kaykit/skeletons (clone pending)
-- [ ] external/kaykit/dungeon (clone pending)
+- [x] external/kaykit/adventurers — cloned + Mage.glb imported as `Assets/blender/kaykit_mage.glb`
+- [ ] external/kaykit/skeletons — clone pending (Ankou faction)
+- [ ] external/kaykit/hexagon — clone pending (biome tiles)
+- [ ] external/kaykit/dungeon — clone pending (interiors)
+- [ ] external/kaykit/mini-game-variety — itch.io only, manual download required
+- [ ] external/kaykit/animated-characters — itch.io only, manual download required
 
-**Note** : clones to be performed manually by developer (network-heavy operation,
-not auto-cloned in CI). After clone, run a one-shot import script (TBD) to
-batch-convert .blend → .glb via godot-blender-exporter.
+**Note** : clones are gitignored (`external/kaykit/*/`). Only specific `.glb`
+copies in `Assets/blender/` are committed.
+
+### Verified pipeline (v7.7.8)
+
+KayKit `Assets/blender/kaykit_mage.glb` is spawned in `BoardNarration._ready` →
+`_spawn_kaykit_guardian()` at position `(3.4, 0.0, 0.6)`, scale `0.55`. The
+outline noir is applied via `CelShadingManager.apply_recursive` per bible §20.6.
+Smoke + capture confirmed character renders with proper silhouette outline.
