@@ -1781,7 +1781,12 @@ func _resolve_dependencies() -> void:
 	if store and store.get("save_system") != null:
 		_save_system = store.save_system
 	_merlin_ai = get_node_or_null("/root/MerlinAI")
-	_flow_controller = get_node_or_null("/root/GameFlowController")
+	# v7.7.3b — autoload registered name is `GameFlow` (project.godot:46), not
+	# `GameFlowController`. The old lookup never resolved → _flow_controller was
+	# always null → narration_done emitted into void in non-failsafe paths.
+	_flow_controller = get_node_or_null("/root/GameFlow")
+	if _flow_controller == null:
+		_flow_controller = get_node_or_null("/root/GameFlowController")  # legacy fallback
 	if _flow_controller and _flow_controller.has_method("wire_board_narration"):
 		_flow_controller.wire_board_narration(self)
 	else:
