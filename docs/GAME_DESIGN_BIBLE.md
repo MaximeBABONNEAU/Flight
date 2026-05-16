@@ -1,4 +1,4 @@
-# GAME DESIGN BIBLE — M.E.R.L.I.N. v3.5
+# GAME DESIGN BIBLE — M.E.R.L.I.N. v3.7
 
 > **Source de verite unique** pour le game design de M.E.R.L.I.N.
 > Supersede : GAME_DESIGN_BIBLE v2.4 + v3.0, MASTER_DOCUMENT.md, DOC_12, DOC_13, DOC_11
@@ -1005,6 +1005,73 @@ Le pipeline est appelé automatiquement par :
 - [ ] **Vertex colors per-face** appliqués (pas de texture albedo sauf parchemin/grass procéduraux).
 - [ ] **Shading_mode = PER_VERTEX**, `diffuse = LAMBERT`, `specular = DISABLED` sur tout StandardMaterial3D du plateau.
 - [ ] **Pas un asset PBR isolé** au milieu d'assets low-poly flat (incohérence visuelle).
+
+### 20.6 Source asset canonique : KayKit pipeline (v3.7+, NON-NÉGOCIABLE)
+
+> **Décrété 2026-05-16 part 2.** Source asset principale du jeu = **KayKit by Kay Lousberg** (license CC0/MIT). Documenté dans `external/kaykit/README.md`.
+
+#### Pourquoi KayKit
+
+| Critère | Pourquoi ça matche MERLIN |
+|---|---|
+| **Style consistency** | Tous packs KayKit partagent identique stylisation low-poly stylized |
+| **License** | CC0 / MIT (commercial free, pas d'attribution requise) |
+| **Format** | `.blend` + `.glb` shipped, drop-in Godot 4.5 |
+| **Vertex colors** | Faces flat-shaded via vertex colors (compatible CelShadingManager native) |
+| **Scale & rig** | 1 unit = 1m, characters rigged for Godot AnimationPlayer |
+| **Pack diversity** | Adventurers, Mini-Game Variety, Hexagon Tiles, Skeletons, Dungeon — couvre 90%+ assets MERLIN |
+
+#### Pipeline complet (utilise les 3 outils déjà installés)
+
+```
+1. external/kaykit/<pack>/        ← clone via git submodule (cf. README)
+2. tools/blender_addons/lowpolyzer (déjà OK)        ← normalize poly count si besoin
+3. tools/blender_addons/vertex_color_master (déjà OK) ← repaint face colors → biome palette §22
+4. external/godot-blender-exporter (déjà OK)        ← .blend → .glb
+5. Assets/blender/<category>/<name>.glb             ← destination finale
+6. Scene script _ready() : CelShadingManager.apply_recursive(asset_root)
+   → outline noir mandatory bible §20.1
+```
+
+#### Règle absolue v3.7 : OUTLINE OBLIGATOIRE SUR TOUT ASSET 3D
+
+**Aucun asset 3D ne ship sans `CelShadingManager.apply_recursive(asset_root)` au moment de l'instanciation.** Cela inclut :
+- Plateau base + bordure + carved rune circle + cardinal markers
+- Figurines (pions narratifs, druides, korrigans, ankou)
+- Props biome (trees, totems, runes, mushrooms, stones)
+- Dés + tray
+- Cartes 3D (LiveCard3D + card deck + discard pile)
+- Parchemins ScenarioLoading
+- Merlin mouth silhouette (Label3D outline via outline_modulate)
+- TOUS décors biome via biome_loader.gd `apply_recursive` post-load
+
+**Audit grep automatique** : per CLAUDE.md §10 systematic policy, agent vérifie à chaque MERLIN session :
+
+```bash
+grep -rE "MeshInstance3D\.new\(|preload\(.*\.glb" scripts/ | grep -v test/ \
+  | xargs -I {} grep -L "CelShadingManager\.apply" {} \
+  # → liste fichiers créant meshes SANS appliquer outline → BLOCKER avant commit
+```
+
+#### Mapping pack KayKit → catégorie MERLIN
+
+| Pack KayKit | Categorie MERLIN | Trigger d'usage |
+|---|---|---|
+| Adventurers | `druide_*.glb` | Pion principal du joueur, figurines factions |
+| Mini-Game Variety | `prop_rune_*.glb`, `prop_potion_*.glb` | Props plateau + cartes de prop reveal |
+| Animated Characters 2.0 | `creature_*.glb` rigged | Boss faction, animations idle/attack |
+| Medieval Hexagon | `tile_biome_*.glb` | 8 biomes terrain tiles modulaires |
+| Skeletons | `creature_ankou_*.glb` | Faction Ankou (mort) creatures |
+| Dungeon | `cabin_*.glb`, `temple_*.glb` | Hub MerlinCabinHub + intérieurs scénarios |
+
+#### Vision artistique commune (4 axes)
+
+1. **Low-poly stylized** : ~500-2000 polys/asset, faces visibles (anti-smooth)
+2. **Vertex colors per-face** : palette biome §22 appliquée via vertex_color_master
+3. **Outline noir signature** : `CelShadingManager.apply_recursive` non-négociable
+4. **Lighting warm mystique** : tungsten KeyLight + volumetric fog cone (bible §23)
+
+Ces 4 axes garantissent qu'un nouvel asset, même de source diverse (KayKit / Quaternius / Kenney / custom Blender), s'intègre visuellement sans rupture.
 - [ ] **Épaisseur outline cohérente** entre assets (tolérance ±20%).
 - [ ] **Pas de smooth normals** (Shade Flat appliqué dans Blender).
 - [ ] **Pas de double-outline** (le hull invertit n'apparaît qu'une fois par mesh — marker `_CelOutline`).
@@ -1213,6 +1280,7 @@ Les palettes sont exposées dans `scripts/board_narration/biome_palettes.gd` (à
 *v3.4 (2026-05-15) — §20 pivot Low-Poly Flat + §22 palettes adaptives 8 biomes + §23 mood mystique chaleureux*
 *v3.5 (2026-05-16) — HoF2-style no-drain + pipeline 11 etapes + plateau-only v7.7.2 + §24 Politique Systematique MERLIN*
 *v3.6 (2026-05-16) — Disco-style maitrise : 4 stats + skill checks + Grimoire meta + équilibrage formula (§25-§29)*
+*v3.7 (2026-05-16) — §20.6 KayKit canonical asset pipeline + outline noir MANDATORY on ALL 3D assets + grep audit automatisé*
 
 ---
 
