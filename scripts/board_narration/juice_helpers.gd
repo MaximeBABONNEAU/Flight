@@ -256,11 +256,51 @@ static func spawn_floating_label_arc(host: Node, fx_layer: Control,
 	t.chain().tween_callback(lbl.queue_free)
 
 
+## v7.7.5b (item #2) — Full-screen red border vignette on damage. 4 thin ColorRects
+## on each edge, alpha 0 -> 0.45 -> 0 over 0.5s, MOUSE_FILTER_IGNORE so they don't
+## block input. Adds visceral "pain" feedback layered on top of the chevron tick.
+## Independent of faction_flash (which is faction-color, not pain-color).
+static func damage_vignette(host: Node) -> void:
+	if host == null or not host.is_inside_tree():
+		return
+	var viewport_size: Vector2 = host.get_viewport().get_visible_rect().size
+	var thickness: float = 40.0
+	var red := Color(0.80, 0.13, 0.13, 0.0)
+	var edges: Array[Rect2] = [
+		Rect2(Vector2.ZERO, Vector2(viewport_size.x, thickness)),                                  # top
+		Rect2(Vector2(0.0, viewport_size.y - thickness), Vector2(viewport_size.x, thickness)),     # bottom
+		Rect2(Vector2.ZERO, Vector2(thickness, viewport_size.y)),                                  # left
+		Rect2(Vector2(viewport_size.x - thickness, 0.0), Vector2(thickness, viewport_size.y)),     # right
+	]
+	var layer := CanvasLayer.new()
+	layer.layer = 99  # below CRT frame (100) but above gameplay
+	host.add_child(layer)
+	var rects: Array = []
+	for r: Rect2 in edges:
+		var cr := ColorRect.new()
+		cr.color = red
+		cr.position = r.position
+		cr.size = r.size
+		cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.add_child(cr)
+		rects.append(cr)
+	# Pulse alpha 0 -> 0.45 -> 0 over 0.5s, parallel on all 4 edges.
+	var t := host.create_tween().set_parallel(true)
+	for cr: ColorRect in rects:
+		t.tween_property(cr, "color:a", 0.45, 0.15).set_trans(Tween.TRANS_QUAD)
+		t.chain().tween_property(cr, "color:a", 0.0, 0.35).set_trans(Tween.TRANS_QUAD)
+	t.chain().tween_callback(layer.queue_free)
+
+
 ## HUD life-bar ticker — counts from old_v to new_v over 0.6s with chevron wave.
+## v7.7.5b — triggers damage_vignette when life decreases.
 static func hud_life_ticker(host: Node, bar: ProgressBar, value_label: Label,
 		from_v: int, to_v: int) -> void:
 	if bar == null:
 		return
+	# v7.7.5b item #2 — visceral pain feedback on damage (independent of faction flash).
+	if to_v < from_v:
+		damage_vignette(host)
 	var tw := host.create_tween().set_parallel(true)
 	tw.tween_method(func(v: float) -> void:
 		bar.value = v
