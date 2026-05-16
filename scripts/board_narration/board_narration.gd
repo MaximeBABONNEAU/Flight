@@ -929,7 +929,7 @@ func _strengthen_boss_presence() -> void:
 	if _hud_life_bar:
 		if _boss_pulse_tween and is_instance_valid(_boss_pulse_tween):
 			_boss_pulse_tween.kill()
-		_boss_pulse_tween = create_tween().set_loops()
+		_boss_pulse_tween = create_tween().bind_node(_hud_life_bar).set_loops()
 		_boss_pulse_tween.tween_property(_hud_life_bar, "modulate", Color(1.2, 0.7, 0.7, 1.0), 0.8) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		_boss_pulse_tween.tween_property(_hud_life_bar, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.8) \
@@ -940,11 +940,98 @@ func _strengthen_boss_presence() -> void:
 		var origin_rot: Vector3 = _camera.rotation
 		var dolly_target := origin + Vector3(0.0, -0.15, -0.4)  # forward+slightly down
 		var tilt_target := origin_rot + Vector3(deg_to_rad(3.0), 0.0, 0.0)
-		var cam_tw := create_tween().set_parallel(true)
+		var cam_tw := create_tween().bind_node(_camera).set_parallel(true)
 		cam_tw.tween_property(_camera, "position", dolly_target, 1.4) \
 			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 		cam_tw.tween_property(_camera, "rotation", tilt_target, 1.4) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# v7.7.10 — Boss sting : screen flash + camera punch + SFX.
+	_play_boss_sting()
+
+
+## v7.7.10 — Boss arrival sting. Quick red flash + camera punch + audio cue.
+## Total budget : 0.4s. Fires once when boss card enters.
+func _play_boss_sting() -> void:
+	# Screen flash : full-bleed red ColorRect, fade-in 0.08s + fade-out 0.32s.
+	if _ui_layer != null:
+		var flash := ColorRect.new()
+		flash.name = "BossStingFlash"
+		flash.color = Color(0.85, 0.12, 0.10, 0.0)
+		flash.anchor_left = 0.0
+		flash.anchor_right = 1.0
+		flash.anchor_top = 0.0
+		flash.anchor_bottom = 1.0
+		flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ui_layer.add_child(flash)
+		var flash_tw := create_tween().bind_node(flash)
+		flash_tw.tween_property(flash, "color:a", 0.55, 0.08).set_trans(Tween.TRANS_SINE)
+		flash_tw.tween_property(flash, "color:a", 0.0, 0.32).set_trans(Tween.TRANS_SINE)
+		flash_tw.tween_callback(func() -> void:
+			if is_instance_valid(flash):
+				flash.queue_free()
+		)
+	# Camera punch : rapid forward bump (8 cm) over 0.10s, recover over 0.30s.
+	# v7.7.10 code-review fix: the boss dolly tween runs concurrently in
+	# _strengthen_boss_presence(), so we cannot capture origin upfront and
+	# recover to it (would undo dolly progress). Instead we apply the punch
+	# delta async and have the recovery read the camera's then-current position
+	# so the dolly's contribution is preserved. TRANS_QUAD on recovery avoids
+	# the TRANS_BACK overshoot (would push camera behind dolly position).
+	if _camera != null:
+		var cam_ref := _camera   # captured for the async closure
+		var punch_delta := Vector3(0.0, 0.0, -0.08)
+		var punch_to := cam_ref.position + punch_delta
+		var punch_tw := create_tween().bind_node(cam_ref)
+		punch_tw.tween_property(cam_ref, "position", punch_to, 0.10) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		punch_tw.tween_callback(func() -> void:
+			if not is_instance_valid(cam_ref):
+				return
+			# Recover RELATIVE to the dolly-progressed position, not the stale snapshot.
+			var dolly_now: Vector3 = cam_ref.position - punch_delta
+			var recover_tw := create_tween().bind_node(cam_ref)
+			recover_tw.tween_property(cam_ref, "position", dolly_now, 0.30) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		)
+	# SFX — defensive (autoload may be absent in smoke).
+	var sfx: Node = get_node_or_null("/root/SFXManager")
+	if sfx != null and sfx.has_method("play"):
+		sfx.call("play", "boss_sting")
+
+
+## v7.7.10 — Death anim. Dramatic punch-out before route to EndRunScreen.
+## Total budget : 1.4s prelude before existing 4s narration wait.
+## - Red vignette over entire UI layer fade-in 0.30s, hold 0.80s, hold-to-finish
+## - Camera dolly back + tilt down for "collapse" feel
+## - Audio sting via SFXManager (defensive)
+func _play_death_anim() -> void:
+	if _ui_layer != null:
+		var vignette := ColorRect.new()
+		vignette.name = "DeathVignette"
+		vignette.color = Color(0.45, 0.05, 0.08, 0.0)
+		vignette.anchor_left = 0.0
+		vignette.anchor_right = 1.0
+		vignette.anchor_top = 0.0
+		vignette.anchor_bottom = 1.0
+		vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ui_layer.add_child(vignette)
+		var v_tw := create_tween().bind_node(vignette)
+		v_tw.tween_property(vignette, "color:a", 0.65, 0.50) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_IN)
+		# Vignette holds — only cleaned up on _finish via the parent tree teardown.
+	if _camera != null:
+		var origin: Vector3 = _camera.position
+		var origin_rot: Vector3 = _camera.rotation
+		var pull_back := origin + Vector3(0.0, 0.5, 1.2)
+		var tilt_down := origin_rot + Vector3(deg_to_rad(-12.0), 0.0, 0.0)
+		var death_cam := create_tween().bind_node(_camera).set_parallel(true)
+		death_cam.tween_property(_camera, "position", pull_back, 1.3) \
+			.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		death_cam.tween_property(_camera, "rotation", tilt_down, 1.3) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	var sfx: Node = get_node_or_null("/root/SFXManager")
+	if sfx != null and sfx.has_method("play"):
+		sfx.call("play", "death_sting")
 
 
 ## v5.1 — Roll the "dé du destin" after each non-boss card resolves.
@@ -2684,6 +2771,9 @@ func _run_live_loop() -> void:
 		if current_life <= 0:
 			# v7.2 QA MEDIUM 6.12 : removed 0.5 halving (was double-penalty stacked
 			# with store_run.gd:399 min(cards/30, 1.0) ratio per bible §16.1).
+			# v7.7.10 — Death anim (red vignette + camera pull-back + SFX) BEFORE
+			# the narration timer so the player sees the punctuation, not just text.
+			_play_death_anim()
 			if _card_text_label and is_instance_valid(_card_text_label):
 				_card_text_label.text = "[i]Tu t'effondres sur la mousse. Brocéliande se referme sur ton souffle. Tu emportes %d Anam.[/i]" % _run_anam_earned
 			elif _floating_fx_layer:

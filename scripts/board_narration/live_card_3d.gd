@@ -280,16 +280,39 @@ func resolve_choice(index: int) -> void:
 	option_selected.emit(_pending_choice)
 
 
+## v7.7.10 — Parabolic fly-to-marker (was straight-line lerp).
+## Card arcs up then dives down to the marker. Feels more tactile + "tossed
+## into the world" than a glide. Total duration 0.85s :
+## - 0.34s rising arc (origin → apex above midpoint)
+## - 0.51s diving arc (apex → marker) with scale-down + Y-rotation spin
+const FLY_TOTAL_DURATION: float = 0.85
+const FLY_APEX_HEIGHT_BOOST: float = 1.2   # peak Y above midpoint (world units)
+const FLY_RISE_RATIO: float = 0.40         # 40% rising, 60% diving (faster descent)
+
 func fly_to_marker(target_world_pos: Vector3) -> void:
 	if _idle_tween and is_instance_valid(_idle_tween):
 		_idle_tween.kill()
-	var t := create_tween().set_parallel(true)
-	t.tween_property(self, "global_position", target_world_pos, 0.7) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	t.tween_property(self, "scale", Vector3.ONE * 0.1, 0.7) \
-		.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_IN)
-	t.tween_property(self, "rotation:y", PI * 1.2, 0.7)
+	var start_pos: Vector3 = global_position
+	var midpoint: Vector3 = (start_pos + target_world_pos) * 0.5
+	# Apex sits above midpoint — the higher above start/end, the more arched.
+	var apex: Vector3 = midpoint + Vector3(0.0, FLY_APEX_HEIGHT_BOOST, 0.0)
+	var rise_duration: float = FLY_TOTAL_DURATION * FLY_RISE_RATIO
+	var dive_duration: float = FLY_TOTAL_DURATION * (1.0 - FLY_RISE_RATIO)
+	# Rising arc — origin → apex. Scale stays at 1, slight tilt for tactile feel.
+	var t := create_tween().bind_node(self).set_parallel(true)
+	t.tween_property(self, "global_position", apex, rise_duration) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(self, "rotation:y", PI * 0.6, rise_duration) \
+		.set_trans(Tween.TRANS_SINE)
 	await t.finished
+	# Diving arc — apex → target marker. Shrink + spin during descent.
+	var t2 := create_tween().bind_node(self).set_parallel(true)
+	t2.tween_property(self, "global_position", target_world_pos, dive_duration) \
+		.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_IN)
+	t2.tween_property(self, "scale", Vector3.ONE * 0.1, dive_duration) \
+		.set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_IN)
+	t2.tween_property(self, "rotation:y", PI * 1.4, dive_duration)
+	await t2.finished
 	queue_free()
 
 
