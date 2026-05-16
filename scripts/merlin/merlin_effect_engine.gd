@@ -52,6 +52,42 @@ const VALID_CODES := {
 const NEGATIVE_EFFECT_CODES: Array[String] = ["DAMAGE_LIFE"]
 
 
+## v7.7.4c — Resolve a Disco-style stat check on a card option (bible §26).
+##
+## Option schema (extends card option dict, all fields optional) :
+##   check_stat: String     # "logic" | "empathie" | "volonte" | "instinct"
+##                          # If empty/missing → no check, default passed=true.
+##   check_type: String     # "white" (retry-able) | "contextuel" | "red" (one-shot)
+##                          # | "critique" (red fatal). Defaults to "white".
+##   check_modifier: float  # +/- 0.0..0.5 added to pass_chance (e.g. card bonus).
+##                          # Defaults to 0.0.
+##
+## Returns Dictionary:
+##   passed: bool      — true if check passed (or no check defined)
+##   stat: String      — stat used (or "" if no check)
+##   type: String      — check type
+##   chance: float     — final pass chance applied (0.0..1.5+)
+##   modifier: float   — modifier applied
+##
+## Defensive : if MerlinStats autoload absent (smoke/test/RefCounted context),
+## returns passed=true to avoid soft-locks. Real gameplay always has autoload.
+func resolve_option_check(option: Dictionary) -> Dictionary:
+	var stat_name: String = str(option.get("check_stat", "")).to_lower()
+	var check_type: String = str(option.get("check_type", "white"))
+	var modifier: float = float(option.get("check_modifier", 0.0))
+	# No check defined → option auto-passes (pure-narrative choice).
+	if stat_name.is_empty():
+		return {"passed": true, "stat": "", "type": "none", "chance": 1.0, "modifier": 0.0}
+	# Access MerlinStats autoload (RefCounted has no tree access by default).
+	var stats_node: Node = Engine.get_main_loop().root.get_node_or_null("MerlinStats") if Engine.get_main_loop() else null
+	if stats_node == null or not stats_node.has_method("check_pass"):
+		# Autoload missing (test harness / smoke / very early boot) — default pass.
+		return {"passed": true, "stat": stat_name, "type": check_type, "chance": 1.0, "modifier": modifier}
+	var chance: float = float(stats_node.get_pass_chance(stat_name)) + modifier
+	var passed: bool = bool(stats_node.check_pass(stat_name, modifier))
+	return {"passed": passed, "stat": stat_name, "type": check_type, "chance": chance, "modifier": modifier}
+
+
 func validate_effect(effect_code: String) -> bool:
 	var parsed = _parse_effect(effect_code)
 	return parsed["ok"]
