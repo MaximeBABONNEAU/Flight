@@ -32,12 +32,24 @@ signal skeleton_dispatched  ## Emitted right before _return_to_board when skelet
 
 const FALLBACK_BIOME := "foret_broceliande"
 
+# v7.7.21 — Unified DigitalPickerCard replaces 3D parchments.
+const DIGITAL_PICKER_CARD_SCRIPT := preload("res://scripts/ui/digital_picker_card.gd")
+
+# v7.7.21 — Fallback body teasers per scenario tier when the LLM doesn't provide
+# a `body` field (the planner currently returns only {title, ogham}). Ordered to
+# evoke ascending tension : discovery → revelation → climax.
+const SCENARIO_BODY_FALLBACKS: Array = [
+	"Un premier pas, un présage léger.\nLa voie s'ouvre sans bruit.",
+	"Le sentier se trouble. Les Oghams\nmurmurent un avertissement.",
+	"Le seuil est là. Tu n'en reviendras\npas le même, druide.",
+]
+
 var _planner: ScenarioPlanner = null
 var _merlin_ai: Node = null
 var _rag: Node = null
 var _store: Node = null
 var _biome_id: String = ""
-var _titles: Array = []           # [{title: String, ogham: String}, ×3]
+var _titles: Array = []           # [{title: String, ogham: String, body?: String}, ×3]
 var _chosen_title: String = ""
 var _skeleton: Dictionary = {}
 
@@ -48,11 +60,11 @@ var _camera: Camera3D = null
 const MERLIN_SOUND_BAR_SCRIPT := preload("res://scripts/board_narration/merlin_sound_bar.gd")
 var _merlin_sound_bar: Node3D = null
 
-# v7.7 Phase 2.1.3 — 3 parchemin 3D meshes (PlaneMesh + parchment NoiseTexture +
-# title Label3D + ogham Label3D). Player clicks one to pick the title.
-var _parchemins: Array = []       # Array of MeshInstance3D
-var _pick_buttons: Array = []     # 3 floating 2D Buttons synced to parchemin positions
-var _pending_pick: int = -1       # set by _on_parchemin_clicked, polled by _run_flow
+# v7.7.21 — Unified 2D picker cards (3 instances) replace 3D parchment meshes.
+# DigitalPickerCard handles its own hover/click/animation — no per-frame unproject.
+var _picker_cards: Array = []     # Array of DigitalPickerCard
+var _picker_container: HBoxContainer = null
+var _pending_pick: int = -1       # set by _on_scenario_card_picked, polled by _run_flow
 var _aborted: bool = false        # v7.7.1 C4 — set by back button to break the pick wait loop
 
 
@@ -161,37 +173,29 @@ func _run_flow() -> void:
 		_return_to_board()
 		return
 
-	# v7.7 Phase 2.1.3 — Spawn 3 parchemin 3D meshes + wait for player click.
-	# Foundation auto-pick replaced with real player choice via floating buttons.
+	# v7.7.21 — Build 3 unified DigitalPickerCard (replaces 3D parchments).
+	# Cards self-handle hover/click/animations — no per-frame unproject loop.
 	_info_label.text = "Choisis ta voie…"
-	_build_parchemin_meshes(_titles)
-	_build_pick_buttons()
-	# Wait for click — _on_parchemin_clicked sets _pending_pick to chosen index.
+	_build_scenario_cards(_titles)
+	# Wait for click — _on_scenario_card_picked sets _pending_pick to chosen index.
 	# v7.7.1 C4 — also break on _aborted (back button) to prevent infinite poll.
 	_pending_pick = -1
 	while _pending_pick < 0 and not _aborted:
 		await get_tree().process_frame
 	if _aborted:
 		return
-	# Cleanup pick UI + record choice.
+	# Record choice — chosen card already played its own selection animation
+	# (mark_chosen → pulse + crimson flash) via DigitalPickerCard internal logic.
 	var chosen: Dictionary = _titles[_pending_pick] as Dictionary
 	_chosen_title = str(chosen.get("title", ""))
-	_clear_pick_buttons()
-	# Subtle confirmation animation : selected parchemin pulses, others fade out.
-	for i in range(_parchemins.size()):
-		var p: MeshInstance3D = _parchemins[i] as MeshInstance3D
-		if p == null or not is_instance_valid(p):
+	# Dim unselected cards so the chosen one stands out before scene transition.
+	for i in range(_picker_cards.size()):
+		var card: Control = _picker_cards[i] as Control
+		if card == null or not is_instance_valid(card):
 			continue
-		if i == _pending_pick:
-			var pulse := create_tween().set_parallel(true)
-			pulse.tween_property(p, "scale", Vector3.ONE * 1.10, 0.25).set_trans(Tween.TRANS_BACK)
-			pulse.tween_property(p, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_SINE).set_delay(0.25)
-		else:
-			var mat: StandardMaterial3D = p.material_override as StandardMaterial3D
-			if mat:
-				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				create_tween().tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	await get_tree().create_timer(0.5).timeout
+		if i != _pending_pick and card.has_method("dim_unselected"):
+			card.call("dim_unselected")
+	await get_tree().create_timer(0.6).timeout
 	_info_label.text = "Titre choisi : %s\n(Merlin écrit le scénario…)" % _chosen_title
 
 	# Step 3 : generate skeleton
@@ -270,104 +274,88 @@ func _dispatch_fallback_skeleton() -> void:
 	})
 
 
-# ═════════ Phase 2.1.3 — 3D parchemin meshes + click handling ════════════════
+# ═════════ v7.7.21 — Unified DigitalPickerCard (replaces 3D parchments) ══════
 
-const PARCHEMIN_W := 1.20
-const PARCHEMIN_H := 1.70
-const PARCHEMIN_GAP := 1.60         # horizontal spacing between centers
-const PARCHEMIN_Y := 1.20           # height above plateau plane
-const PARCHEMIN_Z := 1.5            # forward of origin, in front of camera (camera at z=4.5)
-const PARCHMENT_COLOR := Color("#f0e2c4")  # cream parchment per bible §13
-const INK_DARK := Color("#0a0500")  # outline noir signature bible §20
+# 8 ogham glyphs per scenario index (cycled if more than 8 titles).
+const SCENARIO_GLYPHS: Array = ["ᚁ", "ᚂ", "ᚃ", "ᚄ", "ᚅ", "ᚆ", "ᚇ", "ᚈ"]
 
-## Spawn 3 floating 3D parchemins side-by-side in front of camera.
-## Each parchemin = PlaneMesh + NoiseTexture parchment + Label3D for title + ogham.
-## Phase 2.1.4 will add unfurl + ink-write animations (foundation : static reveal).
-func _build_parchemin_meshes(titles: Array) -> void:
-	_parchemins.clear()
+## v7.7.21 — Build 3 DigitalPickerCard horizontally on the UI layer (replaces
+## the 3D parchments + the per-frame unproject Button sync). Cards self-handle
+## hover/click + animations via DigitalPickerCard internal logic. Staggered
+## animate_in at 0s / 2.5s / 5.0s preserves the v7.7.17 10s cascade budget.
+func _build_scenario_cards(titles: Array) -> void:
+	_picker_cards.clear()
+	# HBoxContainer centered on screen, with breathing room above for sound bar.
+	if _picker_container != null and is_instance_valid(_picker_container):
+		_picker_container.queue_free()
+	_picker_container = HBoxContainer.new()
+	_picker_container.name = "ScenarioCards"
+	_picker_container.add_theme_constant_override("separation", 28)
+	_picker_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	_picker_container.anchor_left = 0.5
+	_picker_container.anchor_right = 0.5
+	_picker_container.anchor_top = 0.5
+	_picker_container.anchor_bottom = 0.5
+	# Card 320 × 400 ; 3 cards + 2 gaps of 28 = 1016 px wide centered.
+	# v7.7.21 — Vertical offsets bumped ±220 (was ±200) to give cards breathing
+	# room without overlapping the InfoLabel anchored at y=0.4-0.6.
+	_picker_container.offset_left = -508
+	_picker_container.offset_right = 508
+	_picker_container.offset_top = -220
+	_picker_container.offset_bottom = 220
+	_ui_layer.add_child(_picker_container)
+
 	for i in range(min(3, titles.size())):
 		var entry: Dictionary = titles[i] as Dictionary
 		var title_text: String = str(entry.get("title", "?"))
 		var ogham_id: String = str(entry.get("ogham", ""))
-		var mi := _build_single_parchemin(title_text, ogham_id, i)
-		_parchemins.append(mi)
+		# LLM may include a body field ; fallback to SCENARIO_BODY_FALLBACKS[i].
+		var body_text: String = str(entry.get("body", ""))
+		if body_text == "":
+			body_text = SCENARIO_BODY_FALLBACKS[clampi(i, 0, SCENARIO_BODY_FALLBACKS.size() - 1)]
+		# Glyph : prefer LLM-provided ogham (with celtic brackets) else cycle.
+		var glyph_text: String = ""
+		if ogham_id != "":
+			glyph_text = "᚛" + ogham_id.substr(0, 1).to_upper() + "᚜"
+		else:
+			glyph_text = SCENARIO_GLYPHS[i % SCENARIO_GLYPHS.size()]
+		# Instantiate via preload + set_script (avoids class_name first-pass race).
+		var card := PanelContainer.new()
+		card.set_script(DIGITAL_PICKER_CARD_SCRIPT)
+		card.name = "ScenarioCard_%d" % i
+		_picker_container.add_child(card)
+		if card.has_method("setup"):
+			card.call("setup", "scenario_%d" % i, title_text, body_text, glyph_text, MerlinVisual.UI_GOLD, false, "")
+		# Connect selected signal — captured idx via inline bind to avoid closure.
+		var captured_idx: int = i
+		if card.has_signal("selected"):
+			card.connect("selected", _on_scenario_card_picked.bind(captured_idx))
+		# Stagger reveal : card i animates in at t = i × 2.5s, preserving 10s budget.
+		if card.has_method("animate_in"):
+			card.call("animate_in", float(i) * 2.5)
+		# Pulse Merlin sound bar when each card lands (simulates "writing").
+		get_tree().create_timer(float(i) * 2.5 + 0.55).timeout.connect(_pulse_merlin_sound_bar_for_card)
+		_picker_cards.append(card)
 
 
-func _build_single_parchemin(title_text: String, ogham_id: String, idx: int) -> MeshInstance3D:
-	# Mesh = PlaneMesh acting as a flat parchment card.
-	var mi := MeshInstance3D.new()
-	mi.name = "Parchemin_%d" % idx
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(PARCHEMIN_W, PARCHEMIN_H)
-	plane.orientation = PlaneMesh.FACE_Z  # face forward, toward camera
-	mi.mesh = plane
-	# Position : centered row of 3 at y=PARCHEMIN_Y, z=PARCHEMIN_Z.
-	var center_offset: float = (idx - 1) * PARCHEMIN_GAP  # idx 0 → left, 1 → center, 2 → right
-	mi.position = Vector3(center_offset, PARCHEMIN_Y, PARCHEMIN_Z)
-	# Procedural parchment material (parchment cream + noise grain).
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = PARCHMENT_COLOR
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	noise.frequency = 0.015
-	noise.fractal_octaves = 3
-	var tex := NoiseTexture2D.new()
-	tex.noise = noise
-	tex.width = 256
-	tex.height = 256
-	mat.albedo_texture = tex
-	mat.roughness = 0.92
-	mat.metallic = 0.0
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mi.material_override = mat
-	add_child(mi)
-	# v7.7.17 — User « contour noir complet ». Parchment outline 0.005→0.015.
-	# Combined with new OUTLINE_THICKNESS_MULTIPLIER=1.4 in CelShadingManager,
-	# final outline thickness ≈ 0.021 — clearly visible.
-	CelShadingManager.apply(mi, {"outline_thickness": 0.015})
-	# Title Label3D (top half of parchemin)
-	var lbl := Label3D.new()
-	lbl.text = title_text
-	lbl.modulate = INK_DARK
-	lbl.outline_modulate = Color(1, 1, 1, 0.5)
-	lbl.outline_size = 4
-	lbl.font_size = 36
-	lbl.pixel_size = 0.0025
-	lbl.width = 380
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.position = Vector3(0, 0.15, 0.01)
-	lbl.no_depth_test = true
-	mi.add_child(lbl)
-	# Ogham glyph (bottom — uses ogham_id as text, future : map to celtic font/glyph).
-	if ogham_id != "":
-		var ogham_lbl := Label3D.new()
-		ogham_lbl.text = "᚛" + ogham_id.to_upper() + "᚜"
-		ogham_lbl.modulate = Color("#d4a868")  # accent gold (bible §22)
-		ogham_lbl.font_size = 28
-		ogham_lbl.pixel_size = 0.0028
-		ogham_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		ogham_lbl.position = Vector3(0, -0.55, 0.01)
-		ogham_lbl.no_depth_test = true
-		mi.add_child(ogham_lbl)
-	# v7.7.17 — Staggered reveal extended 0.18s → 2.5s per card for the 10s cascade
-	# (user request « 10 secondes de chargements d'assets les uns après les autres »).
-	# Cards spawn at t=0, 2.5, 5.0 — total cascade ~5.5s for 3 cards + sound bar
-	# intro + final speech = ~10s budget.
-	mi.scale = Vector3.ZERO
-	var t := create_tween().bind_node(mi)
-	t.tween_interval(float(idx) * 2.5)
-	t.tween_property(mi, "scale", Vector3.ONE, 0.55) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	# Pulse the Merlin sound bar (if spawned) when this card materializes — gives the
-	# feeling that Merlin "writes" each parchment in succession.
-	t.tween_callback(_pulse_merlin_sound_bar_for_card)
-	return mi
+## v7.7.21 — DigitalPickerCard click handler. Sets _pending_pick to the chosen
+## index ; _run_flow polls this value to break its wait loop. The card itself
+## already played its mark_chosen() pulse + crimson flash before emitting.
+## The `_card_id` arg is unused (we use captured_idx) but kept for signal sig.
+func _on_scenario_card_picked(_card_id: String, idx: int) -> void:
+	if _pending_pick >= 0:
+		return  # already picked, ignore subsequent clicks
+	_pending_pick = clampi(idx, 0, _picker_cards.size() - 1)
 
 
 ## v7.7.17 — Pulse the MerlinSoundBar (if spawned) for ~0.6s simulating Merlin
 ## speaking while a parchment is being written. Idempotent — safe if no bar.
+## v7.7.21 — Early-return if scene already exited (back button during stagger).
+## SceneTreeTimer callbacks scheduled via _build_scenario_cards may fire after
+## the scene is freed ; this guard prevents dangling-self method calls.
 func _pulse_merlin_sound_bar_for_card() -> void:
+	if not is_inside_tree() or _aborted:
+		return
 	if _merlin_sound_bar == null or not is_instance_valid(_merlin_sound_bar):
 		return
 	if _merlin_sound_bar.has_method("start_speaking"):
@@ -410,48 +398,6 @@ func _spawn_merlin_for_writing() -> void:
 		)
 
 
-## Build 3 floating 2D Buttons on the UI layer, positioned at the unproject of each
-## parchemin's center on screen. Updates per-frame via _process to follow camera.
-func _build_pick_buttons() -> void:
-	_clear_pick_buttons()
-	for i in range(_parchemins.size()):
-		var btn := Button.new()
-		btn.name = "PickBtn_%d" % i
-		btn.text = ""
-		btn.flat = true
-		btn.custom_minimum_size = Vector2(220, 360)  # roughly the parchemin footprint
-		var idx: int = i
-		btn.pressed.connect(func() -> void: _on_parchemin_clicked(idx))
-		_ui_layer.add_child(btn)
-		_pick_buttons.append(btn)
-
-
-func _clear_pick_buttons() -> void:
-	for b in _pick_buttons:
-		if is_instance_valid(b):
-			(b as Node).queue_free()
-	_pick_buttons.clear()
-
-
-func _on_parchemin_clicked(idx: int) -> void:
-	if _pending_pick >= 0:
-		return  # already picked, ignore subsequent clicks
-	_pending_pick = clampi(idx, 0, _parchemins.size() - 1)
-
-
-## v7.7 Phase 2.1.3 — sync the 3 pick buttons to the parchemin screen positions
-## each frame so they remain clickable as the parchemin reveal tweens play.
-func _process(_delta: float) -> void:
-	if _camera == null or _pick_buttons.is_empty():
-		return
-	for i in range(_pick_buttons.size()):
-		var btn: Button = _pick_buttons[i] as Button
-		var p: MeshInstance3D = _parchemins[i] if i < _parchemins.size() else null
-		if btn == null or p == null or not is_instance_valid(p):
-			continue
-		if _camera.is_position_behind(p.global_position):
-			btn.visible = false
-			continue
-		var screen: Vector2 = _camera.unproject_position(p.global_position)
-		btn.visible = true
-		btn.position = screen - Vector2(btn.size.x * 0.5, btn.size.y * 0.5)
+# v7.7.21 — _build_pick_buttons / _clear_pick_buttons / _on_parchemin_clicked /
+# _process unproject sync REMOVED. DigitalPickerCard handles its own mouse_filter
+# + hover/click directly on the 2D UI layer ; no per-frame camera unproject needed.

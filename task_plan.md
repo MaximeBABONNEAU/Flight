@@ -2,7 +2,58 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-16 (v7.7.14 IntroCeltOS tech → mystique refonte).
+> **Last refresh**: 2026-05-16 (v7.7.21 unified DigitalPickerCard for biome + scenario pickers).
+
+---
+
+## v7.7.21 — Unified DigitalPickerCard (biome + scenario pickers) [2026-05-16]
+
+User mandate (verbatim) : *« Les menus de selection de biomes et de selection de scenarios doivent être les mêmes, a retravailler en UI UX ce n'est pas lisible et moche, travaille en itération et force le mode /loop pour travailler toute la nuit dessus. Je veux une interface claire, détaillé et jolie, là c'est rugueux sans aspérité »*
+
+User locked decisions :
+- **Biome descriptions tone** : Poétique-mystique (druidic imagery, 2 lines/biome)
+- **Iteration 1 scope** : Full polish (component + 2 pickers retrofitted + animations)
+
+### Phase 1 — NEW component `scripts/ui/digital_picker_card.gd` (~280 LOC)
+- `class_name DigitalPickerCard extends PanelContainer`
+- 320 × 400 px, charter-compliant (UI_GOLD border, UI_WHITE text + UI_BLACK outline, UI_BG_DARK)
+- Public API : `setup(card_id, title, body, ogham_glyph, accent_color, locked, lock_message)`, `animate_in(delay)`, `mark_chosen()`, `dim_unselected()`
+- Layout : Glyph 40px / Title 26px / 2px accent separator / Body 16px autowrap / Hint 12px
+- Hover : border 4→6 + bg lighten + scale 1.03 TRANS_BACK
+- Click : scale pulse 1.0→1.08→1.0 (sequential) + crimson flash overlay + emit signal
+- Locked : dimmed everything + "✕ VERROUILLÉ" hint + lock_message tooltip
+- 6 code-review fixes applied (animate_in parallel pattern, flash bind_node(self), free() for immediate child cleanup, charter UI_OUTLINE_SIZE everywhere)
+
+### Phase 2 — ScenarioLoading retrofit
+- DROP : `_build_parchemin_meshes`, `_build_single_parchemin`, `_build_pick_buttons`, `_clear_pick_buttons`, `_on_parchemin_clicked`, per-frame `_process` unproject sync
+- DROP constants : PARCHEMIN_W/H/GAP/Y/Z, PARCHMENT_COLOR, INK_DARK
+- NEW : `_build_scenario_cards(titles)` instantiates 3 cards in HBoxContainer on `_ui_layer`
+- NEW : `SCENARIO_BODY_FALLBACKS` array (poetic teaser per tier when LLM body absent)
+- Stagger reveal preserved : cards animate_in at t=0, 2.5s, 5.0s (10s cascade budget)
+- Sound bar pulses per card materialization via SceneTreeTimer (guarded with `is_inside_tree()` for safe back-button exit)
+
+### Phase 3 — BoardNarration biome picker retrofit
+- DROP : 8 inline Button widgets with per-biome StyleBoxFlat (76 LOC)
+- NEW const : `BIOME_DESCRIPTIONS` — 8 poetic-mystic 2-line teasers
+- NEW : 8 DigitalPickerCard in 4×2 GridContainer (offset_left=-676, top=-412 for 1352×824 grid at 1920×1080)
+- Per-biome accent : `BiomePalettes.get_palette(biome_id)["accent"]` preserved
+- Stagger reveal cascade : 80ms between cards (640ms total intro)
+- Locked cards : `setup(locked=true)` with lock_message tooltip ; signal not connected
+
+### Phase 4 — Charter doc + task_plan
+- `docs/UI_UX_CHARTER.md` Section 4.7 — DigitalPickerCard spec + usage + deployments list
+- `task_plan.md` v7.7.21 entry (this section)
+
+### Verification
+- Parse-check `validate_step0` : 10 pre-existing phantom_camera SVG errors only (no new errors)
+- Smoke `res://scenes/BoardNarration.tscn` 8s → `exit=0 script_errors=0 passed=True`
+- Smoke `res://scenes/ScenarioLoading.tscn` 8s → `exit=0 script_errors=0 passed=True`
+- Final code-review : 1 HIGH (orphan timer on back-button exit) + 1 MEDIUM (container height) both FIXED
+
+### Iterations queued (post-visual-review)
+- **2** : Refine spacing/anims/typography per user feedback
+- **3** : Per-card hover preview (mini 3D preview ? tags badge ?)
+- **4** : Selection animation polish + LLM body for scenarios (planner returns `body` field)
 
 ---
 

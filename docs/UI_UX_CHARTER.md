@@ -185,6 +185,63 @@ For ALL 3D assets (mandatory per bible §20.6) :
 - `OUTLINE_THICKNESS_MULTIPLIER = 1.4` global knob (v7.7.17 — tune for "contour noir complet")
 - Outline color = `Color.BLACK`
 
+### 4.7 DigitalPickerCard — Unified picker component (v7.7.21)
+
+Single source of truth for "choose one of N narrative paths" interactions
+(biome picker, scenario picker, future card-draw screens). Replaces the
+inconsistent 3D parchment vs 2D button drift from v7.7.
+
+**Script** : `scripts/ui/digital_picker_card.gd` (`class_name DigitalPickerCard`).
+
+**Geometry (fixed, intraitable) :**
+- Size : `320 × 400 px`
+- Charter compliant : `border 4 → 6 hover`, `radius 0`, `bg = UI_BG_DARK`
+- Per-card accent override : `accent_color` arg (defaults to `UI_GOLD`)
+
+**Layout (top→bottom, padding=20px) :**
+1. Ogham glyph 40px, accent color, black outline (optional ; "" to skip)
+2. Title 26px white + black outline `UI_OUTLINE_SIZE`
+3. Accent separator 2px line, full width
+4. Body description 16px white + outline, autowrap (2-3 lines)
+5. Hint footer 12px dim accent, right-aligned ("▸ ENTRER" or "✕ VERROUILLÉ")
+
+**Interactions :**
+- Hover : border 4→6 + bg lighten + scale 1.03 TRANS_BACK
+- Click : `mark_chosen()` plays scale pulse 1.0→1.08→1.0 + crimson flash, then emits `selected(card_id)`
+- Locked : `setup(locked=true)` → dimmed glyph/title/body, "✕ VERROUILLÉ" hint, clicks ignored
+- Cascade reveal : `animate_in(delay)` staggers fade-in + scale punch
+
+**Public API :**
+
+```gdscript
+signal selected(card_id: String)
+
+func setup(card_id, title, body, ogham_glyph,
+           accent_color := UI_GOLD, locked := false, lock_message := "") -> void
+func animate_in(delay: float = 0.0) -> void
+func mark_chosen() -> void
+func dim_unselected() -> void
+```
+
+**How to use** (preload + set_script pattern — avoids class_name race) :
+
+```gdscript
+const DIGITAL_PICKER_CARD_SCRIPT := preload("res://scripts/ui/digital_picker_card.gd")
+
+var card := PanelContainer.new()
+card.set_script(DIGITAL_PICKER_CARD_SCRIPT)
+parent_container.add_child(card)
+card.call("setup", "biome_id", "Le Bois qui Murmure",
+    "Les arbres murmurent\nles secrets des druides.", "ᚁ",
+    BiomePalettes.get_palette("foret_broceliande")["accent"])
+card.connect("selected", _on_biome_picked)
+card.call("animate_in", 0.0)
+```
+
+**v7.7.21 deployments :**
+- `scripts/scenario_loading.gd` — 3 cards in HBox (replaces 3D PlaneMesh parchments)
+- `scripts/board_narration/board_narration.gd` — 8 cards in 4×2 grid (replaces 8 Button widgets)
+
 ---
 
 ## 5. Cross-scene consistency table

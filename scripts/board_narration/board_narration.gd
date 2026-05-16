@@ -240,6 +240,24 @@ const BIOME_LOCK_MESSAGES := {
 	"iles_mystiques":    "Apprends encore. L'Archipel se révèle au dernier pas, jamais au premier.",
 }
 
+# v7.7.21 — Poétique-mystique 2-line description per biome (user locked decision).
+# Each entry evokes the biome's atmosphere without spoiling content. Druidic
+# imagery : nature speaks, ancients watch, korrigans laugh. Used by the
+# DigitalPickerCard body text in the biome picker grid.
+const BIOME_DESCRIPTIONS := {
+	"foret_broceliande": "Les arbres murmurent\nles secrets des druides.",
+	"landes_bruyere":    "Brumes pourpres sur cairns.\nLe vent porte des noms.",
+	"cotes_sauvages":    "Falaises noires battues\npar l'écume des korrigans.",
+	"villages_celtes":   "Feux du clan dans la nuit.\nLes Anciens veillent.",
+	"cercles_pierres":   "Mégalithes alignés.\nL'équinoxe approche.",
+	"marais_korrigans":  "Vase qui rit, feux follets.\nLes rusés guettent.",
+	"collines_dolmens":  "Tables des Anciens posées\nsur des collines vertes.",
+	"iles_mystiques":    "Archipel des voiles azur.\nNiamh attend.",
+}
+
+# v7.7.21 — Unified DigitalPickerCard preload (same component as ScenarioLoading).
+const DIGITAL_PICKER_CARD_SCRIPT := preload("res://scripts/ui/digital_picker_card.gd")
+
 const BROCELIANDE_INCANTATION := "Tu poses le pied sur la mousse, et la mousse te reconnaît. Brocéliande n'est pas une forêt : c'est une bouche. Elle parle en chênes, en racines, en pluies fines. Écoute, jeune Merlin. Ce que tu prendras pour le vent sera la forêt qui te nomme."
 
 var _biome_selector: Control = null
@@ -287,7 +305,9 @@ func _build_biome_selector() -> void:
 	title.add_theme_constant_override("outline_size", 4)
 	_biome_selector.add_child(title)
 
-	# Grid of 8 biome buttons (2 rows of 4)
+	# v7.7.21 — Grid of 8 DigitalPickerCard (4×2). Each card is 320×400 ; with
+	# 24px separation and 4 cols we need ~1352 wide. With 2 rows + 24px sep we
+	# need ~824 tall. Anchored center so it scales with viewport up to 1920×1080.
 	var grid := GridContainer.new()
 	grid.name = "BiomeGrid"
 	grid.columns = 4
@@ -295,24 +315,24 @@ func _build_biome_selector() -> void:
 	grid.anchor_right = 0.5
 	grid.anchor_top = 0.5
 	grid.anchor_bottom = 0.5
-	grid.offset_left = -440
-	grid.offset_right = 440
-	grid.offset_top = -160
-	grid.offset_bottom = 160
-	grid.add_theme_constant_override("h_separation", 16)
-	grid.add_theme_constant_override("v_separation", 16)
+	grid.offset_left = -676
+	grid.offset_right = 676
+	grid.offset_top = -412
+	grid.offset_bottom = 412
+	grid.add_theme_constant_override("h_separation", 24)
+	grid.add_theme_constant_override("v_separation", 24)
 	_biome_selector.add_child(grid)
 
-	# v7.7.15 — User decision (kind-humming-peach.md plan) : DISABLE force_only_broceliande
-	# for this rework. All 8 biomes unlocked + each styled per its destination palette.
-	# Maturity gate code preserved for future re-lock (set dev_unlock_all_biomes = false).
+	# v7.7.15 — User decision : DISABLE force_only_broceliande for the rework.
+	# All 8 biomes unlocked + each styled per its destination accent. Maturity
+	# gate code preserved for future re-lock (set dev_unlock_all_biomes = false).
 	var dev_unlock_all_biomes := true
 	var player_maturity: int = 0
 	if _store and _store.has_method("calculate_maturity_score"):
 		player_maturity = int(_store.calculate_maturity_score())
 
-	# v7.7.15 — Per-biome Ogham glyph icon (top-left of each button).
-	# Maps to bible §3 Rune-Circuits canonical mapping (Beith/Luis/Fearn/Sail/Nion/Huath/Duir/Tinne).
+	# v7.7.15 — Per-biome Ogham glyph (bible §3 Rune-Circuits mapping :
+	# Beith / Luis / Fearn / Sail / Nion / Huath / Duir / Tinne).
 	var biome_glyphs := {
 		"foret_broceliande":  "ᚁ",
 		"landes_bruyere":     "ᚂ",
@@ -324,82 +344,36 @@ func _build_biome_selector() -> void:
 		"iles_mystiques":     "ᚈ",
 	}
 
+	# v7.7.21 — Build 8 DigitalPickerCard (replaces 8 Button widgets). Each card
+	# self-handles hover/click/animations. Per-biome accent color comes from
+	# BiomePalettes ; charter geometry (border 4→6, radius 0, bg dark) intraitable.
+	var card_idx: int = 0
 	for biome_id in BIOME_ORDER:
 		var threshold: int = int(MerlinConstants.BIOME_MATURITY_THRESHOLDS.get(biome_id, 999))
 		var unlocked: bool = true if dev_unlock_all_biomes else (threshold <= player_maturity)
-
-		# v7.7.15 — Pull per-biome palette for unique button styling.
 		var palette: Dictionary = BiomePalettes.get_palette(biome_id)
-		# Pick first non-accent/outline color as the "structural" bg tone.
-		var bg_color: Color = Color(0.18, 0.12, 0.08, 0.90)
-		for k in palette.keys():
-			if k != "accent" and k != "outline":
-				bg_color = palette[k]
-				bg_color.a = 0.90
-				break
-		var accent_color: Color = palette.get("accent", Color(0.85, 0.65, 0.30))
-		var outline_color: Color = palette.get("outline", Color(0.04, 0.03, 0.02))
-
-		var btn := Button.new()
-		btn.name = "Biome_" + biome_id
-		btn.text = str(BIOME_TITLES.get(biome_id, biome_id))
-		btn.disabled = not unlocked
-		btn.custom_minimum_size = Vector2(200, 130)
-		btn.tooltip_text = str(BIOME_LOCK_MESSAGES.get(biome_id, ""))
-		btn.add_theme_font_size_override("font_size", 17)
-		# Per-biome StyleBoxFlat. Bg = structural tone, border = palette accent.
-		var sb := StyleBoxFlat.new()
-		if unlocked:
-			sb.bg_color = bg_color
-			sb.border_color = accent_color
-			btn.add_theme_color_override("font_color", Color(0.96, 0.92, 0.78))
-			btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85))
-			btn.add_theme_color_override("font_outline_color", outline_color)
-			btn.add_theme_constant_override("outline_size", 4)
-		else:
-			sb.bg_color = bg_color.lerp(Color(0.10, 0.10, 0.12, 0.85), 0.65)
-			sb.border_color = accent_color.darkened(0.5)
-			btn.add_theme_color_override("font_color", Color(0.45, 0.45, 0.48))
-			btn.add_theme_color_override("font_disabled_color", Color(0.45, 0.45, 0.48))
-		# v7.7.17 — Thicker borders to match cel-shading « contour noir complet ».
-		# Was 2→3 hover. Now 4→6 hover. Matches the 3D outline thickness bump.
-		sb.set_border_width_all(4)
-		sb.set_corner_radius_all(0)   # Persona sharp edges, no radius
-		sb.set_content_margin_all(12)
-		btn.add_theme_stylebox_override("normal", sb)
-		var sb_hover: StyleBoxFlat = sb.duplicate()
-		if unlocked:
-			sb_hover.bg_color = bg_color.lightened(0.10)
-			sb_hover.border_color = accent_color.lightened(0.18)
-			sb_hover.set_border_width_all(6)
-		btn.add_theme_stylebox_override("hover", sb_hover)
-		btn.add_theme_stylebox_override("disabled", sb)
-
-		# v7.7.15 — Ogham glyph icon at top-left corner of each button.
+		var accent_color: Color = palette.get("accent", MerlinVisual.UI_GOLD)
+		# Force alpha=1.0 so the border is fully opaque (palettes sometimes leak alpha).
+		accent_color.a = 1.0
+		var title_text: String = str(BIOME_TITLES.get(biome_id, biome_id))
+		var body_text: String = str(BIOME_DESCRIPTIONS.get(biome_id, ""))
 		var glyph_text: String = String(biome_glyphs.get(biome_id, "ᛚ"))
-		var glyph := Label.new()
-		glyph.name = "Glyph"
-		glyph.text = glyph_text
-		glyph.add_theme_font_size_override("font_size", 22)
-		glyph.add_theme_color_override("font_color", accent_color)
-		glyph.add_theme_color_override("font_outline_color", outline_color)
-		glyph.add_theme_constant_override("outline_size", 3)
-		glyph.anchor_left = 0.0
-		glyph.anchor_right = 0.0
-		glyph.anchor_top = 0.0
-		glyph.anchor_bottom = 0.0
-		glyph.offset_left = 8
-		glyph.offset_right = 36
-		glyph.offset_top = 4
-		glyph.offset_bottom = 36
-		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if not unlocked:
-			glyph.modulate.a = 0.5
-		btn.add_child(glyph)
+		var lock_msg: String = str(BIOME_LOCK_MESSAGES.get(biome_id, "Apprends encore."))
 
-		var captured_id: String = biome_id
-		btn.pressed.connect(func() -> void: _on_biome_picked(captured_id))
-		grid.add_child(btn)
+		# Instantiate via preload + set_script (avoids class_name first-pass race).
+		var card := PanelContainer.new()
+		card.set_script(DIGITAL_PICKER_CARD_SCRIPT)
+		card.name = "BiomeCard_" + biome_id
+		grid.add_child(card)
+		if card.has_method("setup"):
+			card.call("setup", biome_id, title_text, body_text, glyph_text, accent_color, not unlocked, lock_msg)
+		# Connect selected → existing _on_biome_picked handler (preserves run flow).
+		if card.has_signal("selected") and unlocked:
+			card.connect("selected", _on_biome_picked)
+		# Stagger reveal cascade : 80ms between cards (8 × 80ms = 640ms total intro).
+		if card.has_method("animate_in"):
+			card.call("animate_in", float(card_idx) * 0.08)
+		card_idx += 1
 
 
 func _on_biome_picked(biome_id: String) -> void:
