@@ -1,10 +1,13 @@
 ## ═══════════════════════════════════════════════════════════════════════════════
-## DicePhysics3D — Physics-based dice tray for BoardNarration v5
+## DicePhysics3D — Physics-based dice tray for BoardNarration v7.7.3c
 ## ═══════════════════════════════════════════════════════════════════════════════
-## Spawns N RigidBody3D dice next to the plateau. Idle wobble every 6-14s.
-## roll() — async — applies impulse + torque, waits for settle, returns face values.
+## Spawns N RigidBody3D dice next to the plateau. STATIC at rest (freeze=true).
+## roll() — async — unfreezes, applies impulse + torque, waits for settle, checks
+## for "cocked" landing (dice not flat on a face), re-throws up to 3 times,
+## re-freezes when at rest, returns face values.
 ## Face detection : compare each local face-normal to Vector3.UP after sleeping=true.
-## Per docs/BOARD_NARRATION_PLATEAU_ALIVE.md §3.
+## Cocked detection : best face dot < COCKED_THRESHOLD → die is on its edge/corner.
+## Per docs/BOARD_NARRATION_PLATEAU_ALIVE.md §3 + user feedback v7.7.3c.
 ## ═══════════════════════════════════════════════════════════════════════════════
 
 class_name DicePhysics3D
@@ -15,8 +18,10 @@ signal roll_finished(values: Array)
 const DICE_SIZE := 0.18
 const DICE_COUNT_DEFAULT := 2
 const SETTLE_TIMEOUT_S := 3.0
-const IDLE_WOBBLE_MIN_S := 6.0
-const IDLE_WOBBLE_MAX_S := 14.0
+## v7.7.3c — die is "cocked" (not flat) if no face normal projects to UP within
+## this dot threshold. 0.85 ≈ 31° tilt allowance. Below that → re-throw.
+const COCKED_THRESHOLD := 0.85
+const MAX_REROLL_ATTEMPTS := 3
 
 # Local face normals for a 6-sided die (basis-relative). Index 0 = face value 1.
 const FACE_NORMALS := [
@@ -29,7 +34,6 @@ const FACE_NORMALS := [
 ]
 
 var _dice: Array = []  # Array of RigidBody3D
-var _idle_timer: Timer = null
 
 
 func setup(count: int = DICE_COUNT_DEFAULT) -> void:
@@ -38,11 +42,9 @@ func setup(count: int = DICE_COUNT_DEFAULT) -> void:
 		var rb := _build_one_die(i)
 		_dice.append(rb)
 	_build_tray()
-	_idle_timer = Timer.new()
-	_idle_timer.one_shot = true
-	_idle_timer.timeout.connect(_on_idle_wobble)
-	add_child(_idle_timer)
-	_schedule_idle_wobble()
+	# v7.7.3c — no idle wobble timer. Dice stay STATIC (frozen) until roll() is
+	# called. Previous idle wobble made them visibly nudge every 6-14s which the
+	# user described as "les dés qui bouges" — explicitly unwanted.
 
 
 func _build_one_die(index: int) -> RigidBody3D:
@@ -53,6 +55,10 @@ func _build_one_die(index: int) -> RigidBody3D:
 	rb.linear_damp = 0.4
 	rb.angular_damp = 0.6
 	rb.can_sleep = true
+	# v7.7.3c — frozen by default. roll() unfreezes for the throw, then re-freezes
+	# once settled. Keeps the dice perfectly STATIC at rest per user directive.
+	rb.freeze = true
+	rb.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 	var coll := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(DICE_SIZE, DICE_SIZE, DICE_SIZE)
@@ -136,44 +142,18 @@ func _clear() -> void:
 		if is_instance_valid(d):
 			(d as Node).queue_free()
 	_dice.clear()
-	if _idle_timer:
-		_idle_timer.queue_free()
-		_idle_timer = null
 
 
-func _schedule_idle_wobble() -> void:
-	if _idle_timer == null:
-		return
-	var delay := randf_range(IDLE_WOBBLE_MIN_S, IDLE_WOBBLE_MAX_S)
-	_idle_timer.start(delay)
-
-
-func _on_idle_wobble() -> void:
-	if _dice.is_empty():
-		_schedule_idle_wobble()
-		return
-	var idx: int = randi() % _dice.size()
-	var die: RigidBody3D = _dice[idx] as RigidBody3D
-	if die and is_instance_valid(die):
-		die.sleeping = false
-		var nudge := Vector3(randf_range(-0.04, 0.04), randf_range(0.08, 0.18), randf_range(-0.04, 0.04))
-		die.apply_central_impulse(nudge)
-		die.apply_torque_impulse(Vector3(randf_range(-0.04, 0.04), randf_range(-0.04, 0.04), randf_range(-0.04, 0.04)))
-	_schedule_idle_wobble()
-
-
-## Roll all dice. Returns Array[int] of face values once all dice settle.
-func roll() -> Array:
-	if _dice.is_empty():
-		return []
-	# v5.3 — Dice roll sound (clacking on tray). User-feedback requested audio.
-	var sfx: Node = get_tree().root.get_node_or_null("SFXManager")
+## v7.7.3c — Unfreeze all dice + apply impulse + await settle.
+## Internal helper, called by roll() and re-throw retry on cocked dice.
+func _throw_once(sfx: Node) -> void:
 	if sfx and sfx.has_method("play"):
 		sfx.play("dice_roll", 1.0)
 	for d in _dice:
 		var rb: RigidBody3D = d as RigidBody3D
 		if rb == null or not is_instance_valid(rb):
 			continue
+		rb.freeze = false
 		rb.sleeping = false
 		rb.apply_central_impulse(Vector3(
 			randf_range(-0.20, 0.20),
@@ -196,15 +176,60 @@ func roll() -> Array:
 		if all_asleep:
 			break
 		await get_tree().create_timer(0.1).timeout
-	# v5.3 — Dice land sound after settle (low thunk).
+
+
+## Roll all dice. Returns Array[int] of face values once all dice settle.
+## v7.7.3c — auto re-throws up to MAX_REROLL_ATTEMPTS times if any die is cocked
+## (landed on edge/corner with no face flat to UP within COCKED_THRESHOLD).
+## After final read, dice are re-frozen so they remain visibly STATIC.
+func roll() -> Array:
+	if _dice.is_empty():
+		return []
+	var sfx: Node = get_tree().root.get_node_or_null("SFXManager")
+	# Throw + retry on cocked dice.
+	var attempt: int = 0
+	while attempt < MAX_REROLL_ATTEMPTS:
+		await _throw_once(sfx)
+		var any_cocked: bool = false
+		for d in _dice:
+			if _is_cocked(d as RigidBody3D):
+				any_cocked = true
+				break
+		if not any_cocked:
+			break
+		attempt += 1
+		# Brief pause before re-throw — give the player visual cue that the die
+		# was "broken" (cocked) and is being rolled again.
+		await get_tree().create_timer(0.35).timeout
 	if sfx and sfx.has_method("play"):
 		sfx.play("dice_land", 0.9)
+	# Read final face values + re-freeze so dice stay statique.
 	var values: Array = []
 	for d in _dice:
-		values.append(_read_face_up(d as RigidBody3D))
+		var rb: RigidBody3D = d as RigidBody3D
+		values.append(_read_face_up(rb))
+		if rb and is_instance_valid(rb):
+			# Freeze in place — dice keep their landed orientation visibly.
+			rb.linear_velocity = Vector3.ZERO
+			rb.angular_velocity = Vector3.ZERO
+			rb.freeze = true
 	roll_finished.emit(values)
-	_schedule_idle_wobble()
 	return values
+
+
+## v7.7.3c — Return true if the die is "cocked" : no face normal projects close
+## enough to Vector3.UP. Threshold COCKED_THRESHOLD ≈ 31° tilt allowance.
+static func _is_cocked(die: RigidBody3D) -> bool:
+	if die == null or not is_instance_valid(die):
+		return false
+	var best_dot: float = -2.0
+	for i in range(FACE_NORMALS.size()):
+		var local_normal: Vector3 = FACE_NORMALS[i]
+		var world_normal: Vector3 = (die.global_transform.basis * local_normal).normalized()
+		var dot: float = world_normal.dot(Vector3.UP)
+		if dot > best_dot:
+			best_dot = dot
+	return best_dot < COCKED_THRESHOLD
 
 
 static func _read_face_up(die: RigidBody3D) -> int:
