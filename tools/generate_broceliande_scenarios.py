@@ -190,6 +190,126 @@ MIDDLE_FRAGMENTS = {
     ],
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# v7.7.22c — INTRO FRAGMENTS : contextualize the run for the player.
+# Lore : tu es un jeune druide en initiation, le monde se présente comme réel
+# (la dimension simulation reste cachée — pas de 4e mur ici). 4 intros par
+# archétype × 10 archétypes = 40 intros uniques, chacun 6-8 phrases.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+INTRO_FRAGMENTS = {
+    "druidic_awakening": [
+        "Tu es un jeune druide, à peine sorti des années d'apprentissage. Ton maître t'a confié ta première vraie marche dans le bois sacré de Brocéliande : seul, sans carte, sans consigne précise — sinon celle d'écouter. Tu portes une cape de lin écru, un couteau d'os à la ceinture, et la mémoire vive de tout ce qu'on t'a appris. Tu sais que Brocéliande choisit ses élèves autant qu'on la choisit. Tu sais aussi que les premiers pas comptent — la forêt te jaugera tout le long. Pour la première fois, tu poses le pied sur la mousse en sentant que ce n'est pas un sol comme un autre.",
+        "Le clan t'a vu partir au lever du jour. Personne ne t'a accompagné : c'est l'usage. Un jeune druide doit affronter Brocéliande sans béquille, et tes Anciens t'ont dit que la forêt parle d'autant plus fort que tu y entres en silence. Tu marches depuis trois heures quand le sentier s'efface sous tes pieds, remplacé par un tapis de fougères qui ne porte aucune trace. Tu prends une grande inspiration. Tu sais que c'est maintenant que la véritable initiation commence — et tu sais aussi que tu n'as pas le choix d'avoir peur, seulement de continuer.",
+        "Ton nom druidique te sera donné à la fin de cette marche, si tu reviens digne. Pour l'instant tu n'es qu'un apprenti aux mains tachées d'encre runique, à l'esprit plein de noms qui ne t'appartiennent pas encore. Tu portes au cou un pendentif de gui que ta grand-mère t'a noué le matin du départ. « Brocéliande ne ment pas », t'a-t-elle dit, « mais elle ne dit rien qu'à celui qui écoute deux fois. » Tu y penses en avançant, et tu te demandes ce que cela veut dire vraiment.",
+        "Trois nuits, tu as rêvé de cette forêt avant d'y entrer. Trois nuits du même rêve : un cercle parfait de lumière sur la mousse, et toi assis au centre, sans peur. Ton maître a souri quand tu lui as raconté. « Va », a-t-il dit, « la forêt t'appelle. » Tu n'as pas demandé pourquoi tu rêvais avant de connaître l'endroit. Tu sais maintenant que certaines choses se vivent à l'envers — d'abord en songe, puis en pas réels.",
+    ],
+    "korrigan_trickery": [
+        "Tu es un jeune druide, et les Anciens t'ont averti : Brocéliande regorge de korrigans, ces petits êtres facétieux que les druides reconnaissent comme nos cousins de l'autre versant. « Ne les traite pas en ennemis », a dit ton maître, « ni en amis. Ils sont autres. » Tu portes dans ta besace un peu de sel, un peu de pain, et une fiole de lait — les trois offrandes qui les apaisent. Tu sais qu'aujourd'hui, en marchant dans le bois sacré, tu vas probablement les croiser. Tu n'as pas peur. Tu es seulement curieux de voir si tu sauras tenir leur jeu.",
+        "Les korrigans ne tuent pas. Voilà ce qu'on t'a répété tout l'hiver autour du feu. « Ils piègent, ils volent, ils rient, mais ils ne tuent pas — sauf ceux qui méritent vraiment. » Tu es jeune, sans grand péché à ton actif, et tu te crois protégé par ta candeur. Tu entres dans Brocéliande en sifflotant. C'est probablement la première erreur de ta journée. Quelque part, en t'écoutant siffler, un korrigan vient d'éclater de rire dans une racine, et il décide que tu seras son passe-temps.",
+        "Ton oncle a perdu trois jours dans Brocéliande quand il était jeune — pris par les korrigans, dit-il, qui l'ont fait tourner en rond autour d'un même chêne en lui faisant croire qu'il avançait. Tu y as repensé toute la nuit avant de partir. Maintenant que tu poses le pied sur la mousse, tu te promets de ne pas tomber dans le piège. Tu prends des repères, tu marques l'écorce de ton couteau. Les korrigans te regardent faire. Ils trouvent ça touchant, et un peu vain — ils savent déjà comment ils vont s'y prendre.",
+        "On t'a confié une mission précise : retrouver une plante rare qui ne pousse qu'au cœur de Brocéliande. Ton maître a besoin d'elle pour un baume qui sauvera trois villages malades. Tu es donc en marche depuis l'aube, l'esprit concentré, le pas pressé. C'est dans cet état d'esprit — affairé, sérieux, un peu solennel — que les korrigans te repèrent. Et tu n'as pas idée du nombre de détours qu'ils vont t'imposer avant de te laisser cueillir cette plante.",
+    ],
+    "ancient_oak_counsel": [
+        "Tu es un jeune druide, et ce matin ton maître t'a dit ces mots simples : « Va voir le Chêne. Il t'attend. » Tu n'as pas demandé lequel. Il n'y en a qu'un, à Brocéliande, à qui on rend visite ainsi — un chêne si ancien que sa couronne couvre un quart du ciel, et que les druides ne se souviennent plus d'un temps où il n'aurait pas été là. Tu marches vers lui depuis trois heures. Tes mains tremblent un peu. Tu sais que le Chêne ne convoque pas les apprentis sans raison, et tu te demandes laquelle est la tienne.",
+        "Le clan a tenu conseil hier soir. Ils ont décidé que tu étais prêt — pas pour passer ta cérémonie d'élévation, mais pour aller seul devant le Chêne Ancien et entendre ce qu'il aurait à te dire. C'est rare. Très rare. Ton maître t'a serré l'épaule au moment du départ, sans un mot. Tu marches maintenant avec dans la poitrine un mélange de fierté et de trac qui te coupe à moitié le souffle. Le Chêne sait qui tu es. C'est la seule chose que tu sais de lui.",
+        "Tu rentres d'une longue marche infructueuse dans une autre partie de la forêt quand, soudain, tu sens que tes pieds ne te mènent plus là où tu pensais. Ils te tournent vers une clairière que tu n'avais pas prévue. Tu obéis — un jeune druide apprend vite à ne pas contredire ce qui le guide sans bruit. Au bout du chemin, tu reconnais la couronne immense d'un chêne dont on t'a parlé toute ton enfance. Il t'a fait venir. Tu ne sauras jamais pourquoi exactement.",
+        "Ton grand-père, druide avant toi, t'a parlé du Chêne sur son lit de mort. « Il y a un arbre, à Brocéliande », a-t-il dit, « tu sauras quand y aller. Ne précipite rien. Il appellera. » Tu avais douze ans. Tu en as maintenant dix-neuf. Ce matin, en te rasant, tu as su que c'était aujourd'hui. Tu n'as rien dit à personne, tu as pris ton bâton, et tu as marché. Le Chêne, lui, le savait depuis longtemps.",
+    ],
+    "mist_wanderer": [
+        "Tu es un jeune druide, et tu connais bien les brumes de Brocéliande pour les avoir traversées plusieurs fois en compagnie de ton maître. Mais aujourd'hui c'est ta première brume en solo, et la consigne est simple : entres-y volontairement, marches-y une journée, ressors-en. Pas pour rapporter une chose — pour montrer que tu sais tenir ton esprit sous la pression du flou. Tu approches du voile blanc qui flotte entre deux ifs. Il monte lentement, comme une respiration de pierre. Tu inspires profondément et tu poses le premier pied dedans.",
+        "Les anciens disent que la brume de Brocéliande mange le temps. Tu as toujours pris ça pour une métaphore. Tu es jeune, tu es rationnel — pour un druide — et tu n'as jamais eu de raison de douter d'une heure de marche. Mais ton maître a insisté : « Va dans la brume seul. Reviens-moi en me disant ce que tu as compris. » Tu obéis donc, comme tu obéis toujours. Ce que tu vas comprendre, tu n'es pas pressé de le découvrir.",
+        "Tu n'aurais jamais dû t'aventurer dans cette zone précise de Brocéliande sans guide — c'est ce que dit la règle. Mais tu as suivi un cerf blessé pendant deux heures, et le cerf t'a mené là, au seuil d'un brouillard qui n'a pas l'air honnête. Tu pourrais reculer. Tu sais que tu pourrais reculer. Tu ne le fais pas. Le cerf a disparu dans la brume, et quelque chose en toi exige que tu le suives. Tu y entres avec la légère certitude que tu te le reprocheras peut-être plus tard.",
+        "Tu as toujours aimé les brumes. Petit, tu te perdais dans le brouillard de la lande près du village, et tu en revenais transformé — apaisé, comme nettoyé. Ton maître a remarqué cette affinité tôt. « Tu es un enfant du seuil », t'a-t-il dit, « Brocéliande aura beaucoup à te montrer. » Aujourd'hui, devant un voile blanc qui monte des racines, tu sens cette vieille familiarité te chatouiller la poitrine. Tu ne le sais pas encore, mais cette brume-ci est différente des autres.",
+    ],
+    "forest_trial": [
+        "Tu es un jeune druide, et le clan attend de toi des preuves. Les Anciens t'ont prévenu : pour être reconnu comme druide à part entière, il te faut survivre à une marche dans la part rude de Brocéliande — celle où les ronces s'élèvent à hauteur d'homme et où le sentier se referme dans ton dos. Tu n'as pas peur, exactement. Tu as la peur saine du jeune qui sait que sa peur est utile. Tu portes un long bâton, un couteau aiguisé, et la prière silencieuse d'en sortir grandi. La forêt, elle, ne sait pas encore ce qu'elle pense de toi.",
+        "Tu marches dans Brocéliande depuis six heures quand le sentier devient hostile. Tu le sens dans tes mollets d'abord — quelque chose pèse plus lourd. Puis dans l'air, qui se fait sec. Puis dans le silence, qui s'épaissit. Tu sais ce que c'est : la forêt te teste. Ton maître t'a parlé de ces zones — il les a appelées « les seuils âpres ». On n'y entre que prêt. Tu n'es pas sûr de l'être, mais tu es là, et tu sais que reculer n'est pas une option si tu veux te respecter au retour.",
+        "On a perdu deux apprentis l'année dernière, dans Brocéliande. Le clan en parle peu, mais tu as entendu les murmures. Ils ne sont pas morts — ils sont revenus brisés, incapables de redire ce qu'ils avaient vu. Tu y penses chaque fois que tu poses un pied devant l'autre depuis ce matin. Tu sais que la forêt n'épargne pas tout le monde. Tu sais aussi que ton maître t'a jugé prêt — et qu'il ne se trompe jamais sur ce point. Tu décides de lui faire confiance, même quand toi, tu doutes.",
+        "Tu portes une promesse au creux de la poitrine : revenir à ta sœur cadette, qui t'attend au village avec l'inquiétude qu'on a pour un grand frère qui part seul. C'est cette promesse, plus que la mission elle-même, qui te tient debout depuis l'aube. La forêt, devant toi, commence à montrer ses dents. Tu serres ton bâton un peu plus fort. Tu n'as pas le luxe d'échouer, et tu le sais. Mais Brocéliande, elle, ne fait pas de promesses aux apprentis.",
+    ],
+    "forgotten_ritual": [
+        "Tu es un jeune druide, et tes lectures dans la grotte des manuscrits ont éveillé en toi une curiosité qui ne te lâche plus. Un rite, vieux de plusieurs siècles, n'a plus été accompli depuis la mort de la dernière druidesse qui le savait. Tu as découvert son nom hier soir, par hasard, dans un fragment de cuir runique. Ce matin, sans avertir personne, tu es parti à la recherche du lieu où ce rite se pratiquait — quelque part dans le cœur de Brocéliande. Tu n'es pas certain de ce que tu vas y trouver. Tu sais juste que tu dois aller voir.",
+        "Le clan t'a chargé d'une enquête : retrouver le cercle de pierres où, il y a très longtemps, les druides accomplissaient le Rite des Sept Souffles. Les détails du rite ont été perdus, mais le lieu, dit-on, existe encore. Tu marches depuis l'aube avec un parchemin esquissé par ton maître. Tu sais que tu cherches quelque chose que tes propres yeux n'identifieront peut-être pas. Tu sais aussi que ce que tu trouves, parfois, te trouve en retour.",
+        "Ton maître t'a confié un secret : il y a, quelque part dans Brocéliande, un autel oublié où chaque jeune druide de la lignée venait jadis offrir son premier serment. Cette tradition s'est perdue, et toi, tu es libre de la retrouver. « Pas obligé », a dit ton maître. « Mais possible. Et beau. » Tu marches maintenant avec dans la poche un caillou poli que ton père t'a donné — l'offrande que tu envisages de déposer, si tu trouves l'autel. Si tu ne le trouves pas, le caillou reviendra avec toi, ce qui ne sera pas une honte.",
+        "Tu as vu, dans une vision il y a trois jours, six pierres dressées dans la mousse autour d'un emplacement vide. Six oghams, et la septième pierre nue. Tu n'as pas su quoi en faire. Ton maître t'a écouté, hoché la tête lentement, et dit : « Va voir si c'est réel. » Tu marches depuis l'aube. Tu n'as pas idée si la vision était guide ou bien piège. Mais tu sais que les rêves de druide ne se classent pas sans avoir d'abord cherché à les vérifier.",
+    ],
+    "hidden_sanctuary": [
+        "Tu es un jeune druide, et tu marches dans Brocéliande depuis trois jours sans véritable but — un de ces vagabondages que ton maître appelle « la marche du sans-pourquoi », et qui forme autant qu'une mission précise. Tu as l'esprit fatigué, le corps fourbu, et tu commences à te demander si tu vas trouver de quoi te reposer cette nuit. C'est exactement à ce moment, comme souvent, que Brocéliande te tend ce qu'elle a de plus rare : un sanctuaire caché. Tu ne le sais pas encore, mais ton chemin va prendre une tournure que tu n'oublieras jamais.",
+        "Le clan a perdu un proche cette saison, et tu portes en toi un chagrin que tes prières n'arrivent pas à apaiser. Ton maître l'a vu — un druide voit ce genre de choses — et il t'a envoyé dans Brocéliande avec une consigne unique : « Trouve un endroit où la forêt te console. » Tu marches depuis hier avec cette consigne flottant dans la tête. Tu ne savais pas qu'on pouvait demander à un bois de consoler quelqu'un. Tu vas apprendre.",
+        "Tu cherchais des champignons rares dans une partie de Brocéliande que tu n'avais jamais explorée. Tu as suivi un sentier qui s'est révélé n'être pas tout à fait un sentier — plutôt une suggestion de la forêt elle-même. Tu n'as pas trouvé tes champignons. À la place, tu as senti, à un détour, qu'un endroit te demandait de t'arrêter. Tu n'es pas du genre à ignorer ce genre d'appel. Tu poses ton sac et tu regardes autour de toi, en te demandant ce que la forêt veut te montrer.",
+        "Tu es un jeune druide insomniaque depuis des semaines. Quelque chose te ronge, et tu ne sais pas quoi. Ton maître t'a dit ce matin : « Va chercher du silence dans Brocéliande. Il y en a si tu le cherches. » Tu es parti sans grand espoir. Mais voilà, après huit heures de marche, tu sens devant toi un endroit qui semble respirer plus lentement que le reste du bois. Tu approches. Tu poses la main sur le tronc le plus proche, et tu sens, pour la première fois depuis longtemps, que tu pourrais dormir.",
+    ],
+    "beast_encounter": [
+        "Tu es un jeune druide, et ton apprentissage avec les animaux est encore neuf. Tu sais reconnaître les pistes des chevreuils, lire les empreintes des renards, et tu as déjà soigné un faucon blessé que ton maître t'avait confié. Mais aujourd'hui, dans Brocéliande, tu vas faire ta première vraie rencontre avec une créature qui te dépasse — une bête plus mythique qu'animale, dont les Anciens parlent à voix basse. Tu ne sais pas encore qu'elle est là, à cent pas devant toi, et qu'elle t'a senti venir depuis longtemps. Elle attend de voir comment tu vas réagir.",
+        "Les bêtes de Brocéliande ne sont pas comme les bêtes de la lande. Les Anciens t'ont prévenu. « Elles ont quelque chose en plus », a dit ton maître. « Pas exactement de l'âme — pas comme la nôtre. Mais quelque chose. Sois respectueux. » Tu marches depuis le matin avec cette consigne au cœur. Tu te demandes ce que tu feras si tu en croises une. Tu vas bientôt savoir. La forêt a déjà décidé du test.",
+        "Tu pistes une louve qui aurait tué un mouton de ton village — du moins, c'est ce qu'ont dit les bergers. Tu n'es pas certain qu'elle l'ait fait. Tu sais que les vrais druides ne tuent pas les loups sans avoir d'abord compris ce qui s'est passé. Tu marches donc dans Brocéliande non pas pour exécuter, mais pour comprendre. C'est cette nuance — invisible aux yeux des bergers, claire pour toi — qui va peut-être te sauver la vie aujourd'hui. Ou la lui sauver à elle. Ou les deux.",
+        "Une vision, hier soir, t'a montré un cerf blanc aux bois constellés d'os. Tu te réveilles ce matin avec la certitude que tu vas le rencontrer. Tu pars sans rien dire à ton maître — parfois, certaines rencontres ne supportent pas qu'on en parle avant. Tu marches dans Brocéliande avec le cœur qui bat un peu trop vite. Tu n'as pas peur du cerf. Tu as peur de ne pas savoir comment être devant lui. Tu sens, à raison, que ce moment va te marquer.",
+    ],
+    "druid_lineage": [
+        "Tu es un jeune druide, et la veille de partir, ta grand-mère t'a glissé une chose à l'oreille que tu n'as pas comprise : « Si tu trouves un nom gravé dans l'écorce, ne fuis pas — c'est moi qui te le lègue. » Elle a souri, t'a embrassé, et n'a rien voulu expliquer de plus. Tu marches dans Brocéliande depuis ce matin avec sa phrase qui flotte dans ta tête. Tu te demandes si elle parlait au sens propre ou figuré. Tu vas avoir ta réponse plus tôt que prévu.",
+        "Le clan tient des chroniques sur tous les druides qu'il a produits depuis dix générations. Ton maître t'a montré ta lignée hier — quatre druides avant toi, en ligne directe : ton père, ton grand-père, ta grand-tante, ton arrière-arrière-grand-père. Tous ont marché dans Brocéliande à ton âge. Tous y ont laissé une trace que la forêt garde. « Va voir si tu trouves la leur », a dit ton maître. « Et la tienne aussi. » Tu pars donc avec dans le sac un crayon de fusain et un parchemin vierge.",
+        "Tu n'as jamais connu ton père — il est mort dans Brocéliande quand tu avais deux ans. Le clan parle peu de lui. Tu sais qu'il était druide, qu'il s'appelait Branwen, et qu'il est entré dans le bois un jour de solstice et n'en est jamais ressorti. Ce matin, tu pars à ta première marche solo, en t'autorisant secrètement à chercher quelque chose qui te parle de lui. Ton maître l'a compris sans que tu en parles. Il t'a juste dit, en partant : « Sois prudent. Et écoute. »",
+        "Tu as toujours senti, en lisant les vieux manuscrits, qu'une partie de la lignée druidique te concernait sans que tu saches expliquer pourquoi. Hier soir, ton maître t'a tendu une feuille de parchemin et t'a dit : « Va voir si ce nom te dit quelque chose. » Le nom, c'est le tien — mais écrit dans une calligraphie qui date d'au moins un siècle. Tu n'as pas dormi de la nuit. Au matin, tu es parti vers Brocéliande avec le parchemin plié contre ta poitrine, et plus de questions que de réponses.",
+    ],
+    "threshold_crossing": [
+        "Tu es un jeune druide, et ton maître t'a dit ceci : « Aujourd'hui, tu vas passer un seuil. Tu ne sauras pas lequel avant de l'avoir passé. Mais quand ce sera fait, tu le sauras. » Tu marches dans Brocéliande depuis ce matin avec cette phrase qui te trotte dans la tête. Tu cherches le seuil. Tu ne le trouves pas. Ce que tu ne sais pas encore, c'est que les seuils, comme les vraies leçons, viennent à toi quand tu cesses de les chercher. Tu vas cesser bientôt — et le seuil sera là.",
+        "Les Anciens disent qu'il existe, dans Brocéliande, des endroits où les mondes se touchent presque. Ils ne sont pas marqués sur les cartes. Ils n'apparaissent qu'à ceux qui en ont besoin, quand ils en ont besoin. Tu as toujours pris ça pour des contes pour apprentis impressionnables. Aujourd'hui, en marchant, tu sens dans l'air une qualité que tu n'avais pas remarquée auparavant — une légèreté, presque une vibration. Tu ne sais pas encore que les contes sont vrais.",
+        "Tu as rêvé toutes les nuits de la semaine d'une porte sans cadre, dressée entre deux ifs noirs. Tu te réveillais à chaque fois avec la sensation d'avoir vu quelque chose d'important — sans savoir quoi. Ce matin, ton maître t'a regardé en silence pendant un long moment et t'a dit : « Va. » Tu pars donc dans Brocéliande, certain que tu vas trouver cette porte. Tu es moins certain de savoir si tu vas oser la traverser.",
+        "Tu es un jeune druide curieux et les Anciens trouvent que tu poses trop de questions. Hier, devant le feu, tu as demandé : « Mais les autres mondes, vraiment, où sont-ils ? » Ton maître a souri, comme il sourit quand tu poses la bonne question pour de mauvaises raisons. « Va le voir », a-t-il dit. « Brocéliande t'expliquera mieux que moi. » Tu marches maintenant en sachant que tu vas peut-être passer un seuil — et tu te demandes si la curiosité, finalement, n'est pas le plus grand des seuils.",
+    ],
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# v7.7.22c — TWIST FRAGMENTS : mid-route revelation that recontextualizes the
+# situation. Inserted at merge points in the branching tree to give "rebondissement".
+# ═══════════════════════════════════════════════════════════════════════════════
+
+TWIST_FRAGMENTS = {
+    "druidic_awakening": [
+        "Tu réalises soudain que ce que tu prenais pour ton intuition d'apprenti est en fait quelque chose de plus ancien, qui passe par toi sans demander la permission. Ton maître t'avait prévenu d'un mot, sans détailler. Tu comprends maintenant pourquoi il n'a pas voulu en dire plus : il fallait que tu le sentes seul.",
+        "Une chose t'apparaît, claire comme du verre : la forêt ne t'apprend pas. Elle te ré-apprend. Tout ce que tu vas découvrir ici, tu l'as oublié à un moment dont tu n'as pas le souvenir. Cette révélation te coupe le souffle quelques secondes. Puis tu repars, plus tranquille.",
+    ],
+    "korrigan_trickery": [
+        "Tu comprends à cet instant que les korrigans ne te piègent pas pour te nuire — ils te piègent pour t'apprendre une leçon qu'ils estiment importante. C'est presque touchant. C'est aussi terrifiant, parce que cela veut dire qu'ils te connaissent mieux que tu ne te connais toi-même.",
+        "Un détail t'éclate à la figure : tous les pièges des korrigans visent ton orgueil, jamais ton corps. Ils savent que tu es jeune, brillant, sûr de toi — et c'est cela qu'ils chassent. La vraie épreuve commence quand tu acceptes que cette part de toi mérite peut-être d'être taillée.",
+    ],
+    "ancient_oak_counsel": [
+        "Le Chêne te révèle, sans le dire, qu'il connaissait ton grand-père. Et avant lui, ton arrière-grand-mère. Toute ta lignée druidique a posé la main sur son écorce. Tu n'es pas le premier de ta famille à venir lui demander conseil. Cette continuité te transperce.",
+        "Tu réalises au milieu de la conversation que le Chêne ne te dit jamais ce que tu dois faire — il te montre ce que tu as déjà décidé sans le savoir. Sa sagesse n'est pas de répondre à ta question, mais de te révéler la réponse que tu portais. Tu sors de là changé sans avoir reçu un seul ordre.",
+    ],
+    "mist_wanderer": [
+        "Tu prends conscience que la brume ne t'égare pas — elle te ramène. Vers où, tu ne sais pas encore. Mais tu sens, à mesure que tu marches, que chaque pas te rapproche d'un endroit que tu as visité une fois, peut-être en rêve, peut-être avant ta naissance, et que tu avais perdu.",
+        "Un instant de clarté brise le voile : la brume n'est pas un phénomène de la forêt. La brume est une PRÉSENCE — quelque chose qui pense, qui choisit, qui te guide. Tu ne sais pas si tu dois t'en méfier ou la remercier. Tu décides, pour l'instant, de respecter.",
+    ],
+    "forest_trial": [
+        "Au milieu de l'épreuve, tu comprends une chose que ton maître n'avait pas voulu te dire : la forêt ne teste pas ta force. Elle teste ta capacité à reconnaître quand céder. Les apprentis qui sont revenus brisés n'ont pas échoué par faiblesse — ils ont échoué par excès de bravoure mal placée.",
+        "Tu réalises soudain que les ronces, le froid, les bêtes — tout cela n'est qu'un décor. Le vrai péril est en toi : c'est la voix qui te dit de continuer à tout prix, et qui te dit ça parce qu'elle a peur de paraître lâche aux yeux de qui n'est même pas là. Reconnaître cette voix, c'est passer la moitié de l'épreuve.",
+    ],
+    "forgotten_ritual": [
+        "Tu comprends en touchant l'autel que ce rite n'a pas été oublié — il a été enterré, volontairement, par les druides qui t'ont précédé. Pourquoi ? Tu ne sais pas. Mais l'évidence te frappe : reprendre un rite enterré n'est pas un acte neutre. Il faudra que tu acceptes les conséquences.",
+        "Un détail révélé par la mousse autour des pierres change tout : le dernier druide à avoir accompli ce rite l'a laissé inachevé délibérément. Il a choisi de ne pas terminer. Tu comprends pourquoi : il a vu quelque chose à mi-rite qui l'a fait reculer. Tu vas peut-être voir la même chose. Tu décides quand même de continuer.",
+    ],
+    "hidden_sanctuary": [
+        "Tu réalises que ce sanctuaire n'apparaît qu'aux druides qui en ont vraiment besoin. Pas à ceux qui le cherchent, pas à ceux qui le méritent — à ceux qui souffrent au point que la forêt ne supporte plus de les voir marcher. C'est humiliant et émouvant à la fois.",
+        "Au cœur du calme, une chose te traverse : ce lieu est gardé par quelqu'un. Pas un humain, pas tout à fait un esprit non plus. Une présence qui veille discrètement sur les voyageurs blessés. Tu ne la verras peut-être jamais, mais tu sais maintenant qu'elle existe — et que tu lui dois quelque chose de respectueux.",
+    ],
+    "beast_encounter": [
+        "Tu comprends à la dernière seconde, en regardant l'animal dans les yeux, qu'il n'est pas seulement un animal. Il y a quelqu'un derrière son regard. Pas un humain enfermé dans une bête — autre chose, plus ancien, plus complexe. Tu ne sauras jamais qui exactement. Mais tu sais désormais qu'il existe.",
+        "Le détail qui change tout : l'animal te connaît. Pas par hasard. Pas par odeur. Il te connaît parce que vous vous êtes déjà croisés — dans une vie, dans un rêve, dans un sens que tu ne maîtrises pas. Ses yeux te disent : « Te revoilà. » Tu n'as pas de réponse. Tu n'en as pas besoin.",
+    ],
+    "druid_lineage": [
+        "Tu réalises, en lisant les noms gravés, que ta lignée n'est pas linéaire comme tu le pensais. Il y a une bifurcation, quelque part trois générations en arrière. Quelqu'un a refusé la lignée. Quelqu'un d'autre l'a portée pour deux. Cela explique des choses que tu ne savais pas que tu cherchais à comprendre.",
+        "Une révélation te transperce : ton père n'est pas mort dans Brocéliande par accident. Il est venu volontairement, pour quelque chose qu'il devait faire — une promesse, un rite, un sacrifice. Tu n'auras jamais les détails. Mais cette nouvelle compréhension change le poids que tu portais à son sujet.",
+    ],
+    "threshold_crossing": [
+        "Au moment de passer le seuil, tu comprends ce que ton maître voulait dire par « tu sauras quand ce sera fait. » Ce n'est pas un événement spectaculaire — c'est une légère, presque imperceptible bascule. Un avant, un après. Et tu sais, avec une certitude tranquille, que tu viens de devenir quelque chose de différent.",
+        "Le seuil te révèle ce qui se trouve de l'autre côté : pas un autre monde au sens spectaculaire — une autre façon d'habiter celui-ci. Tu y restes quelques minutes, et tu reviens. Personne ne saura que tu y as été. Mais désormais, chaque chose que tu vivras dans le monde « normal » portera une légère teinte de cet ailleurs.",
+    ],
+}
+
+
 CLOSING_FRAGMENTS = {
     "druidic_awakening": [
         "Tu ressors de la forêt avec quelque chose en plus, quelque chose qui n'a pas de mot. Tes pas, sur le chemin du retour, font moins de bruit qu'à l'aller. Tu marches comme si tu connaissais déjà la prochaine étape.",
@@ -543,6 +663,260 @@ def make_premise(archetype, rng):
     return "\n\n".join(parts)
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# v7.7.22c — INTRO + TWIST + BRANCHING TREE builders
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def make_intro(archetype, variant_idx):
+    """Lore-aware intro shown to the player BEFORE the run starts.
+    Young-druide POV, 6-8 sentences, no 4th-wall break (simulation hidden)."""
+    pool = INTRO_FRAGMENTS.get(archetype["id"], [])
+    if not pool:
+        return f"Tu es un jeune druide. Tu entres aujourd'hui dans Brocéliande pour vivre {archetype['name']}."
+    return pool[variant_idx % len(pool)]
+
+
+def make_twist(archetype, rng):
+    """Mid-route revelation prose — recontextualizes the scenario.
+    Returns a 2-3 sentence twist as a single string."""
+    pool = TWIST_FRAGMENTS.get(archetype["id"], [])
+    if not pool:
+        return "Tu réalises une chose que tu n'avais pas vue. Le reste de la marche, désormais, prend un sens différent."
+    return rng.choice(pool)
+
+
+# Each route is identified by a 3-Pole alignment label.
+ROUTE_LABELS = [
+    {"key": "ordre",   "name": "Voie de l'Ordre",    "label": "Privilégie l'observation, la sagesse et la lignée."},
+    {"key": "chaos",   "name": "Voie du Chaos",      "label": "Embrasse le risque, la confrontation et la ruse."},
+    {"key": "liminal", "name": "Voie Liminale",      "label": "Cherche les passages, les seuils, l'entre-deux."},
+]
+
+
+def _branch_label_to_pole(route_key):
+    return {"ordre": "Ordre", "chaos": "Chaos", "liminal": "Liminal"}.get(route_key, "Neutre")
+
+
+def build_branching_tree(archetype, length, rng):
+    """v7.7.22c — Split-merge tree :
+       trunk (2) + branch1 (3×3=9) + twist (1) + branch2 (3×3=9) + final (length-9 shared)
+
+    Returns flat card pool with card_id + route_mask per card, and options pointing
+    to next card_id. Each of the 3 routes plays exactly `length` cards.
+    """
+    cards = []
+    emotions = emotion_arc_for_length(archetype["emotion_arc"], length)
+    em_idx = 0
+
+    def next_emotion():
+        nonlocal em_idx
+        e = emotions[min(em_idx, len(emotions) - 1)]
+        em_idx += 1
+        return e
+
+    # ── Phase 1 : Shared trunk (2 cards) ─────────────────────────────────────
+    for i in range(2):
+        n = len(cards) + 1
+        card = make_card(n, length, archetype, next_emotion(), rng)
+        card["card_id"] = f"c{n}"
+        card["route_mask"] = [True, True, True]
+        card["branch_label"] = "trunk"
+        cards.append(card)
+
+    # ── Phase 2 : First split (3 branches × 3 cards each) ────────────────────
+    branch1_first_ids = {}  # route_key → first card_id of branch (target of choice)
+    branch1_last_ids = {}   # route_key → last card_id of branch (links to twist)
+    for r_idx, route in enumerate(ROUTE_LABELS):
+        route_key = route["key"]
+        for b_pos in range(3):  # 3 cards per branch
+            n = len(cards) + 1
+            # Build card biased toward the route's Pole.
+            biased_archetype = dict(archetype)
+            biased_archetype["pole"] = _branch_label_to_pole(route_key)
+            card = make_card(n, length, biased_archetype, next_emotion(), rng)
+            card["card_id"] = f"c{n}_{route_key}_b1_{b_pos}"
+            card["route_mask"] = [r_idx == 0, r_idx == 1, r_idx == 2]
+            card["branch_label"] = f"branch_1_{route_key}"
+            if b_pos == 0:
+                branch1_first_ids[route_key] = card["card_id"]
+            if b_pos == 2:
+                branch1_last_ids[route_key] = card["card_id"]
+            cards.append(card)
+
+    # ── Phase 3 : Merge + TWIST (1 shared card) ──────────────────────────────
+    n = len(cards) + 1
+    twist_card = make_card(n, length, archetype, "fascination", rng)
+    twist_card["card_id"] = f"c{n}_twist"
+    twist_card["route_mask"] = [True, True, True]
+    twist_card["branch_label"] = "twist_merge"
+    twist_card["type"] = "MERLIN_DIRECT"   # twist always Merlin Direct
+    twist_card["rarity"] = "EPIQUE"
+    # Replace summary with hand-crafted twist prose.
+    twist_card["summary"] = make_twist(archetype, rng)
+    twist_card["is_twist"] = True
+    cards.append(twist_card)
+    twist_card_id = twist_card["card_id"]
+
+    # ── Phase 4 : Second split (3 branches × 3 cards each) ───────────────────
+    branch2_first_ids = {}
+    branch2_last_ids = {}
+    for r_idx, route in enumerate(ROUTE_LABELS):
+        route_key = route["key"]
+        for b_pos in range(3):
+            n = len(cards) + 1
+            biased_archetype = dict(archetype)
+            biased_archetype["pole"] = _branch_label_to_pole(route_key)
+            card = make_card(n, length, biased_archetype, next_emotion(), rng)
+            card["card_id"] = f"c{n}_{route_key}_b2_{b_pos}"
+            card["route_mask"] = [r_idx == 0, r_idx == 1, r_idx == 2]
+            card["branch_label"] = f"branch_2_{route_key}"
+            if b_pos == 0:
+                branch2_first_ids[route_key] = card["card_id"]
+            if b_pos == 2:
+                branch2_last_ids[route_key] = card["card_id"]
+            cards.append(card)
+
+    # ── Phase 5 : Final shared stretch (length - 9 shared cards) ────────────
+    final_cards_count = max(2, length - 9)   # at least 2 shared closing cards
+    final_first_id = None
+    final_card_ids = []
+    for i in range(final_cards_count):
+        n = len(cards) + 1
+        card = make_card(n, length, archetype, next_emotion(), rng)
+        card["card_id"] = f"c{n}"
+        card["route_mask"] = [True, True, True]
+        card["branch_label"] = "final_shared"
+        cards.append(card)
+        final_card_ids.append(card["card_id"])
+        if final_first_id is None:
+            final_first_id = card["card_id"]
+
+    # ── Wire options → leads_to_card_id ──────────────────────────────────────
+    # Trunk card 0 (c1) : 3 options lead to branch1 starts.
+    # Trunk card 1 (c2) : 3 options lead to branch1 starts (player picks branch).
+    # Branch1 cards (positions 0-1) : linear within branch (next in same route).
+    # Branch1 last (pos 2) : leads to twist.
+    # Twist : 3 options lead to branch2 starts.
+    # Branch2 cards (positions 0-1) : linear.
+    # Branch2 last (pos 2) : leads to final[0].
+    # Final cards : linear, last one → null (end).
+
+    by_id = {c["card_id"]: c for c in cards}
+
+    def set_options_target(card, targets):
+        """Targets : list of 3 card_ids (one per option) or `None` for end."""
+        for i, opt in enumerate(card["options"]):
+            opt["leads_to_card_id"] = targets[i] if i < len(targets) else None
+
+    # Trunk card 1 (c1) : linear → c2 (player passes through but feels guided).
+    set_options_target(cards[0], [cards[1]["card_id"], cards[1]["card_id"], cards[1]["card_id"]])
+    # Trunk card 2 (c2) : 3 options choose between Ordre/Chaos/Liminal branches.
+    set_options_target(cards[1], [
+        branch1_first_ids["ordre"],
+        branch1_first_ids["chaos"],
+        branch1_first_ids["liminal"],
+    ])
+
+    # Branch1 cards : linear within branch.
+    for r_idx, route in enumerate(ROUTE_LABELS):
+        route_key = route["key"]
+        for b_pos in range(3):
+            cid = f"c{2 + 1 + (3 * r_idx) + b_pos + 1}_{route_key}_b1_{b_pos}"
+            # Find by card_id pattern (positions calculated above are approximate, use by_id lookup).
+            # Actually the card_id was set with n=len(cards)+1 at build time, so use the cards list.
+            pass
+    # Simpler : iterate cards list, set links based on branch_label + position.
+    for c in cards:
+        bl = c.get("branch_label", "")
+        if bl.startswith("branch_1_"):
+            route_key = bl.replace("branch_1_", "")
+            cid = c["card_id"]
+            b_pos = int(cid.rsplit("_", 1)[-1])
+            if b_pos < 2:
+                # Find next branch1 card of same route.
+                next_cid = next((d["card_id"] for d in cards
+                                 if d.get("branch_label") == bl
+                                 and int(d["card_id"].rsplit("_", 1)[-1]) == b_pos + 1), None)
+                if next_cid:
+                    set_options_target(c, [next_cid, next_cid, next_cid])
+            else:
+                # Last branch1 card → twist.
+                set_options_target(c, [twist_card_id, twist_card_id, twist_card_id])
+
+    # Twist card : 3 options choose between branch2 routes.
+    set_options_target(twist_card, [
+        branch2_first_ids["ordre"],
+        branch2_first_ids["chaos"],
+        branch2_first_ids["liminal"],
+    ])
+
+    # Branch2 cards : linear within branch, last → final_first.
+    for c in cards:
+        bl = c.get("branch_label", "")
+        if bl.startswith("branch_2_"):
+            route_key = bl.replace("branch_2_", "")
+            cid = c["card_id"]
+            b_pos = int(cid.rsplit("_", 1)[-1])
+            if b_pos < 2:
+                next_cid = next((d["card_id"] for d in cards
+                                 if d.get("branch_label") == bl
+                                 and int(d["card_id"].rsplit("_", 1)[-1]) == b_pos + 1), None)
+                if next_cid:
+                    set_options_target(c, [next_cid, next_cid, next_cid])
+            else:
+                # Last branch2 card → first final.
+                set_options_target(c, [final_first_id, final_first_id, final_first_id])
+
+    # Final cards : linear → next, last one → null.
+    for i, fc_id in enumerate(final_card_ids):
+        c = by_id[fc_id]
+        if i < len(final_card_ids) - 1:
+            nxt = final_card_ids[i + 1]
+            set_options_target(c, [nxt, nxt, nxt])
+        else:
+            # Last card of scenario → END.
+            set_options_target(c, [None, None, None])
+
+    return cards, twist_card_id
+
+
+def extract_routes(cards, twist_card_id):
+    """v7.7.22c — Extract 3 actual routes (sequences of card_ids) from the tree.
+    Each route follows the deterministic linear path of trunk→branch1→twist→branch2→final.
+    """
+    routes = []
+    by_id = {c["card_id"]: c for c in cards}
+    for r_idx, route in enumerate(ROUTE_LABELS):
+        route_key = route["key"]
+        card_ids = []
+        # Trunk
+        card_ids.extend(c["card_id"] for c in cards if c.get("branch_label") == "trunk")
+        # Branch 1 (this route only)
+        branch1 = sorted(
+            (c for c in cards if c.get("branch_label") == f"branch_1_{route_key}"),
+            key=lambda c: int(c["card_id"].rsplit("_", 1)[-1])
+        )
+        card_ids.extend(c["card_id"] for c in branch1)
+        # Twist
+        card_ids.append(twist_card_id)
+        # Branch 2 (this route only)
+        branch2 = sorted(
+            (c for c in cards if c.get("branch_label") == f"branch_2_{route_key}"),
+            key=lambda c: int(c["card_id"].rsplit("_", 1)[-1])
+        )
+        card_ids.extend(c["card_id"] for c in branch2)
+        # Final shared stretch
+        final = [c for c in cards if c.get("branch_label") == "final_shared"]
+        card_ids.extend(c["card_id"] for c in final)
+        routes.append({
+            "key": route_key,
+            "name": route["name"],
+            "label": route["label"],
+            "card_ids": card_ids,
+        })
+    return routes
+
+
 def make_routes(cards):
     n = len(cards)
     if n <= 0:
@@ -646,16 +1020,22 @@ def enforce_adjacency(cards, archetype, rng):
 
 
 def generate_scenario(archetype_idx, variant_idx):
+    """v7.7.22c — generate a scenario with INTRO + BRANCHING TREE + REAL ROUTES.
+    Each scenario now has 3 distinct routes (Ordre/Chaos/Liminal) sharing
+    a trunk and final stretch but diverging on 2 branch phases."""
     archetype = ARCHETYPES[archetype_idx]
     seed = f"{archetype['id']}-{variant_idx}"
     rng = deterministic_rng(seed)
     length = rng.choice(archetype["length_pref"])
     title = make_title(archetype, variant_idx)
     emotions = emotion_arc_for_length(archetype["emotion_arc"], length)
-    cards = [make_card(n, length, archetype, emotions[n - 1], rng) for n in range(1, length + 1)]
+    intro = make_intro(archetype, variant_idx)
+    cards, twist_card_id = build_branching_tree(archetype, length, rng)
     cards = enforce_adjacency(cards, archetype, rng)
+    routes = extract_routes(cards, twist_card_id)
     premise = make_premise(archetype, rng)
-    routes = make_routes(cards)
+    # Total pool size (all cards in the tree) vs route length (cards a single route plays).
+    pool_size = len(cards)
     return {
         "id": f"broc_{archetype_idx:02d}_{variant_idx:02d}",
         "title": title,
@@ -663,13 +1043,16 @@ def generate_scenario(archetype_idx, variant_idx):
         "archetype_name": archetype["name"],
         "pole_dominant": archetype["pole"],
         "twist_pattern": archetype["twist_pattern"],
-        "length": length,
+        "length": length,                  # cards a single route plays
+        "pool_size": pool_size,            # total cards in the branching tree
         "emotional_arc": emotions,
+        "intro": intro,                    # v7.7.22c — lore-aware contextualization
         "premise": premise,
         "essence": archetype["essence"],
         "hook": archetype["hook"],
+        "twist_card_id": twist_card_id,
         "cards": cards,
-        "routes": routes,
+        "routes": routes,                  # v7.7.22c — now {name,label,card_ids}
     }
 
 
@@ -740,6 +1123,34 @@ HTML_HEAD = """<!DOCTYPE html>
   td.options{font-size:12px;color:var(--gold-dim);min-width:200px}
   td.options ul{margin:0;padding-left:14px}
   td.options li{margin:2px 0}
+  /* v7.7.22c — intro section + route view */
+  .intro-block{background:linear-gradient(180deg,var(--bg-dark) 0%,var(--bg-panel) 100%);border-left:4px solid var(--gold-bright);padding:18px 22px;margin:0 0 22px;font-size:16.5px;line-height:1.75;color:var(--white);font-style:italic}
+  .intro-block::before{content:"« ";color:var(--gold-bright);font-size:24px;font-style:normal}
+  .intro-block::after{content:" »";color:var(--gold-bright);font-size:24px;font-style:normal}
+  .routes-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:18px}
+  .route-col{background:var(--bg-dark);border:2px solid var(--gold-dim);padding:14px}
+  .route-col.route-ordre{border-color:var(--ordre)}
+  .route-col.route-chaos{border-color:var(--chaos)}
+  .route-col.route-liminal{border-color:var(--liminal)}
+  .route-col h4{margin:0 0 6px;color:var(--gold-bright);font-size:15px;text-transform:uppercase;letter-spacing:1px}
+  .route-col h4.ordre{color:var(--ordre)}
+  .route-col h4.chaos{color:var(--chaos)}
+  .route-col h4.liminal{color:var(--liminal)}
+  .route-col .route-desc{color:var(--gold-dim);font-style:italic;font-size:12px;margin:0 0 12px;border-bottom:1px dotted var(--gold-dim);padding-bottom:6px}
+  .route-col ol{margin:0;padding-left:22px;font-size:12.5px;color:var(--white)}
+  .route-col ol li{padding:5px 0;border-bottom:1px solid rgba(140,122,75,0.15)}
+  .route-col ol li:last-child{border-bottom:none}
+  .route-col .branch-tag{display:inline-block;font-size:9px;padding:1px 5px;border:1px solid currentColor;text-transform:uppercase;letter-spacing:0.5px;margin-left:4px;vertical-align:middle}
+  .route-col .branch-tag.shared{color:var(--gold-dim)}
+  .route-col .branch-tag.unique{color:var(--gold-bright)}
+  .route-col .branch-tag.twist{color:var(--crimson);font-weight:bold}
+  .route-col .card-text{display:block;font-size:11.5px;color:var(--gold-dim);margin-top:3px;font-style:italic;line-height:1.45}
+  .pool-stats{display:flex;gap:18px;flex-wrap:wrap;margin:18px 0;padding:10px 14px;background:var(--bg-dark);border-left:3px solid var(--gold)}
+  .pool-stats span{font-size:12px;color:var(--gold-dim)}
+  .pool-stats strong{color:var(--gold-bright);font-size:14px}
+  .twist-callout{margin:18px 0;padding:14px 18px;border:2px dashed var(--crimson);background:rgba(199,41,41,0.08);color:var(--white)}
+  .twist-callout strong{color:var(--crimson);text-transform:uppercase;letter-spacing:1px;font-size:12px;display:block;margin-bottom:6px}
+  /* End v7.7.22c additions */
   .rarity-COMMUNE{color:var(--gold-dim)}
   .rarity-RARE{color:var(--gold)}
   .rarity-EPIQUE{color:var(--violet);font-weight:bold}
@@ -867,28 +1278,66 @@ def render_html(scenarios):
         parts.append(f'<p style="color:var(--gold-dim);font-style:italic;margin:6px 0 18px">{archetype["essence"]}</p>')
 
         for s in arch_scenarios:
-            cards_rows = []
-            for c in s["cards"]:
-                opts_list = "<ul>" + "".join(
-                    f"<li><strong>{html_escape_module.escape(o['label'])}</strong> ({o['verb']} → {o['primary_faction']})</li>"
-                    for o in c["options"]
-                ) + "</ul>"
-                cards_rows.append(
-                    f"<tr><td class='n'>{c['n']}</td>"
-                    f"<td class='cardtype-{c['type']}'>{c['type']}</td>"
-                    f"<td class='rarity-{c['rarity']}'>{c['rarity']}</td>"
-                    f"<td><span class='pole-badge {c['pole']}'>{c['pole']}</span></td>"
-                    f"<td>{c['emotion']}</td>"
-                    f"<td class='summary'>{html_escape_module.escape(c['summary'])}</td>"
-                    f"<td class='options'>{opts_list}</td></tr>"
-                )
-            cards_table = (
-                "<table class='cards-table'>"
-                "<thead><tr><th>#</th><th>Type</th><th>Rareté</th><th>Pole</th><th>Émotion</th><th>Carte</th><th>Options</th></tr></thead>"
-                f"<tbody>{''.join(cards_rows)}</tbody></table>"
-            )
-            routes_list = "".join(f"<li>{html_escape_module.escape(r)}</li>" for r in s["routes"])
             premise_html = html_escape_module.escape(s["premise"])
+            intro_html = html_escape_module.escape(s.get("intro", ""))
+            # ── v7.7.22c — Build 3-column route view ─────────────────────────
+            by_id = {c["card_id"]: c for c in s["cards"]}
+            twist_id = s.get("twist_card_id", "")
+            route_columns = []
+            for route in s["routes"]:
+                route_key = route["key"]
+                col_class = f"route-{route_key}"
+                items = []
+                for pos, cid in enumerate(route["card_ids"], 1):
+                    c = by_id.get(cid)
+                    if c is None:
+                        continue
+                    is_shared = all(c.get("route_mask", [True, True, True]))
+                    is_twist = (cid == twist_id)
+                    if is_twist:
+                        badge = "<span class='branch-tag twist'>twist</span>"
+                    elif is_shared:
+                        badge = "<span class='branch-tag shared'>shared</span>"
+                    else:
+                        badge = "<span class='branch-tag unique'>unique</span>"
+                    summary_short = html_escape_module.escape(c["summary"])
+                    items.append(
+                        f"<li><strong class='cardtype-{c['type']}'>{c['type'][:4]}</strong> "
+                        f"<span class='rarity-{c['rarity']}'>·{c['rarity'][:3]}</span> "
+                        f"<span class='pole-badge {c['pole']}' style='font-size:9px;padding:1px 5px;'>{c['pole'][:3]}</span>"
+                        f"{badge}"
+                        f"<span class='card-text'>{summary_short}</span></li>"
+                    )
+                route_columns.append(
+                    f"<div class='route-col {col_class}'>"
+                    f"<h4 class='{route_key}'>{html_escape_module.escape(route['name'])}</h4>"
+                    f"<p class='route-desc'>{html_escape_module.escape(route['label'])} — <strong>{len(route['card_ids'])} cartes</strong></p>"
+                    f"<ol>{''.join(items)}</ol>"
+                    f"</div>"
+                )
+            routes_grid = f"<div class='routes-grid'>{''.join(route_columns)}</div>"
+
+            # Twist callout (mid-route reveal).
+            twist_text = ""
+            if twist_id and twist_id in by_id:
+                twist_card = by_id[twist_id]
+                twist_text = (
+                    f"<div class='twist-callout'>"
+                    f"<strong>Rebondissement mi-parcours</strong>"
+                    f"{html_escape_module.escape(twist_card['summary'])}"
+                    f"</div>"
+                )
+
+            # Pool stats : show total pool vs cards-per-route.
+            pool_size = s.get("pool_size", len(s["cards"]))
+            pool_stats = (
+                f"<div class='pool-stats'>"
+                f"<span>Pool total : <strong>{pool_size}</strong> cartes</span>"
+                f"<span>Cartes jouées par route : <strong>{s['length']}</strong></span>"
+                f"<span>Cartes uniques à une route : <strong>{pool_size - s['length']}</strong></span>"
+                f"<span>Routes possibles : <strong>{len(s['routes'])}</strong></span>"
+                f"</div>"
+            )
 
             parts.append(
                 f"<article class='scenario pole-{s['pole_dominant']}' id='{s['id']}' "
@@ -897,20 +1346,24 @@ def render_html(scenarios):
                 f"<h3 class='scenario-title'>{s['title']}</h3>"
                 f"<div class='scenario-meta'>"
                 f"<span class='pole-badge {s['pole_dominant']}'>{s['pole_dominant']}</span>"
-                f"<span class='length-badge'>{s['length']} cartes</span>"
+                f"<span class='length-badge'>{s['length']} cartes/route</span>"
+                f"<span class='length-badge'>{pool_size} pool</span>"
                 f"<span class='length-badge'>{s['twist_pattern']}</span>"
                 f"</div></div>"
                 f"<div class='scenario-body'>"
                 f"<p class='essence'>{html_escape_module.escape(s['essence'])}</p>"
                 f"<p class='hook'>« {html_escape_module.escape(s['hook'])} »</p>"
-                f"<div class='section-title'>Prémisse narrative</div>"
+                f"<div class='section-title'>Intro — contextualisation joueur (jeune druide)</div>"
+                f"<div class='intro-block'>{intro_html}</div>"
+                f"<div class='section-title'>Prémisse narrative (vision de l'auteur)</div>"
                 f"<div class='premise'>{premise_html}</div>"
-                f"<div class='section-title'>Arc émotionnel ({s['length']} beats)</div>"
+                f"<div class='section-title'>Arc émotionnel ({s['length']} beats par route)</div>"
                 f"<p style='color:var(--gold-dim);font-style:italic;'>{' → '.join(s['emotional_arc'])}</p>"
-                f"<div class='section-title'>Découpage en cartes</div>"
-                f"{cards_table}"
-                f"<div class='section-title'>Routes principales</div>"
-                f"<ul class='routes'>{routes_list}</ul>"
+                f"{pool_stats}"
+                f"{twist_text}"
+                f"<div class='section-title'>Découpage en 3 routes — choix coupent / ouvrent les chemins</div>"
+                f"<p style='color:var(--gold-dim);font-style:italic;font-size:13px;'>Le joueur ne joue pas toutes les cartes. À la carte 2 puis au rebondissement, son choix le branche sur une voie. Les cartes <em>shared</em> sont jouées par toutes les routes ; les <em>unique</em> ne se jouent que sur la voie correspondante.</p>"
+                f"{routes_grid}"
                 f"</div></article>"
             )
 

@@ -2,7 +2,98 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-17 (v7.7.22b 100 Brocéliande LLM reference scenarios).
+> **Last refresh**: 2026-05-17 (v7.7.22c intros + branching routes + route-view UI).
+
+---
+
+## v7.7.22c — Lore intros + branching multi-route tree + route-view UI [2026-05-17]
+
+User mandate (verbatim) : *« Chaque scénario doit disposer d'une intro bien ecrite selon le lore du jeu / on incarne un jeune druide dans cette simulation (on ne sait pas qu'on est dans une simulation), l'introduction aura vocation à être écrite et exposée au joueur, comme intro donnée pour contextualiser la run. Les scénarios doivent être un peu plus long et avec plus de rebondissement, avec une belle écriture et de la logique, pas simplement des écritures simples sans sens, améliore les scénarios, repense l'UI / UX du menu pour voir plus simplement les parcours, attention on ne fait pas toutes les cartes, certains choix coupe les chemins et donne sur de nouvelles routes, trouve le moyen de rédiger le scénario en plusieurs routes »*
+
+### 3 major upgrades to the generator
+
+**1. Lore-aware intros** : NEW `INTRO_FRAGMENTS` dict — 4 hand-crafted intros per archetype × 10 archetypes = **40 unique intros**, each 6-8 sentences. POV : young druide en initiation. The simulation aspect stays HIDDEN (no 4th-wall break) — the druidic world is presented as real. Each intro situates the player as an apprentice with a master, a clan, a mission. Subtle subtext hints (dreams that anticipate places, déjà-vu) but framed as mystical, not technological.
+
+**2. Branching tree structure (split-merge)** : NEW `build_branching_tree(archetype, length, rng)` that produces a card pool larger than what a single route plays. Architecture :
+- **Phase 1 — Shared trunk** (2 cards) : all routes start here
+- **Phase 2 — First split** (3 routes × 3 cards = 9 unique branch cards) : choice at c2 routes the player into Ordre / Chaos / Liminal branch
+- **Phase 3 — Merge + TWIST** (1 shared card) : Merlin Direct EPIQUE card with a hand-crafted twist prose from new `TWIST_FRAGMENTS` bank (20 reveals total)
+- **Phase 4 — Second split** (3 routes × 3 cards = 9 unique branch cards) : choice at twist routes player AGAIN
+- **Phase 5 — Shared final stretch** (length-9 shared cards) : all routes converge for the climax
+
+For length=17 : pool = 29 cards, each route plays 17. **12 cards are UNIQUE to a single route — the player never sees them on other runs.**
+
+**3. Route-view UI rewrite** : HTML scenario block now shows the player parcours clearly :
+- Intro block (gold-bordered italic, lore quote framing)
+- Premise (author's vision)
+- Emotional arc (beats per route)
+- Pool stats : total pool / cards per route / cards unique to one route / route count
+- **Twist callout** : crimson-bordered dashed box highlighting the mid-route revelation
+- **3-column route grid** : Ordre / Chaos / Liminal side-by-side, each column showing :
+  - Route name + label + cards count
+  - Ordered list of cards with shared/unique/twist badges
+  - Compact card text inline
+- New CSS classes : `intro-block`, `routes-grid`, `route-col.route-{key}`, `branch-tag.{shared,unique,twist}`, `twist-callout`, `pool-stats`
+
+### Schema changes (additive — backward compatible)
+
+```json
+{
+  "id": "broc_00_00",
+  "title": "Le Premier Pas Druidique",
+  "intro": "Tu es un jeune druide, à peine sorti des années d'apprentissage...",   // NEW
+  "length": 17,                  // cards a single route plays
+  "pool_size": 29,               // NEW — total cards in the branching tree
+  "twist_card_id": "c12_twist",  // NEW
+  "cards": [
+    {
+      "card_id": "c1",                                  // NEW
+      "n": 1,
+      "type": "NARRATIVE",
+      "rarity": "COMMUNE",
+      "pole": "Liminal",
+      "route_mask": [true, true, true],                 // NEW
+      "branch_label": "trunk",                          // NEW
+      "summary": "...",
+      "options": [
+        {"label": "Observer", "verb": "observer", "primary_faction": "druides",
+         "leads_to_card_id": "c2"}                       // NEW
+      ]
+    }
+  ],
+  "routes": [                                            // NEW shape
+    {"key": "ordre",   "name": "Voie de l'Ordre",   "label": "...", "card_ids": ["c1", "c2", "c3_ordre_b1_0", ...]},
+    {"key": "chaos",   "name": "Voie du Chaos",     "label": "...", "card_ids": [...]},
+    {"key": "liminal", "name": "Voie Liminale",     "label": "...", "card_ids": [...]}
+  ]
+}
+```
+
+### Output deliverables (in `~/Downloads/`)
+
+- `broceliande_scenarios_v7.7.22.html` — **2.28 MB** (was 1.18 MB in v7.7.22b — doubled due to intros + route grids)
+- `broceliande_scenarios_v7.7.22.json` — ~2 MB (richer schema with card_ids + leads_to + branch_labels)
+
+### Verified evidence
+
+- ✅ 100 scenarios, **1794 cards total** in pools (up from 1740 — branching adds cards)
+- ✅ Pole distribution preserved : 40 Liminal / 30 Chaos / 30 Ordre (bible §7.1)
+- ✅ Length spread : 18×11 / 15×15 / 26×17 / 24×21 / 17×25
+- ✅ Sample scenario 0 : intro 6 sentences, pool 29 vs route length 17 (12 route-unique cards), twist at `c12_twist`, 3 routes with distinct card_ids
+- ✅ Integrity : **0 broken `leads_to_card_id` links**, **0 missing card_ids in route references**
+- ✅ All routes start at shared trunk `c1, c2` then diverge into branch1 cards
+- ✅ All routes pass through the shared twist card
+- ✅ All routes converge on shared final stretch
+
+### Files modified
+
+- `tools/generate_broceliande_scenarios.py` (+~700 LOC) — INTRO_FRAGMENTS dict (40 intros, ~14k words) + TWIST_FRAGMENTS dict (20 reveals) + `make_intro` / `make_twist` / `build_branching_tree` / `extract_routes` / `_branch_label_to_pole` helpers + refactored `generate_scenario` + rewritten HTML scenario rendering block + new CSS classes
+
+### Iterations queued
+
+- **v7.7.22d** — Ollama optional pass to expand premises 24→60 sentences and enrich twist prose
+- **v7.7.22e** — Same generator template applied to 7 other biomes (each with own intros + canon)
+- **v7.7.23** — Integrate JSON into `addons/merlin_ai/rag_manager.gd` for runtime LLM reference
 
 ---
 
