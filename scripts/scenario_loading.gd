@@ -35,6 +35,9 @@ const FALLBACK_BIOME := "foret_broceliande"
 # v7.7.21 — Unified DigitalPickerCard replaces 3D parchments.
 const DIGITAL_PICKER_CARD_SCRIPT := preload("res://scripts/ui/digital_picker_card.gd")
 
+# v7.7.23 — Parchment scroll for lore-aware intro display (LLM #2 output).
+const PARCHMENT_SCROLL_SCRIPT := preload("res://scripts/ui/parchment_scroll.gd")
+
 # v7.7.21 — Fallback body teasers per scenario tier when the LLM doesn't provide
 # a `body` field (the planner currently returns only {title, ogham}). Ordered to
 # evoke ascending tension : discovery → revelation → climax.
@@ -196,9 +199,33 @@ func _run_flow() -> void:
 		if i != _pending_pick and card.has_method("dim_unselected"):
 			card.call("dim_unselected")
 	await get_tree().create_timer(0.6).timeout
+
+	# v7.7.23 — Step 2.5 : LLM #2 generates lore intro, parchment unrolls + typewriter.
+	# Sequential : intro → parchment cycle (~12s read) → skeleton. The player's
+	# read-time naturally absorbs the next LLM call's latency without juggling
+	# parallel awaits in GDScript.
+	_info_label.text = "Merlin rédige une page de ton chemin…"
+	var intro_text: String = await _planner.generate_intro(_biome_id, _chosen_title)
+	if _aborted:
+		return
+	# Spawn parchment overlay (anchored center).
+	var parchment: PanelContainer = PARCHMENT_SCROLL_SCRIPT.new()
+	parchment.anchor_left = 0.5
+	parchment.anchor_right = 0.5
+	parchment.anchor_top = 0.5
+	parchment.anchor_bottom = 0.5
+	parchment.offset_left = -340
+	parchment.offset_right = 340
+	parchment.offset_top = -200
+	parchment.offset_bottom = 200
+	_ui_layer.add_child(parchment)
+	parchment.call("display", intro_text)
+	await parchment.closed
+	if _aborted:
+		return
 	_info_label.text = "Titre choisi : %s\n(Merlin écrit le scénario…)" % _chosen_title
 
-	# Step 3 : generate skeleton
+	# Step 3 : generate skeleton (LLM #3, RAG-augmented via v7.7.23 Phase 5).
 	_skeleton = await _planner.generate_skeleton(_biome_id, _chosen_title)
 	if _skeleton.is_empty():
 		push_warning("[ScenarioLoading] Empty skeleton — using planner fallback")

@@ -2,7 +2,139 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-17 (v7.7.22c intros + branching routes + route-view UI).
+> **Last refresh**: 2026-05-17 (v7.7.23 reference-augmented LLM pipeline + parchment intro UI).
+
+---
+
+## v7.7.23 — Reference-augmented LLM pipeline + parchment intro UI [2026-05-17]
+
+User mandate (verbatim) : *« Ok, maintenant sert toi de ces contenus pour entrainer le LLM du jeu à faire la génération de trois titres de scénarios proposés sur les cartes, puis en fonction du choix l'intro qui va etre exposée sur le parchemin / livre, le scénario complet écris et chargé avec ce niveau de qualité et un autre LLM qui le lis et découpe en cartes pour le run, implémente tout ça dans le jeu »*
+
+User locked decisions (AskUserQuestion in plan mode) :
+- **LLM pipeline** : 4 LLM séparés (titres / intro / skeleton / per-beat cards)
+- **Branching runtime** : Skeleton linéaire 5-10 beats (références = prose style guides only)
+- **RAG strategy** : Index sémantique embeddings via Ollama nomic-embed-text
+- **Intro UI** : Parchemin qui se déroule + typewriter
+
+### Phase 1 — Reference data + offline embeddings (Ollama nomic-embed-text)
+
+NEW `tools/embed_reference_scenarios.py` (~110 LOC) — calls Ollama embed API on each of the 100 reference scenarios' `title + archetype_name + intro` text, writes 768-dim vectors to `data/ai/scenarios_reference_broceliande.embeddings.json`. Auto-pulls the model if absent. Idempotent.
+
+NEW files :
+- `data/ai/scenarios_reference_broceliande.json` (3.46 MB, 100 scenarios copied from `~/Downloads/`)
+- `data/ai/scenarios_reference_broceliande.embeddings.json` (1.6 MB, 100 × 768-dim vectors)
+
+### Phase 2 — ScenariosRAG autoload (kNN cosine retrieval)
+
+NEW `addons/merlin_ai/scenarios_rag.gd` (~280 LOC) :
+- `extends Node`, registered as `/root/ScenariosRAG` autoload
+- Loads scenarios + embeddings JSON at `_ready`
+- Public `query_similar(text, top_k=3, biome_filter="") -> Array[Dictionary]` — calls Ollama HTTP embed for the query then cosine kNN
+- LRU cache (50 entries) of query embeddings to avoid re-embedding identical prompts
+- Fallback : if Ollama unavailable or embeddings missing → archetype-keyword matching from query text
+- 4 formatter helpers : `format_titles_as_few_shot` / `format_intros_as_few_shot` / `format_skeleton_as_few_shot` / `format_cards_as_few_shot`
+
+### Phase 3 — LLM 1 : RAG-augmented title generation
+
+`addons/merlin_ai/scenario_planner.gd::generate_titles(biome_id)` modified :
+- Pre-LLM : `await _rag_titles_few_shot(biome_id)` retrieves 5 reference titles via cosine kNN
+- Injects them as bullet list in system prompt
+- LLM produces 3 NEW titles in the same druidic idiom
+- Fallback (24 hardcoded titles) unchanged
+
+NEW private helpers : `_rag_titles_few_shot`, `_get_scenarios_rag`
+
+### Phase 4 — LLM 2 : NEW intro generation (post title-pick)
+
+NEW `addons/merlin_ai/scenario_planner.gd::generate_intro(biome_id, chosen_title) -> String` :
+- Pre-LLM : 3 reference intros via kNN cosine on (title + biome)
+- System prompt enforces : young druide POV, 6-8 sentences, no 4th-wall break, no anglicisms / cyber / technologie terms
+- Params : `max_tokens=400, temperature=0.85, timeout_ms=10000`
+- Validates ≥5 sentences in output ; falls back to RAG-retrieved or hardcoded intro otherwise
+- NEW const `INTRO_TIMEOUT_S := 10.0`
+
+### Phase 5 — LLM 3 : RAG-augmented skeleton generation
+
+`addons/merlin_ai/scenario_planner.gd::generate_skeleton(biome_id, chosen_title)` modified :
+- Pre-LLM : `await _rag_skeleton_few_shot(biome_id, chosen_title)` retrieves 2 reference scenarios' beat sequences (n + emotion + faction_tilt + summary)
+- Injects as structural few-shot in `_skeleton_system_prompt`
+- Skeleton stays LINEAR 5-10 beats (per user decision)
+- v7.7.22a `_balance_skeleton` validator still applies post-LLM
+
+### Phase 6 — LLM 4 : RAG-augmented per-beat card generation
+
+`addons/merlin_ai/bi_brain_pipeline.gd::_call_gm_brain` modified :
+- Pre-LLM : `await _rag_cards_few_shot(beat_context, act_type)` retrieves 2 matching reference cards (filtered by CardType : NARRATIVE / EVENT / SHOP / MERLIN_DIRECT)
+- Injects as compact few-shot in GM system prompt
+- Narrator brain (Phase B) untouched — still wraps GM JSON in rich prose
+
+NEW private `_rag_cards_few_shot(beat_context, act_type) -> String`. `_gm_system_prompt` extended with optional `ref_cards_block` 5th arg.
+
+### Phase 7 — NEW Parchment scroll UI
+
+NEW `scripts/ui/parchment_scroll.gd` (~150 LOC) — `extends PanelContainer` :
+- Charter-precedent styling : cream `#eaddad` + dark wood `#4d3218` border + sepia `#6a4a2a` ink (RichTextLabel) + soft shadow
+- Public `display(intro_text)` runs full cycle :
+  1. Unroll : `scale.y 0→1` over 1.2s TRANS_QUART EASE_OUT + alpha 0→1 in parallel
+  2. Typewriter : `visible_characters 0 → text length` @ 60ms/char (≈ 16.6 chars/s)
+  3. Hold : 3.0s read-time
+  4. Roll-out : `scale.y 1→0` over 0.8s + alpha 1→0
+  5. Emit `closed` signal + `queue_free()`
+- Total cycle for 6-sentence intro : ~12-15s
+
+### Phase 8 — Game integration in ScenarioLoading
+
+`scripts/scenario_loading.gd::_run_flow` extended : NEW step 2.5 between title-pick (line 198) and skeleton generation (line ~230). Flow becomes :
+
+```
+1. Build 3 picker cards (LLM 1 titles + Ogham glyphs)
+2. Wait for player click → dim unselected cards (0.6s)
+3. LLM 2 : await _planner.generate_intro(biome, chosen_title)
+4. Spawn ParchmentScroll, call display(intro_text)
+5. Await parchment.closed (full unroll → typewriter → hold → close cycle)
+6. LLM 3 : await _planner.generate_skeleton(biome, chosen_title)   [unchanged]
+7. Dispatch skeleton + transition to BoardNarration                [unchanged]
+```
+
+NEW const `PARCHMENT_SCROLL_SCRIPT := preload("res://scripts/ui/parchment_scroll.gd")`. Reuses MerlinSoundBar pulse system (it keeps animating behind the parchment overlay).
+
+### Phase 9 — Autoload registration
+
+`project.godot` `[autoload]` section gets one new entry :
+```
+ScenariosRAG="*res://addons/merlin_ai/scenarios_rag.gd"
+```
+Available globally at `/root/ScenariosRAG` after engine boot.
+
+### Verified evidence
+
+- ✅ Parse-check `validate_step0` : exit=0, 10 pre-existing phantom_camera errors only (none from new code)
+- ✅ `python tools/embed_reference_scenarios.py` : pulled nomic-embed-text + generated 100 vectors @ 768-dim (~30s, status=ok, 1.6 MB output)
+- ✅ Smoke `res://scenes/ScenarioLoading.tscn` 15s : **`exit=0 script_errors=0 total_errors=0 passed=True`**
+- ✅ Boot log : `[ScenariosRAG] Loaded 100 scenarios, 100 embeddings (768-dim, status=ok)` — autoload fully functional
+- ✅ All 4 LLM functions now reference-augmented via RAG few-shot (titles, intro, skeleton, cards)
+
+### Files modified / created
+
+| Path | Status | Purpose |
+|---|---|---|
+| `tools/embed_reference_scenarios.py` | NEW (~110 LOC) | Offline embedding pre-compute via Ollama nomic-embed-text |
+| `data/ai/scenarios_reference_broceliande.json` | NEW (3.46 MB) | 100 references copied from `~/Downloads/` v7.7.22c output |
+| `data/ai/scenarios_reference_broceliande.embeddings.json` | NEW (1.6 MB) | 100 × 768-dim vectors, status=ok |
+| `addons/merlin_ai/scenarios_rag.gd` | NEW (~280 LOC) | Autoload : kNN cosine retrieval + 4 formatters |
+| `addons/merlin_ai/scenario_planner.gd` | MODIFIED | RAG-augmented titles + NEW generate_intro + RAG-augmented skeleton |
+| `addons/merlin_ai/bi_brain_pipeline.gd` | MODIFIED | RAG-augmented per-card generation in GM brain phase |
+| `scripts/ui/parchment_scroll.gd` | NEW (~150 LOC) | Animated parchment unroll + typewriter intro display |
+| `scripts/scenario_loading.gd` | MODIFIED | Insert step 2.5 (parchment + LLM 2 intro) between title-pick and skeleton |
+| `project.godot` | MODIFIED | Register `ScenariosRAG` autoload |
+| `task_plan.md` | MODIFIED | This v7.7.23 entry |
+
+### Iterations queued
+
+- **v7.7.23b** — Voix de Merlin TTS sync with parchment typewriter (require TTS pipeline)
+- **v7.7.24** — Runtime branching tree (replicate split-merge tree mechanically at runtime)
+- **v7.7.25** — Same embedding pre-compute for the 7 other biomes when their reference content is generated
+- **v7.7.26** — Live re-training : when player completes a run, append run summary to references and re-embed (incremental retrieval index)
 
 ---
 

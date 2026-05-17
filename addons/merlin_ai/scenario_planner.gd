@@ -30,6 +30,7 @@ const GBNF_SKELETON_PATH := "res://data/ai/scenario_skeleton.gbnf"
 const TITLES_TIMEOUT_S := 8.0
 const SKELETON_TIMEOUT_S := 15.0
 const JUDGE_TIMEOUT_S := 4.0
+const INTRO_TIMEOUT_S := 10.0   # v7.7.23 — LLM #2 (intro) budget
 
 # v7.7 Phase 2.6 — 8 fallback skeletons (1 per biome, baseline emotional arc).
 # Each biome leans on its 1-2 dominant factions per the lore. Curiosité→sagesse
@@ -251,11 +252,15 @@ func _load_gbnf() -> void:
 func generate_titles(biome_id: String) -> Array:
 	if _merlin_ai == null or not _merlin_ai.has_method("generate_with_system"):
 		return _fallback_titles(biome_id)
+	# v7.7.23 — RAG few-shot : retrieve 5 reference titles matching the biome so
+	# the LLM produces titles in the same druidic idiom as the 100 reference set.
+	var few_shot_titles: String = await _rag_titles_few_shot(biome_id)
 	var system_prompt: String = (
 		"Tu produis EXACTEMENT 3 titres mystérieux pour une aventure dans le biome %s.\n" +
 		"Format STRICT : 1 ligne par titre, 3-7 mots chacun, francais, ton druidique.\n" +
-		"Pas de numérotation, pas de synopsis, pas de tirets. Une ligne = un titre."
-	) % biome_id
+		"Pas de numérotation, pas de synopsis, pas de tirets. Une ligne = un titre.\n" +
+		"%s"
+	) % [biome_id, few_shot_titles]
 	var user_input: String = "Génère 3 titres pour ce biome."
 	var params: Dictionary = {
 		"max_tokens": 80,
@@ -268,6 +273,116 @@ func generate_titles(biome_id: String) -> Array:
 		return _fallback_titles(biome_id)
 	var raw: String = str(result.get("text", result.get("output", ""))).strip_edges()
 	return _parse_titles_with_oghams(raw, biome_id)
+
+
+## v7.7.23 — Retrieve 5 reference titles via ScenariosRAG autoload (kNN cosine).
+## Returns a multi-line bullet list ready for prompt injection, or empty string if
+## RAG is unavailable.
+func _rag_titles_few_shot(biome_id: String) -> String:
+	var rag: Node = _get_scenarios_rag()
+	if rag == null:
+		return ""
+	var matches: Array = await rag.query_similar("titres mystérieux pour " + biome_id, 5, "")
+	if matches.is_empty():
+		return ""
+	var block: String = rag.format_titles_as_few_shot(matches)
+	return "\nExemples de titres canoniques pour ce biome (style à suivre, ne pas copier) :\n" + block
+
+
+## v7.7.23 — Resolve the ScenariosRAG autoload. Returns null if not registered
+## (graceful : caller skips RAG injection and uses base prompt only).
+func _get_scenarios_rag() -> Node:
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("ScenariosRAG")
+
+
+# ═════════ v7.7.23 Phase 4 : Generate intro (LLM #2, post title-pick) ═════════
+
+## Generate a 6-8 sentence lore-aware intro for the chosen scenario title.
+## Displayed on a parchment scroll (ScenarioLoading scene) before the run starts.
+## POV : young druide in initiation. Second-person. NO 4th-wall break (the
+## simulation aspect of MERLIN's world is hidden from the player).
+##
+## Pipeline :
+##   1. RAG retrieval : 3 reference intros most similar to (chosen_title + biome)
+##   2. LLM call with few-shot examples + canon constraints
+##   3. Fallback : pick a random reference intro matching the archetype keyword
+func generate_intro(biome_id: String, chosen_title: String) -> String:
+	if _merlin_ai == null or not _merlin_ai.has_method("generate_with_system"):
+		return await _fallback_intro(biome_id, chosen_title)
+	# v7.7.23 — RAG few-shot : 3 reference intros for style guidance.
+	var few_shot_intros: String = await _rag_intros_few_shot(biome_id, chosen_title)
+	var system_prompt: String = (
+		"Tu rédiges l'intro d'une marche druidique dans le bois de Brocéliande.\n" +
+		"POV : second-person, jeune druide en initiation. Le monde druidique est réel pour ce personnage.\n" +
+		"CONTRAINTES :\n" +
+		"  - EXACTEMENT 6 à 8 phrases (pas plus, pas moins).\n" +
+		"  - Français celtique, ton druidique mystique.\n" +
+		"  - JAMAIS d'anglicismes, JAMAIS de termes techniques/cyber/numériques.\n" +
+		"  - JAMAIS rompre le 4e mur : pas de mention de \"jeu\", \"simulation\", \"joueur\", \"écran\".\n" +
+		"  - Place le jeune druide dans son contexte : maître, clan, mission, état d'esprit.\n" +
+		"  - Termine sur le seuil de l'aventure (le premier pas qui va déclencher la marche).\n" +
+		"%s\n" +
+		"Maintenant rédige l'intro pour le titre choisi : \"%s\"."
+	) % [few_shot_intros, chosen_title]
+	var user_input: String = "Rédige l'intro de 6-8 phrases."
+	var params: Dictionary = {
+		"max_tokens": 400,
+		"temperature": 0.85,
+		"timeout_ms": int(INTRO_TIMEOUT_S * 1000),
+	}
+	var result: Dictionary = await _merlin_ai.generate_with_system(system_prompt, user_input, params)
+	if result.get("error", "") != "":
+		push_warning("[ScenarioPlanner] Intro LLM error : %s — falling back" % result.get("error"))
+		return await _fallback_intro(biome_id, chosen_title)
+	var raw: String = str(result.get("text", result.get("output", ""))).strip_edges()
+	# Validate : minimum 5 sentences (LLM may under-produce). Falls back if shy.
+	var sentence_count: int = raw.count(".") + raw.count("!") + raw.count("?")
+	if sentence_count < 5:
+		push_warning("[ScenarioPlanner] Intro too short (%d sentences) — falling back" % sentence_count)
+		return await _fallback_intro(biome_id, chosen_title)
+	return raw
+
+
+## v7.7.23 — Retrieve 3 reference intros via ScenariosRAG (kNN cosine on
+## title+biome). Returns formatted few-shot block ready for prompt injection.
+func _rag_intros_few_shot(biome_id: String, chosen_title: String) -> String:
+	var rag: Node = _get_scenarios_rag()
+	if rag == null:
+		return ""
+	var query: String = "%s · %s" % [chosen_title, biome_id]
+	var matches: Array = await rag.query_similar(query, 3, "")
+	if matches.is_empty():
+		return ""
+	var block: String = rag.format_intros_as_few_shot(matches, 700)
+	return "\nExemples d'intros canoniques (qualité à atteindre, ne pas copier) :\n" + block
+
+
+## v7.7.23 — Fallback intro when LLM unavailable or output too short.
+## Picks a random reference intro matching the title's archetype keyword.
+func _fallback_intro(_biome_id: String, chosen_title: String) -> String:
+	var rag: Node = _get_scenarios_rag()
+	if rag != null:
+		# Use RAG with the title text — even without Ollama embed, the fallback
+		# match() function does keyword-based archetype lookup.
+		var matches: Array = await rag.query_similar(chosen_title, 1, "")
+		if not matches.is_empty():
+			var first: Dictionary = matches[0]
+			var intro: String = str(first.get("intro", ""))
+			if intro != "":
+				return intro
+	# Last-resort generic intro (covers offline-with-broken-RAG case).
+	return (
+		"Tu es un jeune druide, fraîchement sorti de tes années d'apprentissage. " +
+		"Ton maître t'a confié une marche dans le bois sacré de Brocéliande, seul, " +
+		"sans carte précise — il te suffit d'écouter. " +
+		"Tu portes une cape de lin écru, un couteau d'os à la ceinture, et une " +
+		"intention claire : %s. " +
+		"Tu sais que la forêt jaugera ton premier pas autant que ton dernier. " +
+		"Tu inspires profondément, et tu poses le pied sur la mousse."
+	) % chosen_title
 
 
 func _parse_titles_with_oghams(raw: String, biome_id: String) -> Array:
@@ -321,7 +436,10 @@ func _fallback_titles(biome_id: String) -> Array:
 func generate_skeleton(biome_id: String, chosen_title: String) -> Dictionary:
 	if _merlin_ai == null or not _merlin_ai.has_method("generate_with_system"):
 		return _fallback_skeleton(biome_id, chosen_title)
-	var system_prompt: String = _skeleton_system_prompt(biome_id, chosen_title)
+	# v7.7.23 — RAG few-shot : retrieve 2 reference scenarios with similar
+	# title+biome and inject their beat sequences as structural examples.
+	var few_shot_block: String = await _rag_skeleton_few_shot(biome_id, chosen_title)
+	var system_prompt: String = _skeleton_system_prompt(biome_id, chosen_title, few_shot_block)
 	var user_input: String = "Génère le skeleton du scénario pour le titre choisi."
 	var params: Dictionary = {
 		"grammar": _gbnf_skeleton,
@@ -337,7 +455,21 @@ func generate_skeleton(biome_id: String, chosen_title: String) -> Dictionary:
 	return _parse_skeleton(raw, biome_id, chosen_title)
 
 
-func _skeleton_system_prompt(biome_id: String, chosen_title: String) -> String:
+## v7.7.23 — Retrieve 2 reference scenarios + format their beat sequences as
+## structural few-shot. Returns empty string if RAG unavailable.
+func _rag_skeleton_few_shot(biome_id: String, chosen_title: String) -> String:
+	var rag: Node = _get_scenarios_rag()
+	if rag == null:
+		return ""
+	var query: String = "%s · %s · structure narrative" % [chosen_title, biome_id]
+	var matches: Array = await rag.query_similar(query, 2, "")
+	if matches.is_empty():
+		return ""
+	var block: String = rag.format_skeleton_as_few_shot(matches, 5)
+	return "\nExemples de structures de scénarios canoniques (style à suivre) :\n" + block
+
+
+func _skeleton_system_prompt(biome_id: String, chosen_title: String, references_block: String = "") -> String:
 	# v7.7 Phase 2.7 — chain-of-thought : LLM choisit 5/7/10 actes selon l'ambition.
 	# v7.7.22 — Layer 1 enforcement : distribution targets nudge the LLM toward
 	# balanced rarity / Pole / cardtype before _balance_skeleton validates.
@@ -356,11 +488,12 @@ func _skeleton_system_prompt(biome_id: String, chosen_title: String) -> String:
 		"faction_tilt ∈ {druides, anciens, korrigans, niamh, ankou, neutre}.\n" +
 		"emotion ∈ {curiosite, tension, peur, espoir, sagesse, fascination, colere, melancolie, emerveillement}.\n" +
 		"Summaries : 1 phrase 10-20 mots, narratif celtique évocateur.\n\n" +
+		"%s\n" +
 		"ÉQUILIBRAGE (v7.7.22) — biome '%s' dominant Pole = %s :\n" +
 		"  - Privilégie faction_tilt aligné avec le Pole dominant (~50%% des beats).\n" +
 		"  - Varie les emotions : pas 2 emotions identiques consécutives.\n" +
 		"  - Le dernier beat doit être climactique (faction_tilt fort, emotion=sagesse/peur/emerveillement)."
-	) % [chosen_title, biome_id, biome_id, dominant_pole]
+	) % [chosen_title, biome_id, references_block, biome_id, dominant_pole]
 
 
 ## v7.7 Phase 2.7c — Parse skeleton + clamp beats to [5..10] :

@@ -91,7 +91,10 @@ func _call_gm_brain(biome_id: String, act_type: String, ogham_used: String,
 		beat_context: Dictionary = {}) -> Dictionary:
 	if not _merlin_ai.has_method("generate_with_system"):
 		return {}
-	var system_prompt: String = _gm_system_prompt(biome_id, act_type, ogham_used, beat_context)
+	# v7.7.23 — RAG few-shot : fetch 2 reference cards of the same type as
+	# stylistic examples so the GM brain produces prose in the reference idiom.
+	var ref_cards_block: String = await _rag_cards_few_shot(beat_context, act_type)
+	var system_prompt: String = _gm_system_prompt(biome_id, act_type, ogham_used, beat_context, ref_cards_block)
 	var user_input: String = _gm_user_input(biome_id, act_type, ogham_used)
 	# v1.1 (code-review HIGH fix) : `merlin_ai.generate_with_system` reads
 	# `timeout_ms` (not `timeout_s`) and routes brain via `grammar` presence
@@ -111,7 +114,7 @@ func _call_gm_brain(biome_id: String, act_type: String, ogham_used: String,
 
 
 func _gm_system_prompt(biome_id: String, act_type: String, ogham_used: String,
-		beat_context: Dictionary = {}) -> String:
+		beat_context: Dictionary = {}, ref_cards_block: String = "") -> String:
 	var lines: Array = [
 		"Tu es le Gamemaster de M.E.R.L.I.N.. Tu produis UNE carte au format JSON strict.",
 		"Format imposé par GBNF : {text, speaker:\"merlin\", options:[3]{label, effects:[1-3]}}.",
@@ -128,11 +131,41 @@ func _gm_system_prompt(biome_id: String, act_type: String, ogham_used: String,
 		var summary: String = str(beat_context.get("summary", ""))
 		lines.append("Beat narratif : %s (tilt=%s, emotion=%s)." % [summary, tilt, emotion])
 		lines.append("Les effets DOIVENT tilt vers la faction %s." % tilt)
+	# v7.7.23 — RAG reference cards few-shot (style guidance, do not copy).
+	if ref_cards_block != "":
+		lines.append("Exemples de cartes canoniques du même type (ton à imiter, contenu à varier) :")
+		lines.append(ref_cards_block)
 	var ctx: String = _build_rag_context("gamemaster", biome_id)
 	if ctx != "":
 		lines.append("Contexte des cartes précédentes :")
 		lines.append(ctx)
 	return "\n".join(lines)
+
+
+## v7.7.23 — Retrieve 2 reference cards matching the beat's card_type via
+## ScenariosRAG (kNN cosine on beat summary). Returns formatted few-shot or
+## empty string. Maps act_type → CardType enum string for filtering.
+func _rag_cards_few_shot(beat_context: Dictionary, act_type: String) -> String:
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return ""
+	var rag: Node = tree.root.get_node_or_null("ScenariosRAG")
+	if rag == null:
+		return ""
+	var query: String = str(beat_context.get("summary", "")) if not beat_context.is_empty() else act_type
+	if query.is_empty():
+		return ""
+	var matches: Array = await rag.query_similar(query, 2, "")
+	if matches.is_empty():
+		return ""
+	# Map skeleton act_type (standard/shop/event/boss) → reference CardType.
+	var ct_filter: String = ""
+	match act_type:
+		"shop":     ct_filter = "SHOP"
+		"event":    ct_filter = "EVENT"
+		"boss":     ct_filter = "MERLIN_DIRECT"
+		_:          ct_filter = "NARRATIVE"
+	return rag.format_cards_as_few_shot(matches, ct_filter, 2)
 
 
 func _gm_user_input(biome_id: String, act_type: String, _ogham_used: String) -> String:
