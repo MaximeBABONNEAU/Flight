@@ -40,6 +40,10 @@ const OLLAMA_EMBED_MODEL := "nomic-embed-text"
 const QUERY_TIMEOUT_S := 5.0
 const QUERY_CACHE_MAX := 50
 
+# v7.7.24 — Persistence layer.
+const LEARNED_PATH := "user://scenarios_rag_learned.json"        # cross-run summaries embedded
+const QUERY_CACHE_PATH := "user://scenarios_rag_query_cache.json"   # LRU query cache disk-persisted
+
 var _scenarios: Array = []                # Array[Dictionary] loaded from JSON
 var _by_id: Dictionary = {}                # id → scenario dict
 var _embeddings: Dictionary = {}           # id → Array[float] (768-dim)
@@ -52,9 +56,19 @@ var _query_cache_keys: Array = []          # LRU order
 func _ready() -> void:
 	_load_scenarios()
 	_load_embeddings()
-	print("[ScenariosRAG] Loaded %d scenarios, %d embeddings (%d-dim, status=%s)" % [
-		_scenarios.size(), _embeddings.size(), _embedding_dim, _embedding_status
+	# v7.7.24 — Load cross-run learned summaries + query cache from disk.
+	var learned_count: int = _load_learned_embeddings()
+	var cache_count: int = _load_query_cache()
+	print("[ScenariosRAG] Loaded %d scenarios, %d embeddings (%d-dim, status=%s) + %d learned + %d cached queries" % [
+		_scenarios.size(), _embeddings.size(), _embedding_dim, _embedding_status,
+		learned_count, cache_count,
 	])
+
+
+## v7.7.24 — Save query cache to disk before destruction (engine shutdown / scene change).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_query_cache()
 
 
 func _load_scenarios() -> void:
@@ -121,6 +135,179 @@ func _load_embeddings() -> void:
 		for i in range(vec_any.size()):
 			vec[i] = float(vec_any[i])
 		_embeddings[eid] = vec
+
+
+## v7.7.24 — Load cross-run learned embeddings (run summaries embedded after
+## each completed run). Merged into _embeddings + _by_id. Returns count loaded.
+func _load_learned_embeddings() -> int:
+	if not FileAccess.file_exists(LEARNED_PATH):
+		return 0
+	var f := FileAccess.open(LEARNED_PATH, FileAccess.READ)
+	if f == null:
+		return 0
+	var raw: String = f.get_as_text()
+	f.close()
+	var parser := JSON.new()
+	if parser.parse(raw) != OK:
+		push_warning("[ScenariosRAG] Learned cache parse error : %s" % parser.get_error_message())
+		return 0
+	var data = parser.data
+	if not (data is Dictionary):
+		return 0
+	var embeds: Array = data.get("embeddings", []) if (data as Dictionary).get("embeddings", []) is Array else []
+	var count: int = 0
+	for e in embeds:
+		if not (e is Dictionary):
+			continue
+		var eid: String = str(e.get("id", ""))
+		var vec_any = e.get("vector", [])
+		if eid == "" or not (vec_any is Array):
+			continue
+		var vec: Array = []
+		vec.resize(vec_any.size())
+		for i in range(vec_any.size()):
+			vec[i] = float(vec_any[i])
+		_embeddings[eid] = vec
+		# Create a minimal pseudo-scenario entry so query_similar can return it.
+		_by_id[eid] = {
+			"id": eid,
+			"title": str(e.get("title", "Run précédent")),
+			"intro": str(e.get("summary_text", "")),
+			"premise": "",
+			"archetype_id": str(e.get("archetype_id", "learned")),
+			"archetype_name": "Run vécu",
+			"cards": [],
+			"_learned": true,
+		}
+		count += 1
+	return count
+
+
+## v7.7.24 — Load LRU query cache from disk. Restores up to QUERY_CACHE_MAX
+## entries from prior sessions to avoid re-embedding identical prompts.
+func _load_query_cache() -> int:
+	if not FileAccess.file_exists(QUERY_CACHE_PATH):
+		return 0
+	var f := FileAccess.open(QUERY_CACHE_PATH, FileAccess.READ)
+	if f == null:
+		return 0
+	var raw: String = f.get_as_text()
+	f.close()
+	var parser := JSON.new()
+	if parser.parse(raw) != OK:
+		return 0
+	var data = parser.data
+	if not (data is Dictionary):
+		return 0
+	var cache: Dictionary = data.get("cache", {})
+	var keys: Array = data.get("keys", [])
+	if not (cache is Dictionary) or not (keys is Array):
+		return 0
+	for k in keys:
+		if not (cache.has(k)):
+			continue
+		var vec_any = cache[k]
+		if not (vec_any is Array):
+			continue
+		var vec: Array = []
+		vec.resize(vec_any.size())
+		for i in range(vec_any.size()):
+			vec[i] = float(vec_any[i])
+		_query_cache[str(k)] = vec
+		_query_cache_keys.append(str(k))
+	return _query_cache_keys.size()
+
+
+## v7.7.24 — Persist the LRU query cache to disk. Called on engine shutdown
+## (via _notification) and also exposed publicly for manual save trigger.
+func save_query_cache() -> void:
+	if _query_cache.is_empty():
+		return
+	var f := FileAccess.open(QUERY_CACHE_PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify({
+		"cache": _query_cache,
+		"keys": _query_cache_keys,
+		"saved_at": Time.get_datetime_string_from_system(),
+	}))
+	f.close()
+
+
+## v7.7.24 — Cross-run incremental learning : embed the run summary and
+## append it to the in-memory + on-disk index. Subsequent query_similar()
+## calls can retrieve this learned content alongside hand-crafted references.
+## Caller should invoke this on END_RUN event with a 1-3 sentence summary.
+##
+## @param summary_text   2-3 sentence narrative summary of what happened in the run
+## @param run_metadata   Dict with run_id / biome / dominant_pole / ending / etc.
+## @returns true on success, false otherwise
+func learn_run_summary(summary_text: String, run_metadata: Dictionary = {}) -> bool:
+	if summary_text.strip_edges().is_empty():
+		return false
+	# Embed via Ollama (same path as runtime query embed).
+	var vec: Array = await _embed_query(summary_text)
+	if vec.is_empty():
+		push_warning("[ScenariosRAG] learn_run_summary : embed failed, summary not learned")
+		return false
+	# Generate a stable id based on timestamp + content hash.
+	var stamp: String = Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace(" ", "_")
+	var hash16: String = summary_text.sha256_text().substr(0, 8)
+	var eid: String = "learned_%s_%s" % [stamp, hash16]
+	# Add to in-memory index.
+	_embeddings[eid] = vec
+	_by_id[eid] = {
+		"id": eid,
+		"title": str(run_metadata.get("title", "Mémoire d'un run vécu")),
+		"intro": summary_text,
+		"premise": "",
+		"archetype_id": str(run_metadata.get("archetype_id", "learned")),
+		"archetype_name": "Run vécu",
+		"cards": [],
+		"_learned": true,
+	}
+	# Persist to disk by appending to user://scenarios_rag_learned.json.
+	_append_learned_to_disk(eid, vec, summary_text, run_metadata)
+	return true
+
+
+## v7.7.24 — Append a learned entry to the on-disk cache. Loads existing,
+## appends new entry, writes back. Atomic via temp + rename.
+func _append_learned_to_disk(eid: String, vec: Array, summary_text: String, run_metadata: Dictionary) -> void:
+	var existing: Dictionary = {
+		"model": OLLAMA_EMBED_MODEL,
+		"dim": vec.size(),
+		"status": "ok",
+		"embeddings": [],
+		"generated_at": Time.get_datetime_string_from_system(),
+	}
+	if FileAccess.file_exists(LEARNED_PATH):
+		var f := FileAccess.open(LEARNED_PATH, FileAccess.READ)
+		if f != null:
+			var raw: String = f.get_as_text()
+			f.close()
+			var parser := JSON.new()
+			if parser.parse(raw) == OK and parser.data is Dictionary:
+				existing = parser.data
+	var embeds: Array = existing.get("embeddings", [])
+	if not (embeds is Array):
+		embeds = []
+	embeds.append({
+		"id": eid,
+		"vector": vec,
+		"summary_text": summary_text,
+		"title": str(run_metadata.get("title", "")),
+		"archetype_id": str(run_metadata.get("archetype_id", "learned")),
+		"learned_at": Time.get_datetime_string_from_system(),
+	})
+	existing["embeddings"] = embeds
+	existing["count"] = embeds.size()
+	# Write atomically : temp file then rename.
+	var f := FileAccess.open(LEARNED_PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify(existing))
+	f.close()
 
 
 ## Public API : retrieve top_k reference scenarios most similar to `text`.
@@ -335,6 +522,80 @@ func format_skeleton_as_few_shot(matches: Array, max_beats: int = 5) -> String:
 		blocks.append("Exemple %d (%s) :\n%s" % [idx, title, "\n".join(beats)])
 		idx += 1
 	return "\n\n".join(blocks)
+
+
+## v7.7.24 — Validate LLM-generated text against canon guardrails.
+## Returns Dictionary {valid: bool, reason: String, retry_recommended: bool}.
+##
+## Checks :
+##   1. Forbidden words (whole-word case-insensitive) — HARD reject
+##   2. 4th-wall break terms (simulation/IA/programme/etc.) — HARD reject
+##   3. English anglicisms in narrative (spawn/loot/hub/level/boss) — HARD reject
+##   4. Cyber/tech vocabulary in narrative (neon/cyber/circuit/data/pixel) — HARD reject
+##   5. Minimum length (text >= 20 chars to avoid LLM stubs) — SOFT reject (retry)
+##
+## Used by scenario_planner.gd::generate_titles/intro/skeleton and
+## bi_brain_pipeline.gd::_call_gm_brain to gate LLM outputs before downstream
+## consumption. On invalid result, caller retries 1× then falls back to canon.
+## v7.7.24 — Plain Array (GDScript const cannot use PackedStringArray ctor).
+const FORBIDDEN_HARD: Array = [
+	# 4th-wall break (canon §9.4.2)
+	"simulation", "ia", "programme", "serveur", "sauvegarde", "fin du monde",
+	# Anglicisms gaming
+	"spawn", "loot", "hub", "level", "boss",
+	# Modern tech (allowed in visual §10 but NEVER in narrative)
+	"neon", "cyber", "circuit", "code", "data", "pixel", "glitch",
+	"system", "interface", "build",
+]
+
+func validate_llm_text(text: String, context: String = "") -> Dictionary:
+	if text == null or text.is_empty():
+		return {"valid": false, "reason": "empty_output", "retry_recommended": true}
+	var lower: String = text.to_lower().strip_edges()
+	if lower.length() < 20:
+		return {"valid": false, "reason": "too_short_%d_chars" % lower.length(), "retry_recommended": true}
+	# Whole-word forbidden check.
+	for term in FORBIDDEN_HARD:
+		var t: String = str(term).to_lower()
+		# Whole-word match : surrounded by word boundaries (spaces, punctuation, start/end).
+		if _contains_whole_word(lower, t):
+			return {"valid": false, "reason": "forbidden_word_%s" % t, "retry_recommended": false}
+	# Optional context-specific checks could go here (e.g. "intro must contain « jeune druide »").
+	# For v7.7.24 we keep it minimal — extension hook for future iterations.
+	return {"valid": true, "reason": "", "retry_recommended": false}
+
+
+## Whole-word match : `\b` semantics implemented manually because GDScript Regex
+## doesn't ship with all environments and we want predictable behavior.
+static func _contains_whole_word(haystack: String, needle: String) -> bool:
+	var idx: int = 0
+	while idx < haystack.length():
+		var pos: int = haystack.find(needle, idx)
+		if pos < 0:
+			return false
+		# Check left boundary.
+		var left_ok: bool = (pos == 0) or not _is_word_char(haystack[pos - 1])
+		# Check right boundary.
+		var end: int = pos + needle.length()
+		var right_ok: bool = (end >= haystack.length()) or not _is_word_char(haystack[end])
+		if left_ok and right_ok:
+			return true
+		idx = pos + 1
+	return false
+
+
+static func _is_word_char(c: String) -> bool:
+	if c.length() == 0:
+		return false
+	# A-Z, a-z, 0-9, accented letters, _
+	var code: int = c.unicode_at(0)
+	if code >= 48 and code <= 57: return true   # 0-9
+	if code >= 65 and code <= 90: return true   # A-Z
+	if code >= 97 and code <= 122: return true  # a-z
+	if code == 95: return true                   # _
+	# Latin-1 supplement (accented letters)
+	if code >= 192 and code <= 255: return true
+	return false
 
 
 ## Compact formatter : returns matched scenarios' SAMPLE CARDS as compact

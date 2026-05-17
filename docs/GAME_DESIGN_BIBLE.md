@@ -532,87 +532,207 @@ Le Grimoire remplace l'arbre de talents. C'est un **livre interactif** que le jo
 
 ---
 
-## 9. Architecture LLM
+## 9. Architecture LLM — Cerveau de M.E.R.L.I.N. (v7.7.24 cartography)
 
-### 9.1 Multi-Brain (Qwen 3.5 via Ollama)
+Le cerveau de MERLIN est une pile à 4 LLM coordonnée par un orchestrateur central (`MerlinOmniscient`) avec deux index RAG (`RAGManager` pour l'état de jeu + `ScenariosRAG` pour les 100 références hand-crafted), un système de garde-fous multi-tier, et une persistance cross-run.
 
-| Cerveau | Modele | RAM | Role | T |
-|---------|--------|:---:|------|:-:|
-| **Narrator** | Qwen 3.5 4B | ~3.2 GB | Texte + commentaires Merlin + interpretations Oracle | 0.70 |
-| **Game Master** | Qwen 3.5 2B | ~1.8 GB | Effets JSON, interferences, jugements | 0.15 |
+**Principe directeur (v7.7.24)** : *jamais d'output LLM sans contexte injecté, jamais d'output non-vérifié par les guardrails, jamais de degradation silencieuse — si le cerveau n'est pas opérationnel, la scène bloque avec un message clair au joueur*.
 
-Le Judge 0.8B de v2.4 est integre dans le GM (simplification).
+### 9.0 Vue d'ensemble — pipeline complet
 
-### 9.2 6 Points d'integration LLM
+```mermaid
+flowchart TD
+    Player[Joueur arrive sur ScenarioLoading] --> Check{MerlinBrain.is_ready?}
+    Check -->|NON| Block[Bloque la scène : « Merlin médite, reviens plus tard »]
+    Check -->|OUI| L1
+    L1[LLM 1 — Titres x3] -->|RAG| SR1[ScenariosRAG.query_similar top_k=5]
+    L1 --> Pick[3 DigitalPickerCard]
+    Pick --> Choice[Joueur choisit un titre]
+    Choice --> L2[LLM 2 — Intro 6-8 phrases]
+    L2 -->|RAG| SR2[ScenariosRAG.query_similar top_k=3]
+    L2 --> Guard1[MerlinOmniscient.apply_guardrails]
+    Guard1 -->|REJECT| Retry1[1 retry max]
+    Retry1 -->|REJECT| Block
+    Guard1 -->|OK| Parchment[ParchmentScroll : unroll + typewriter]
+    Parchment --> L3[LLM 3 — Skeleton 5-10 beats]
+    L3 -->|RAG| SR3[ScenariosRAG.query_similar top_k=2]
+    L3 --> Balance[_balance_skeleton v7.7.22a]
+    Balance --> Guard2[MerlinOmniscient.apply_guardrails]
+    Guard2 -->|OK| Board[BoardNarration]
+    Board --> L4Loop[Pour chaque beat : LLM 4 carte]
+    L4Loop -->|RAG| SR4[ScenariosRAG cards filtered by CardType]
+    L4Loop -->|RAG| RM[RAGManager game-state context]
+    L4Loop --> Guard3[Omniscient guardrails post-LLM]
+    Guard3 --> CardPlay[Carte jouée]
+    CardPlay --> RegSync[5 registries sync_mos_to_rag]
+    RegSync --> L4Loop
+    Board -->|Fin run| RunSum[Run summary]
+    RunSum --> EmbAdd[Embed summary + append to ScenariosRAG vector index]
+    EmbAdd --> Save[Save 5 registries + RAG cache disque]
+```
 
-| Point | Quand | Cerveau | Latence cible |
-|-------|-------|---------|:---:|
-| 1. **Carte narrative** | Generation de chaque carte | Narrator | Prefetch |
-| 2. **Commentaire Merlin** | Apres chaque action du joueur | Narrator | <2s |
-| 3. **Oracle Reading** | Pendant le challenge Oracle | Narrator | <3s |
-| 4. **Merlin Judges** | Quand Merlin decide le score | GM | <1s |
-| 5. **Interference** | Merlin decide de manipuler | GM | <1s |
-| 6. **Debriefe** | Fin de run, dans le Hub | Narrator | <4s |
+### 9.1 Les 4 LLM du pipeline (v7.7.23+)
 
-### 9.3 Prefetch total
+| LLM | Quand | Modèle | RAG injecté | Guardrails | Latence cible |
+|---|---|---|---|---|:---:|
+| **1. Titres** | Au démarrage de ScenarioLoading | Narrator (Qwen 3.5 4B) | 5 titres de référence (ScenariosRAG kNN cosine) | Forbidden words + longueur ≤ 60 char | <8s |
+| **2. Intro** | Après pick du titre | Narrator | 3 intros de référence (ScenariosRAG) + 5 registries | Forbidden words + ≥ 5 phrases + Jaccard < 0.5 vs references | <10s |
+| **3. Skeleton** | Pendant parchemin | Game Master (Qwen 3.5 2B) | 2 beat-sequences de référence + biome bias | GBNF + `_balance_skeleton` + Jaccard | <15s |
+| **4. Cartes (per-beat)** | À chaque beat in run | GM + Narrator (pipeline bi-brain) | 2 cartes de référence filtrées par CardType + RAGManager context | GBNF + forbidden words + 4e mur check | <2s prefetch |
 
-Le joueur ne doit **jamais attendre** le LLM.
+### 9.2 Multi-Brain hardware (modèles + RAM)
+
+| Cerveau | Modèle | RAM | Rôle | Temperature |
+|---|---|:---:|---|:---:|
+| **Narrator** | Qwen 3.5 4B + LoRA `merlin-narrator` | ~3.2 GB | Prose riche, voix de Merlin, intros, titres | 0.70 |
+| **Game Master** | Qwen 3.5 2B | ~1.8 GB | JSON skeleton, JSON cartes, effets, jugements | 0.15 |
+| **Embedder** | nomic-embed-text | 137 MB | 768-dim vectors pour ScenariosRAG kNN | — |
+
+Profils hardware : NANO (4 GB, 1 brain time-sharing) / SINGLE (6 GB, 4B narrator + 2B GM tour à tour) / DUAL (8+ GB, simultané) / QUAD (16+ GB).
+
+### 9.3 RAG — DEUX indices coordonnés
+
+#### 9.3.1 `RAGManager` — état de jeu (game-state RAG)
+Source : `addons/merlin_ai/rag_manager.gd`. Indexe l'état runtime du joueur :
+- 5 registries persistantes (PlayerProfile / DecisionHistory / Relationship / Narrative / Session)
+- Game journal max 100 entries (card_played / choice_made / effect_applied / ogham_used / run_event)
+- Cross-run memory max 20 summaries (runs précédents)
+- 12 sections priorisées : crise, scene contract, narrative récente, arcs actifs, biome, ton, profil, promesses, interférences, karma, tension, recent_played
+- Budget par cerveau : Narrator 800 tokens / GM 400 / Judge 200
+
+#### 9.3.2 `ScenariosRAG` — contenu de référence (reference RAG, v7.7.23)
+Source : `addons/merlin_ai/scenarios_rag.gd` (autoload `/root/ScenariosRAG`).
+- 100 scénarios Brocéliande hand-crafted (`data/ai/scenarios_reference_broceliande.json`, 3.46 MB)
+- 100 vectors 768-dim pré-calculés via Ollama `nomic-embed-text` (`data/ai/scenarios_reference_broceliande.embeddings.json`, 1.6 MB)
+- API : `query_similar(text, top_k, biome_filter)` retourne top-K matches par cosine kNN
+- LRU cache 50 query embeddings (évite re-embedding du même prompt)
+- Fallback gracieux : si Ollama embed down → keyword-archetype matching
+- 4 formatters : `format_titles_as_few_shot` / `format_intros_as_few_shot` / `format_skeleton_as_few_shot` / `format_cards_as_few_shot`
+
+#### 9.3.3 Coordination des deux RAGs
+Les deux RAGs sont **complémentaires** et **toujours appelés en même temps** :
+- `ScenariosRAG` fournit le **style** et la **qualité d'écriture** (few-shot examples)
+- `RAGManager` fournit le **contexte joueur** et la **continuité narrative**
+- Chaque LLM call combine les deux dans son system prompt
+
+### 9.4 Garde-fous — orchestration centralisée par MerlinOmniscient (v7.7.24)
+
+Source : `addons/merlin_ai/merlin_omniscient.gd` `apply_guardrails(text)` lines 1524-1610.
+
+#### 9.4.1 Niveaux de garde-fous
+
+| Tier | Quand | Comportement |
+|---|---|---|
+| **HARD** | Forbidden words (cf §9.4.2), 4e mur (« simulation », « IA », « programme »), longueur min/max | REJECT + 1 retry max → si retry fail : BLOCK la scène |
+| **SOFT** | Jaccard similarity vs derniers outputs > 0.5 (répétition) | WARN + retry → 2ème retry accepté même si répétitif |
+| **SUGGEST** | Faction tilt drift (faction emergente ≠ attendue) | LOG dans le journal RAG, output accepté |
+
+#### 9.4.2 Liste des forbidden words (canon)
+Source : `data/ai/config/merlin_persona.json` + `docs/50_lore/NARRATIVE_GUARDRAILS.md`.
+
+Termes bannis (whole-word case-insensitive matching) :
+- *fin du monde*, *simulation*, *IA*, *programme*, *serveur*, *sauvegarde* (rupture 4e mur)
+- *spawn*, *loot*, *hub*, *level*, *boss* (anglicismes jeu vidéo)
+- *neon*, *cyber*, *circuit*, *code*, *data*, *pixel*, *glitch* (cyber dans la prose narrative — autorisés dans le visuel §10)
+- *system*, *interface*, *build* (jargon moderne)
+- Toute mention d'une marque commerciale moderne
+
+#### 9.4.3 Indirection autorisée (canon lore)
+- *le dehors est silencieux* (au lieu de « pas de réseau »)
+- *la lande se souvient* (au lieu de « la save persiste »)
+- *Merlin observe une étrange régularité* (au lieu de « bug détecté »)
+
+### 9.5 Persistance — toutes les couches (v7.7.24)
+
+#### 9.5.1 5 registries persistantes (game-state)
+Source : `scripts/merlin/merlin_save_system.gd` + `merlin_omniscient.gd::save_all()`.
+- PlayerProfile, DecisionHistory, Relationship, Narrative, Session
+- Auto-save à chaque major action (card_played, run_completed)
+- Format : JSON dans `user://merlin_save.json` (profil unique)
+
+#### 9.5.2 Cross-run memory (RAG)
+- Max 20 résumés de runs passés
+- Chaque résumé inclut : run_id, ending, dominant_faction, player_style, key_decisions
+- Injectés dans `RAGManager.get_prioritized_context` pour TOUS les LLM calls subséquents
+
+#### 9.5.3 ScenariosRAG incremental learning (v7.7.24 NEW)
+À la fin de chaque run, le résumé du run est :
+1. Embedé via Ollama nomic-embed-text → vector 768-dim
+2. Ajouté à l'index `_embeddings` en mémoire
+3. Sauvegardé sur disque (`user://scenarios_rag_learned.json`) pour persistance cross-session
+4. Re-loadé au `_ready` suivant et fusionné avec l'index hand-crafted de base
+
+Effet : le LLM du jeu apprend progressivement le style propre du joueur à travers ses runs.
+
+#### 9.5.4 LRU query cache disque (v7.7.24 NEW)
+ScenariosRAG.query_cache (50 entries en mémoire) est sérialisé à `user://scenarios_rag_query_cache.json` au save → restauré au boot → évite re-embedding entre sessions pour les requêtes courantes.
+
+### 9.6 Stricte disponibilité — pas de fallback silencieux (v7.7.24)
+
+Décision utilisateur lock : *« si LLM down, on bloque ».*
+
+Pre-scene check :
+```gdscript
+if not MerlinAI.is_brain_ready():
+    _show_brain_offline_message("Merlin médite. Reviens dans quelques instants.")
+    return _back_to_hub()
+```
+
+Cette stricte exigence remplace les anciens fallbacks gracieux (`_fallback_titles` etc. restent disponibles mais ne sont déclenchés QUE par les guardrails post-LLM, jamais par défaut en l'absence d'Ollama).
+
+### 9.7 Contrat Narrator (v7.7 — préservé)
+- `text` : 1-4 phrases en français celtique
+- `speaker` : "Merlin" ou NPC nommé
+- `options` : **toujours 3 options**, verbe d'action infinitif
+- `merlin_comment` : commentaire de Merlin sur la situation, italique
+- Voix Merlin : *italique légère, ton druidique, présent, questions plutôt que réponses*
+
+### 9.8 Contrat GM (v7.7 — préservé + v7.7.22a balance)
+- JSON d'effets par option (whitelist : DAMAGE_LIFE / HEAL_LIFE / ADD_REPUTATION / ADD_ANAM)
+- Caps : ±20 par faction/carte
+- Field `interference` (type + justification)
+- v7.7.22a : `rarity` / `pole` / `card_type` fields per beat, balanced via `_balance_skeleton`
+
+### 9.9 Prefetch total — Le joueur ne doit JAMAIS attendre
 
 ```
 Pendant que le joueur joue la carte N :
-  -> Narrator genere la carte N+1 en arriere-plan
-  -> GM pre-calcule les effets + interferences
-  -> Commentaire Merlin genere pendant l'animation de resolution
+  -> Narrator génère la carte N+1 en arrière-plan
+  -> GM pré-calcule les effets + interférences
+  -> Commentaire Merlin pendant l'animation de résolution
 ```
 
-### 9.4 Profils hardware
+Couplé au cache LRU ScenariosRAG : ~80% des prompts identiques entre runs courts atteignent le cache → 0ms d'embed sur ces requêtes.
 
-| Profil | RAM | Cerveaux |
-|--------|:---:|----------|
-| NANO | 4 GB | 1 (2B tout, time-sharing) |
-| SINGLE | 6 GB | 1 (4B Narrator, fallback GM) |
-| DUAL | 8+ GB | 2 (4B + 2B simultane) |
+### 9.10 6 Points d'intégration LLM (mapping fonctionnel)
 
-**Cible flagship mobile** : DUAL (8GB+).
+| Point | Quand | LLM | Cerveau | Latence |
+|---|---|:---:|---|:---:|
+| 1. Titres scénarios | ScenarioLoading boot | LLM 1 | Narrator | <8s |
+| 2. Intro lore | Post title-pick | LLM 2 | Narrator | <10s |
+| 3. Skeleton scénario | Pendant parchemin | LLM 3 | GM | <15s |
+| 4. Cartes per-beat | Pendant le run | LLM 4 | GM + Narrator | prefetch |
+| 5. Commentaire Merlin | Après action joueur | LLM 4 follow-up | Narrator | <2s |
+| 6. Debrief fin de run | Hub post-run | LLM 4 variant | Narrator | <4s |
 
-### 9.5 Contrat Narrator
+### 9.11 Reference files — où trouver quoi
 
-- `text` : 1-4 phrases en francais
-- `speaker` : "Merlin" ou NPC
-- `options` : **toujours 3 options**, verbe d'action
-- `merlin_comment` : commentaire de Merlin sur la situation
-
-**Contraintes** :
-- Francais uniquement
-- Merlin PEUT faire des meta-references ("Je calcule...", "Mes algorithmes suggerent...")
-- Vocabulaire cyber-druidique encourage (circuit-rune, flux de mana, compilation ancestrale)
-
-### 9.6 Contrat GM
-
-JSON d'effets par option (whitelist, caps, guardrails identiques v2.4).
-PLUS : champ `interference` (type + justification).
-
-### 9.7 FastRoute (fallback)
-
-Pool de **500+ cartes pre-generees** par LLM cloud. Variantes par tier de confiance.
-Objectif : fallback < 5%.
-
-### 9.8 RAG — contexte injecte
-
-Budget par cerveau :
-- Narrator : 800 tokens (contexte 8192)
-- GM : 400 tokens (contexte 4096)
-
-Priorite des sections de contexte :
-1. Detection de crise (CRITIQUE)
-2. Contrat de scene
-3. Narration recente
-4. Arcs actifs
-5. Biome + ambiance
-6. Ton / Confiance Merlin
-7. Profil joueur
-8. Promesses actives
-9. Interferences actives (NOUVEAU)
+| Composant | Fichier | Rôle |
+|---|---|---|
+| Façade LLM HTTP | `addons/merlin_ai/merlin_ai.gd` | `generate_with_system`, `is_brain_ready()` (v7.7.24) |
+| Orchestrateur central + guardrails | `addons/merlin_ai/merlin_omniscient.gd` | `apply_guardrails`, sync registries, route stratégies |
+| Game-state RAG | `addons/merlin_ai/rag_manager.gd` | 12 sections priorisées, budgets per-brain |
+| Reference RAG (v7.7.23) | `addons/merlin_ai/scenarios_rag.gd` | kNN cosine sur 100 références |
+| Pipeline scénario | `addons/merlin_ai/scenario_planner.gd` | titles / intro / skeleton + `_balance_skeleton` |
+| Pipeline cartes | `addons/merlin_ai/bi_brain_pipeline.gd` | GM brain + Narrator brain wrap |
+| Persona config | `data/ai/config/merlin_persona.json` | forbidden words, persona few-shots |
+| Reference data | `data/ai/scenarios_reference_broceliande.json` | 100 scénarios canon |
+| Reference embeddings | `data/ai/scenarios_reference_broceliande.embeddings.json` | 768-dim vectors |
+| Cross-run RAG learned | `user://scenarios_rag_learned.json` (v7.7.24) | run summaries embedded |
+| Save state | `user://merlin_save.json` | 5 registries persistantes |
+| GBNF grammars | `data/ai/*.gbnf` | scenario_skeleton, merlin_card, gamemaster_choices, gamemaster_effects |
+| Narrative guardrails canon | `docs/50_lore/NARRATIVE_GUARDRAILS.md` | indirections autorisées, voix de Merlin |
+| LLM architecture détaillé | `docs/LLM_ARCHITECTURE.md` | v3.0 → v7.7.24 versionned |
 
 ---
 

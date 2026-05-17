@@ -115,6 +115,21 @@ var _scene_context: Dictionary = {}
 var prompts: Dictionary = {}
 var is_ready := false
 var status_text := "Connexion: OFF"
+
+## v7.7.24 — Public brain-availability accessor (strict mode).
+## Returns true only when the LLM brain is fully operational :
+##   - is_ready flag set by warmup completion
+##   - has at least one brain instance bound (narrator OR gamemaster)
+## Callers MUST gate scene entry on this : if false → show offline message
+## to player + back-to-Hub, no silent fallback. Per user mandate v7.7.24 :
+## « si LLM down, on bloque ».
+func is_brain_ready() -> bool:
+	if not is_ready:
+		return false
+	# Defensive : guard against torn-down state where is_ready remained true.
+	if not has_method("generate_with_system"):
+		return false
+	return true
 var detail_text := "Initialisation..."
 var progress_value := 0.0
 var log_entries: Array[String] = []

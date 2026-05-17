@@ -157,6 +157,18 @@ func _setup_ui() -> void:
 # ═════════ Foundation flow (Phase 2.1.1+2.1.2+2.1.8+2.1.9) ═══════════════════
 
 func _run_flow() -> void:
+	# v7.7.24 STRICT MODE — Pre-flight check : the LLM brain MUST be available.
+	# Per user mandate « si LLM down, on bloque » : no silent fallback. If the
+	# brain is unreachable, show an offline parchment + back to Hub (clean UX
+	# rather than degraded LLM-less content).
+	if _merlin_ai == null or not _merlin_ai.has_method("is_brain_ready") or not _merlin_ai.is_brain_ready():
+		# Allow capture/smoke tests to bypass via env var (CI doesn't have Ollama).
+		var capture_mode: bool = OS.get_environment("MERLIN_CAPTURE_DIR") != "" \
+			or OS.get_environment("MERLIN_AUTOPLAY") == "1"
+		if not capture_mode:
+			_show_brain_offline_and_return()
+			return
+		# Capture/smoke : fall through to legacy fallback path.
 	# v7.7.17 — Spawn Merlin BEFORE the LLM call so the player sees him
 	# "thinking" / "writing" during the wait (user request : « M.E.R.L.I.N qui
 	# doit apparaitre à ce moment (la bouche qui parle etc) »).
@@ -267,6 +279,41 @@ func _return_to_board() -> void:
 
 
 # ═════════ v7.7.1 C4 — back button + fallback skeleton helpers ═══════════════
+
+## v7.7.24 STRICT MODE — Show a parchment with offline message + back to Hub.
+## Triggered when MerlinAI.is_brain_ready() returns false. Hides the LLM-dependent
+## flow entirely rather than degrading silently.
+func _show_brain_offline_and_return() -> void:
+	push_warning("[ScenarioLoading] v7.7.24 strict mode : LLM brain not ready — blocking scene")
+	_info_label.text = "Merlin médite…"
+	# Parchment with offline message.
+	const PARCHMENT_SCRIPT := preload("res://scripts/ui/parchment_scroll.gd")
+	var parchment: PanelContainer = PARCHMENT_SCRIPT.new()
+	parchment.anchor_left = 0.5
+	parchment.anchor_right = 0.5
+	parchment.anchor_top = 0.5
+	parchment.anchor_bottom = 0.5
+	parchment.offset_left = -340
+	parchment.offset_right = 340
+	parchment.offset_top = -200
+	parchment.offset_bottom = 200
+	_ui_layer.add_child(parchment)
+	var offline_msg: String = (
+		"Merlin médite dans son cabinet de pierres. " +
+		"Sa voix est absente du vent ce matin, et les Oghams ne s'allument pas. " +
+		"Retourne au foyer du clan, jeune druide, et attends que la forêt te rappelle. " +
+		"Quand Merlin sera prêt à te guider, tu sauras. " +
+		"Pour l'instant, le bois reste un mystère qu'il vaut mieux ne pas brusquer."
+	)
+	parchment.call("display", offline_msg)
+	await parchment.closed
+	# Route back to Hub via PixelTransition (v7.7.19 pattern).
+	var pt: Node = get_node_or_null("/root/PixelTransition")
+	if pt != null and pt.has_method("transition_to"):
+		pt.call("transition_to", "res://scenes/MerlinCabinHub.tscn")
+	else:
+		get_tree().change_scene_to_file("res://scenes/MerlinCabinHub.tscn")
+
 
 func _on_back_to_hub_pressed() -> void:
 	# Set abort flag to break the pick wait loop, then route to Hub. The flag

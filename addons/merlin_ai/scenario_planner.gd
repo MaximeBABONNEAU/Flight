@@ -343,6 +343,14 @@ func generate_intro(biome_id: String, chosen_title: String) -> String:
 	if sentence_count < 5:
 		push_warning("[ScenarioPlanner] Intro too short (%d sentences) — falling back" % sentence_count)
 		return await _fallback_intro(biome_id, chosen_title)
+	# v7.7.24 — Guardrails : check forbidden words + 4e mur + anglicisms via
+	# ScenariosRAG.validate_llm_text. If rejected, fall back to canon reference.
+	var rag: Node = _get_scenarios_rag()
+	if rag != null and rag.has_method("validate_llm_text"):
+		var validation: Dictionary = rag.validate_llm_text(raw, "intro")
+		if not bool(validation.get("valid", true)):
+			push_warning("[ScenarioPlanner] Intro guardrail reject : %s — falling back to canon" % str(validation.get("reason", "?")))
+			return await _fallback_intro(biome_id, chosen_title)
 	return raw
 
 

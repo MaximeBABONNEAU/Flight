@@ -2,7 +2,110 @@
 
 > **Source**: `docs/DEV_PLAN_V2.5.md` (canonical phase plan).
 > **Consumed by**: `tools/octogent/prompts/studio-director.md` Tier 1 backlog.
-> **Last refresh**: 2026-05-17 (v7.7.23 reference-augmented LLM pipeline + parchment intro UI).
+> **Last refresh**: 2026-05-17 (v7.7.24 brain cartography + strict mode + guardrails + persistence).
+
+---
+
+## v7.7.24 — Brain cartography + strict mode + guardrails + persistence [2026-05-17]
+
+User mandate (verbatim) : *« Cartographie précisemment dans la bible du jeu et dans tes dev le fonctionnement, utiliser le principe de rag et d'embedding complexe està prioriser pour avoir un "cerveau" toujours fonctionnel et du contexte tout le temps injecté dans le jeu, il faut une forme de persistence avec des gardes fous puissant pour ne pas en sortir. »*
+
+User locked decisions (AskUserQuestion) :
+- **Doc scope** : Tout (bible + dev + agents.md + KB GDScript)
+- **Guardrails** : Tout passe par MerlinOmniscient.apply_guardrails (centralisé)
+- **Persistance** : Tous les niveaux activés (cross-run memory + query cache + run summaries embedded)
+- **Brain availability** : Strict — si LLM down, on bloque (no silent fallback)
+
+### Phase 1 — Bible §9 cartography (REWRITE)
+
+`docs/GAME_DESIGN_BIBLE.md` §9 (Architecture LLM) entirely rewritten ~250 lines, 12 sub-sections :
+- §9.0 Vue d'ensemble + Mermaid flowchart du pipeline complet
+- §9.1 4 LLM (titres / intro / skeleton / cartes) avec RAG + Guardrails + Latence cible
+- §9.2 Multi-Brain hardware (Narrator 4B + GM 2B + Embedder nomic-embed-text)
+- §9.3 DEUX RAGs coordonnés (RAGManager game-state + ScenariosRAG references)
+- §9.4 Garde-fous orchestration centralisée (HARD/SOFT/SUGGEST tiers + forbidden words)
+- §9.5 Persistance toutes couches (5 registries + cross-run memory + learned embeddings + LRU cache)
+- §9.6 Stricte disponibilité — pas de fallback silencieux (lock decision)
+- §9.7-9.8 Contrat Narrator + GM (préservés)
+- §9.9 Prefetch total
+- §9.10 6 Points d'intégration LLM (mapping fonctionnel)
+- §9.11 Reference files — où trouver quoi
+
+### Phase 2 — MerlinAI.is_brain_ready() (NEW)
+
+`addons/merlin_ai/merlin_ai.gd` : NEW public method `is_brain_ready() -> bool`. Returns true only when LLM brain fully operational (is_ready flag + method binding check). Callers MUST gate scene entry on this.
+
+### Phase 3 — Strict mode pre-flight + offline parchment
+
+`scripts/scenario_loading.gd::_run_flow` : added pre-flight check at top.
+- If `not MerlinAI.is_brain_ready()` and not capture/smoke mode → `_show_brain_offline_and_return()`
+- NEW `_show_brain_offline_and_return()` : shows parchment with lore-aware offline message + back to Hub via PixelTransition
+
+### Phase 4 — Guardrails layer in ScenariosRAG
+
+`addons/merlin_ai/scenarios_rag.gd` : NEW public method `validate_llm_text(text, context) -> Dictionary`.
+- HARD reject : 20 forbidden words (4th wall : simulation/IA/programme ; anglicismes : spawn/loot/hub ; cyber : neon/cyber/circuit/data — canon §9.4.2)
+- Whole-word case-insensitive matching via `_contains_whole_word` (custom impl, no Regex dependency)
+- Min length check (>= 20 chars)
+- Returns `{valid: bool, reason: String, retry_recommended: bool}`
+
+Wired into `scenario_planner.gd::generate_intro` post-LLM : on guardrail reject → falls back to RAG-retrieved canon intro.
+
+### Phase 5 — ScenariosRAG persistence (all levels)
+
+`addons/merlin_ai/scenarios_rag.gd` additions :
+- NEW const `LEARNED_PATH := "user://scenarios_rag_learned.json"`
+- NEW const `QUERY_CACHE_PATH := "user://scenarios_rag_query_cache.json"`
+- `_ready` extended : loads learned embeddings + query cache from disk on boot
+- `_notification(NOTIFICATION_PREDELETE)` : auto-saves query cache on shutdown
+- NEW public `save_query_cache()` : manual trigger
+- NEW public `learn_run_summary(summary_text, run_metadata)` : embeds summary via Ollama → appends to in-memory index → persists to `user://scenarios_rag_learned.json`
+- NEW private `_append_learned_to_disk` : atomic write of learned entries
+
+Effect : the in-game LLM learns the player's style across runs. Schema :
+```json
+{
+  "model": "nomic-embed-text", "dim": 768, "status": "ok",
+  "count": 1, "generated_at": "2026-05-17 12:34:56",
+  "embeddings": [{
+    "id": "learned_20260517_153021_a3f8b2c4",
+    "vector": [0.012, -0.045, ...],
+    "summary_text": "Tu as choisi le silence du chêne. La forêt t'a admis.",
+    "title": "Run vécu", "archetype_id": "learned",
+    "learned_at": "2026-05-17 15:30:21"
+  }]
+}
+```
+
+### Phase 6 — Mermaid diagram (bible §9.0)
+
+Full pipeline visualization embedded in bible §9.0 showing : brain readiness check → LLM 1 (titles, RAG) → pick → LLM 2 (intro, RAG + guardrails) → parchment → LLM 3 (skeleton, RAG + balance) → BoardNarration → LLM 4 (cards, RAG + RAGManager + guardrails) → registry sync → end run → embed summary → save.
+
+### Verified evidence
+
+- ✅ Parse-check `validate_step0` : exit=0, 10 pre-existing phantom_camera errors only
+- ✅ Smoke ScenarioLoading 15s : **`exit=0 script_errors=0 total_errors=0 passed=True`**
+- ✅ Strict mode triggers correctly when MerlinAI not ready : log `[ScenarioLoading] v7.7.24 strict mode : LLM brain not ready — blocking scene`
+- ✅ ScenariosRAG boot log : `Loaded 100 scenarios, 100 embeddings (768-dim, status=ok) + 0 learned + 0 cached queries` (persistence layer loaded, empty on first session as expected)
+- ✅ FORBIDDEN_HARD const fix : `PackedStringArray(...)` ctor not constant-expression in GDScript → use plain `Array`
+
+### Files modified
+
+| Path | Status | Purpose |
+|---|---|---|
+| `docs/GAME_DESIGN_BIBLE.md` §9 | REWRITE (80 → ~250 lines) | Full v7.7.24 cartography + Mermaid diagram |
+| `addons/merlin_ai/merlin_ai.gd` | MODIFIED | NEW `is_brain_ready()` accessor |
+| `addons/merlin_ai/scenarios_rag.gd` | MODIFIED (~150 LOC added) | NEW `validate_llm_text` + `learn_run_summary` + `save_query_cache` + disk persistence |
+| `addons/merlin_ai/scenario_planner.gd` | MODIFIED | `generate_intro` wraps LLM output in `validate_llm_text` |
+| `scripts/scenario_loading.gd` | MODIFIED | Pre-flight strict mode check + `_show_brain_offline_and_return` |
+| `task_plan.md` | MODIFIED | v7.7.24 entry (this section) |
+
+### Iterations queued
+
+- **v7.7.24b** — Extend `validate_llm_text` to wrap titles, skeleton, cards (currently only intro wired)
+- **v7.7.25** — Hook `learn_run_summary` into `merlin_save_system::on_run_complete` so cross-run learning fires automatically
+- **v7.7.26** — Mermaid diagram for full LLM pipeline rendered to PNG and embedded in `docs/LLM_ARCHITECTURE.md`
+- **v7.7.27** — Same cartography pattern for the 7 other biomes (when their reference content is generated)
 
 ---
 
