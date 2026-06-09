@@ -3,7 +3,7 @@
   "destination": "RUN",
   "depart": "2027-01-15",
   "return_date": "2027-02-05",
-  "price": 745.0,
+  "price": 729.0,
   "currency": "EUR",
   "carriers": [
     "Corsair"
