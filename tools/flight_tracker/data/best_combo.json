@@ -1,12 +1,12 @@
 {
-  "origin": "CDG",
+  "origin": "ORY",
   "destination": "RUN",
-  "depart": "2027-01-13",
-  "return_date": "2027-02-03",
-  "price": 749.18,
+  "depart": "2027-01-15",
+  "return_date": "2027-02-05",
+  "price": 729.0,
   "currency": "EUR",
   "carriers": [
-    "AF"
+    "Corsair"
   ],
   "stops_out": 0,
   "stops_in": 0,
